@@ -7,7 +7,7 @@ const dataSource = {
   mode: 'mock-notion-adapter',
   name: 'Life OS Notion Adapter v0.2',
   endpoint: '/api/life-os/snapshot',
-  next: 'Подключить backend route, который будет читать Notion DB и отдавать безопасный JSON.',
+  next: 'Подключить серверный маршрут, который будет читать Notion DB и отдавать карте готовый JSON.',
 };
 
 const root = {
@@ -19,12 +19,12 @@ const root = {
   current: 'Life OS Map: сделать карту рабочим навигатором',
   next: 'Подключить карту к данным Notion через data adapter',
   nodes: [
-    { id: 'tasks', title: 'Tasks DB', icon: '✅', progress: 45, status: 'создано', angle: -90, orbit: 210, summary: 'Задачи, статусы, сроки, переносы, прогресс и следующий шаг.' },
-    { id: 'goals', title: 'Goals DB', icon: '🎯', progress: 38, status: 'создано', angle: -25, orbit: 255, summary: 'Цели на месяц, полгода, год и связь с задачами.' },
-    { id: 'sessions', title: 'Work Sessions', icon: '⏱️', progress: 30, status: 'создано', angle: 45, orbit: 235, summary: 'Рабочие сессии, время, результат и следующий шаг.' },
-    { id: 'notion-adapter', title: 'Notion Adapter', icon: '🔌', progress: 25, status: 'в работе', angle: 135, orbit: 250, summary: 'Слой, который отделяет данные от интерфейса карты.' },
-    { id: 'ai-inbox', title: 'AI Inbox', icon: '📥', progress: 35, status: 'следующий шаг', angle: 210, orbit: 260, summary: 'Telegram → Make → Notion для ссылок, постов, голосовых и заметок.' },
-    { id: 'content', title: 'AI-контент', icon: '🎬', progress: 22, status: 'ветка', angle: 285, orbit: 250, summary: 'Hyperframes, NotebookLM, reusable workflow и Content Agent.' },
+    { id: 'tasks', title: 'Tasks DB', icon: '✅', progress: 45, status: 'создано', angle: -90, orbit: 178, summary: 'Задачи, статусы, сроки, переносы, прогресс и следующий шаг.' },
+    { id: 'goals', title: 'Goals DB', icon: '🎯', progress: 38, status: 'создано', angle: -30, orbit: 222, summary: 'Цели на месяц, полгода, год и связь с задачами.' },
+    { id: 'sessions', title: 'Work Sessions', icon: '⏱️', progress: 30, status: 'создано', angle: 32, orbit: 204, summary: 'Рабочие сессии, время, результат и следующий шаг.' },
+    { id: 'notion-adapter', title: 'Notion Adapter', icon: '🔌', progress: 25, status: 'в работе', angle: 118, orbit: 220, summary: 'Слой, который отделяет данные от интерфейса карты.' },
+    { id: 'ai-inbox', title: 'AI Inbox', icon: '📥', progress: 35, status: 'следующий шаг', angle: 205, orbit: 218, summary: 'Telegram → Make → Notion для ссылок, постов, голосовых и заметок.' },
+    { id: 'content', title: 'AI-контент', icon: '🎬', progress: 22, status: 'ветка', angle: 275, orbit: 220, summary: 'Hyperframes, NotebookLM, reusable workflow и Content Agent.' },
   ],
 };
 
@@ -42,10 +42,10 @@ function Planet({ node, onSelect }) {
   return (
     <motion.button
       className="planet"
-      style={{ transform: `translate(${pos.x}px, ${pos.y}px)` }}
+      style={{ left: `calc(50% + ${pos.x}px)`, top: `calc(50% + ${pos.y}px)` }}
       onClick={() => onSelect(node)}
       whileTap={{ scale: 0.96 }}
-      animate={{ y: [pos.y - 4, pos.y + 4, pos.y - 4] }}
+      animate={{ y: [-4, 4, -4] }}
       transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
     >
       <div className="planetBall"><span>{node.icon}</span></div>
@@ -122,10 +122,10 @@ function App() {
             <>
               <h2>Следующий технический план</h2>
               <ol>
-                <li>Проверить, что Vite-проект запускается.</li>
-                <li>Развернуть preview через Vercel или Codespaces.</li>
-                <li>Создать backend route <code>/api/life-os/snapshot</code>.</li>
-                <li>Подключить чтение Notion DB через секретный токен на сервере.</li>
+                <li>Проверить запуск.</li>
+                <li>Сделать стабильный preview.</li>
+                <li>Создать endpoint <code>/api/life-os/snapshot</code>.</li>
+                <li>Подключить Notion DB через сервер.</li>
                 <li>Заменить mock data на живой snapshot.</li>
               </ol>
             </>
@@ -133,7 +133,7 @@ function App() {
           {panel === 'copilot' && (
             <>
               <h2>Орби · Copilot</h2>
-              <p>Я должен помогать выбирать следующий шаг, видеть просрочки, переносы, цели и рабочие сессии. Сейчас я работаю как UI-прототип, потом буду читать Notion через backend.</p>
+              <p>Я должен помогать выбирать следующий шаг, видеть просрочки, переносы, цели и рабочие сессии. Сейчас это UI-прототип, позже он будет читать данные через backend.</p>
             </>
           )}
         </motion.aside>
