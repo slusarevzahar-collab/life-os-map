@@ -19,30 +19,24 @@ const root = {
   current: 'Life OS Map: сделать карту рабочим навигатором',
   next: 'Подключить карту к данным Notion через data adapter',
   nodes: [
-    { id: 'tasks', title: 'Tasks DB', icon: '✅', progress: 45, status: 'создано', angle: -88, orbit: 124, summary: 'Задачи, статусы, сроки, переносы, прогресс и следующий шаг.' },
-    { id: 'goals', title: 'Goals DB', icon: '🎯', progress: 38, status: 'создано', angle: -18, orbit: 142, summary: 'Цели на месяц, полгода, год и связь с задачами.' },
-    { id: 'sessions', title: 'Work Sessions', icon: '⏱️', progress: 30, status: 'создано', angle: 55, orbit: 142, summary: 'Рабочие сессии, время, результат и следующий шаг.' },
-    { id: 'notion-adapter', title: 'Notion Adapter', icon: '🔌', progress: 25, status: 'в работе', angle: 132, orbit: 142, summary: 'Слой, который отделяет данные от интерфейса карты.' },
-    { id: 'ai-inbox', title: 'AI Inbox', icon: '📥', progress: 35, status: 'следующий шаг', angle: 204, orbit: 140, summary: 'Telegram → Make → Notion для ссылок, постов, голосовых и заметок.' },
-    { id: 'content', title: 'AI-контент', icon: '🎬', progress: 22, status: 'ветка', angle: 278, orbit: 136, summary: 'Hyperframes, NotebookLM, reusable workflow и Content Agent.' },
+    { id: 'tasks', title: 'Tasks DB', icon: '✅', progress: 45, status: 'создано', x: 50, y: 22, summary: 'Задачи, статусы, сроки, переносы, прогресс и следующий шаг.' },
+    { id: 'goals', title: 'Goals DB', icon: '🎯', progress: 38, status: 'создано', x: 76, y: 42, summary: 'Цели на месяц, полгода, год и связь с задачами.' },
+    { id: 'sessions', title: 'Work Sessions', icon: '⏱️', progress: 30, status: 'создано', x: 68, y: 70, summary: 'Рабочие сессии, время, результат и следующий шаг.' },
+    { id: 'notion-adapter', title: 'Notion Adapter', icon: '🔌', progress: 25, status: 'в работе', x: 32, y: 70, summary: 'Слой, который отделяет данные от интерфейса карты.' },
+    { id: 'ai-inbox', title: 'AI Inbox', icon: '📥', progress: 35, status: 'следующий шаг', x: 24, y: 42, summary: 'Telegram → Make → Notion для ссылок, постов, голосовых и заметок.' },
+    { id: 'content', title: 'AI-контент', icon: '🎬', progress: 22, status: 'ветка', x: 64, y: 24, summary: 'Hyperframes, NotebookLM, reusable workflow и Content Agent.' },
   ],
 };
-
-function polar(orbit, angle) {
-  const rad = (angle * Math.PI) / 180;
-  return { x: Math.cos(rad) * orbit, y: Math.sin(rad) * orbit };
-}
 
 function Progress({ value }) {
   return <div className="progress"><span style={{ width: `${value}%` }} /></div>;
 }
 
 function Planet({ node, onSelect }) {
-  const pos = polar(node.orbit, node.angle);
   return (
     <motion.button
       className="planet"
-      style={{ left: `calc(50% + ${pos.x}px)`, top: `calc(50% + ${pos.y}px)` }}
+      style={{ left: `${node.x}%`, top: `${node.y}%` }}
       onClick={() => onSelect(node)}
       whileTap={{ scale: 0.96 }}
       animate={{ y: [-3, 3, -3] }}
