@@ -19,12 +19,12 @@ const root = {
   current: 'Life OS Map: сделать карту рабочим навигатором',
   next: 'Подключить карту к данным Notion через data adapter',
   nodes: [
-    { id: 'tasks', title: 'Tasks DB', icon: '✅', progress: 45, status: 'создано', x: 50, y: 22, summary: 'Задачи, статусы, сроки, переносы, прогресс и следующий шаг.' },
-    { id: 'goals', title: 'Goals DB', icon: '🎯', progress: 38, status: 'создано', x: 76, y: 42, summary: 'Цели на месяц, полгода, год и связь с задачами.' },
-    { id: 'sessions', title: 'Work Sessions', icon: '⏱️', progress: 30, status: 'создано', x: 68, y: 70, summary: 'Рабочие сессии, время, результат и следующий шаг.' },
-    { id: 'notion-adapter', title: 'Notion Adapter', icon: '🔌', progress: 25, status: 'в работе', x: 32, y: 70, summary: 'Слой, который отделяет данные от интерфейса карты.' },
-    { id: 'ai-inbox', title: 'AI Inbox', icon: '📥', progress: 35, status: 'следующий шаг', x: 24, y: 42, summary: 'Telegram → Make → Notion для ссылок, постов, голосовых и заметок.' },
-    { id: 'content', title: 'AI-контент', icon: '🎬', progress: 22, status: 'ветка', x: 64, y: 24, summary: 'Hyperframes, NotebookLM, reusable workflow и Content Agent.' },
+    { id: 'tasks', title: 'Tasks DB', icon: '✅', progress: 45, status: 'создано', x: 50, y: 26, summary: 'Задачи, статусы, сроки, переносы, прогресс и следующий шаг.' },
+    { id: 'goals', title: 'Goals DB', icon: '🎯', progress: 38, status: 'создано', x: 73, y: 45, summary: 'Цели на месяц, полгода, год и связь с задачами.' },
+    { id: 'sessions', title: 'Work Sessions', icon: '⏱️', progress: 30, status: 'создано', x: 66, y: 67, summary: 'Рабочие сессии, время, результат и следующий шаг.' },
+    { id: 'notion-adapter', title: 'Notion Adapter', icon: '🔌', progress: 25, status: 'в работе', x: 34, y: 67, summary: 'Слой, который отделяет данные от интерфейса карты.' },
+    { id: 'ai-inbox', title: 'AI Inbox', icon: '📥', progress: 35, status: 'следующий шаг', x: 27, y: 45, summary: 'Telegram → Make → Notion для ссылок, постов, голосовых и заметок.' },
+    { id: 'content', title: 'AI-контент', icon: '🎬', progress: 22, status: 'ветка', x: 64, y: 30, summary: 'Hyperframes, NotebookLM, reusable workflow и Content Agent.' },
   ],
 };
 
