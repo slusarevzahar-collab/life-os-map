@@ -19,12 +19,12 @@ const root = {
   current: 'Life OS Map: сделать карту рабочим навигатором',
   next: 'Подключить карту к данным Notion через data adapter',
   nodes: [
-    { id: 'tasks', title: 'Tasks DB', icon: '✅', progress: 45, status: 'создано', angle: -90, orbit: 178, summary: 'Задачи, статусы, сроки, переносы, прогресс и следующий шаг.' },
-    { id: 'goals', title: 'Goals DB', icon: '🎯', progress: 38, status: 'создано', angle: -30, orbit: 222, summary: 'Цели на месяц, полгода, год и связь с задачами.' },
-    { id: 'sessions', title: 'Work Sessions', icon: '⏱️', progress: 30, status: 'создано', angle: 32, orbit: 204, summary: 'Рабочие сессии, время, результат и следующий шаг.' },
-    { id: 'notion-adapter', title: 'Notion Adapter', icon: '🔌', progress: 25, status: 'в работе', angle: 118, orbit: 220, summary: 'Слой, который отделяет данные от интерфейса карты.' },
-    { id: 'ai-inbox', title: 'AI Inbox', icon: '📥', progress: 35, status: 'следующий шаг', angle: 205, orbit: 218, summary: 'Telegram → Make → Notion для ссылок, постов, голосовых и заметок.' },
-    { id: 'content', title: 'AI-контент', icon: '🎬', progress: 22, status: 'ветка', angle: 275, orbit: 220, summary: 'Hyperframes, NotebookLM, reusable workflow и Content Agent.' },
+    { id: 'tasks', title: 'Tasks DB', icon: '✅', progress: 45, status: 'создано', angle: -88, orbit: 124, summary: 'Задачи, статусы, сроки, переносы, прогресс и следующий шаг.' },
+    { id: 'goals', title: 'Goals DB', icon: '🎯', progress: 38, status: 'создано', angle: -18, orbit: 142, summary: 'Цели на месяц, полгода, год и связь с задачами.' },
+    { id: 'sessions', title: 'Work Sessions', icon: '⏱️', progress: 30, status: 'создано', angle: 55, orbit: 142, summary: 'Рабочие сессии, время, результат и следующий шаг.' },
+    { id: 'notion-adapter', title: 'Notion Adapter', icon: '🔌', progress: 25, status: 'в работе', angle: 132, orbit: 142, summary: 'Слой, который отделяет данные от интерфейса карты.' },
+    { id: 'ai-inbox', title: 'AI Inbox', icon: '📥', progress: 35, status: 'следующий шаг', angle: 204, orbit: 140, summary: 'Telegram → Make → Notion для ссылок, постов, голосовых и заметок.' },
+    { id: 'content', title: 'AI-контент', icon: '🎬', progress: 22, status: 'ветка', angle: 278, orbit: 136, summary: 'Hyperframes, NotebookLM, reusable workflow и Content Agent.' },
   ],
 };
 
@@ -45,7 +45,7 @@ function Planet({ node, onSelect }) {
       style={{ left: `calc(50% + ${pos.x}px)`, top: `calc(50% + ${pos.y}px)` }}
       onClick={() => onSelect(node)}
       whileTap={{ scale: 0.96 }}
-      animate={{ y: [-4, 4, -4] }}
+      animate={{ y: [-3, 3, -3] }}
       transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
     >
       <div className="planetBall"><span>{node.icon}</span></div>
