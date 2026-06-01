@@ -49,6 +49,38 @@ button { font: inherit; }
   cursor: pointer;
 }
 
+.mapFilters {
+  position: absolute;
+  z-index: 39;
+  left: 50%;
+  bottom: 72px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  max-width: calc(100vw - 26px);
+  padding: 6px;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 999px;
+  background: rgba(3,7,18,.62);
+  backdrop-filter: blur(18px);
+}
+.mapFilters button {
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 11px;
+  background: transparent;
+  color: rgba(255,255,255,.64);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.mapFilters button.activeFilter {
+  color: #061018;
+  background: linear-gradient(90deg, #6ee7b7, #67e8f9);
+  box-shadow: 0 10px 28px rgba(103,232,249,.18);
+}
+
 .sidePanel {
   position: absolute;
   z-index: 12;
@@ -86,6 +118,18 @@ button { font: inherit; }
 .tone-green b { color: #86efac; }
 .tone-blue b { color: #67e8f9; }
 .tone-amber b { color: #fbbf24; }
+.connectionStrip { display: flex; gap: 7px; margin-top: 10px; flex-wrap: wrap; }
+.connectionStrip span {
+  padding: 5px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.1);
+  color: rgba(255,255,255,.45);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.connectionStrip span.ok { color: #86efac; border-color: rgba(134,239,172,.24); background: rgba(16,185,129,.08); }
 
 .taskRail {
   max-height: calc(100vh - 150px);
@@ -295,7 +339,7 @@ button { font: inherit; }
   z-index: 25;
   left: 14px;
   right: 14px;
-  bottom: 76px;
+  bottom: 126px;
   max-width: 760px;
   margin: 0 auto;
   padding: 16px 46px 16px 16px;
@@ -330,6 +374,7 @@ button { font: inherit; }
 
 @media (max-width: 1120px) {
   .workspaceToggle { top: 10px; right: 12px; left: auto; transform: none; }
+  .mapFilters { left: 12px; right: 12px; transform: none; overflow-x: auto; justify-content: flex-start; }
   .leftPanel { width: min(520px, calc(100vw - 28px)); }
   .rightPanel { display: none; }
   .map { top: 56%; opacity: .82; }
@@ -342,6 +387,7 @@ button { font: inherit; }
   .deckHeader h1 { font-size: 24px; }
   .deckFocusGrid { grid-template-columns: 1fr; }
   .metricsStrip { grid-template-columns: repeat(3, 1fr); }
+  .connectionStrip { display: none; }
   .focusBlock { min-height: auto; }
   .focusBlock small { display: none; }
   .map { width: 580px; height: 580px; min-width: 580px; min-height: 580px; top: 57%; opacity: .74; }
@@ -358,7 +404,7 @@ button { font: inherit; }
   .planetLabel { padding: 6px 7px; }
   .planetLabel strong { font-size: 10px; }
   .planetLabel small { font-size: 8px; }
-  .sheet { bottom: 74px; max-height: 42vh; padding: 13px 42px 13px 13px; }
+  .sheet { bottom: 126px; max-height: 38vh; padding: 13px 42px 13px 13px; }
   .detailGrid { grid-template-columns: 1fr 1fr 1fr; }
   .splitPanel { grid-template-columns: 1fr; }
 }
