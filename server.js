@@ -95,17 +95,24 @@ function dateStart(property) {
   return property?.date?.start || null;
 }
 
+function findProp(props, names) {
+  for (const name of names) {
+    if (props[name]) return props[name];
+  }
+  return undefined;
+}
+
 function mapNotionTask(page) {
   const props = page.properties || {};
   return {
     id: page.id,
-    title: titleText(props.Task) || 'Untitled task',
-    project: selectName(props.Project) || 'Life OS',
-    status: selectName(props.Status) || 'unknown',
-    progress: numberValue(props.Progress),
-    priority: numberValue(props.Priority),
-    dueDate: dateStart(props['Due Date']),
-    nextAction: richText(props['Next Action']) || '',
+    title: titleText(findProp(props, ['Task', 'Name', 'Название', 'Задача'])) || 'Untitled task',
+    project: selectName(findProp(props, ['Project', 'Проект'])) || 'Life OS',
+    status: selectName(findProp(props, ['Status', 'Статус'])) || 'unknown',
+    progress: numberValue(findProp(props, ['Progress', 'Прогресс', 'Progress %'])) || 0,
+    priority: numberValue(findProp(props, ['Priority', 'Приоритет'])) || 0,
+    dueDate: dateStart(findProp(props, ['Due Date', 'Дата', 'Срок', 'Deadline'])) || null,
+    nextAction: richText(findProp(props, ['Next Action', 'Следующее действие', 'Следующий шаг'])) || '',
   };
 }
 
@@ -113,10 +120,10 @@ function buildPlanning(tasks) {
   return tasks.reduce(
     (acc, task) => {
       const status = String(task.status || '').toLowerCase();
-      if (status.includes('done')) acc.done += 1;
-      else if (status.includes('overdue')) acc.overdue += 1;
-      else if (status.includes('waiting')) acc.waiting += 1;
-      else if (status.includes('next')) acc.next += 1;
+      if (status.includes('done') || status.includes('готово')) acc.done += 1;
+      else if (status.includes('overdue') || status.includes('просроч')) acc.overdue += 1;
+      else if (status.includes('waiting') || status.includes('ожид')) acc.waiting += 1;
+      else if (status.includes('next') || status.includes('след')) acc.next += 1;
       else acc.onTrack += 1;
       return acc;
     },
@@ -130,17 +137,22 @@ async function getNotionSnapshot() {
   const notion = new Client({ auth: notionToken });
   const response = await notion.databases.query({
     database_id: tasksDbId,
-    sorts: [{ property: 'Priority', direction: 'ascending' }],
     page_size: 20,
   });
 
-  const tasks = response.results.map(mapNotionTask);
-  const currentFocus = tasks.find((task) => String(task.status).toLowerCase().includes('now')) || tasks[0];
+  const tasks = response.results
+    .map(mapNotionTask)
+    .sort((a, b) => (a.priority || 999) - (b.priority || 999));
+  const currentFocus =
+    tasks.find((task) => String(task.status).toLowerCase().includes('now')) ||
+    tasks.find((task) => String(task.status).toLowerCase().includes('in progress')) ||
+    tasks.find((task) => String(task.status).toLowerCase().includes('в работе')) ||
+    tasks[0];
 
   return {
     meta: {
       source: 'notion-live-tasks-db',
-      version: '0.2.0',
+      version: '0.2.1',
       updatedAt: new Date().toISOString(),
     },
     currentFocus: currentFocus
