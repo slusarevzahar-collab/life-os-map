@@ -6,12 +6,14 @@ import './styles.css';
 const fallbackSnapshot = {
   meta: { source: 'local-fallback', version: '0.1.0', updatedAt: null, warnings: [] },
   currentFocus: { title: 'Life OS Map', status: 'in_progress', progress: 55, nextAction: 'Подключить карту к данным через backend snapshot.' },
-  goals: [],
+  goals: [
+    { id: 'goal_life_os', title: 'Life OS', status: 'active', progress: 38, targetDate: '2026-06-30', nextAction: 'Собрать рабочий навигатор.' },
+  ],
   sessions: [],
   tasks: [
-    { id: 'task_life_os_map', title: 'Life OS Map', project: 'Life OS', status: 'in_progress', progress: 55, summary: 'Центр системы.' },
-    { id: 'task_mobile_ux', title: 'Mobile UX', project: 'Life OS', status: 'next', progress: 0, summary: 'Сделать мобильный режим dashboard + mini-map.' },
-    { id: 'task_ai_inbox', title: 'AI Inbox', project: 'AI Inbox', status: 'next', progress: 35, summary: 'Telegram → Make → Notion.' },
+    { id: 'task_life_os_map', title: 'Life OS Map', project: 'Life OS', status: 'in_progress', progress: 55, priority: 1, summary: 'Центр системы.', goalIds: ['goal_life_os'] },
+    { id: 'task_mobile_ux', title: 'Mobile UX', project: 'Life OS', status: 'next', progress: 0, priority: 2, summary: 'Сделать мобильный режим dashboard + mini-map.', goalIds: ['goal_life_os'] },
+    { id: 'task_ai_inbox', title: 'AI Inbox', project: 'AI Inbox', status: 'next', progress: 35, priority: 3, summary: 'Telegram → Make → Notion.' },
   ],
   planning: { onTrack: 1, next: 2, waiting: 1, overdue: 0, done: 0 },
 };
@@ -71,6 +73,16 @@ function taskIcon(project = '') {
   return 'OS';
 }
 
+function goalIcon(goal = '') {
+  const key = String(goal).toLowerCase();
+  if (key.includes('life')) return 'OS';
+  if (key.includes('content') || key.includes('контент')) return 'AI';
+  if (key.includes('inbox')) return 'IN';
+  if (key.includes('sleda') || key.includes('след')) return 'SD';
+  if (key.includes('yandex') || key.includes('яндекс')) return 'YA';
+  return 'GO';
+}
+
 function minutesLabel(minutes = 0) {
   const value = Number(minutes) || 0;
   if (value <= 0) return '0 мин';
@@ -90,25 +102,94 @@ function sortTasksForMap(tasks) {
   });
 }
 
-function radialPosition(index, total, statusKey) {
-  const safeTotal = Math.max(total, 1);
-  const angleOffset = statusKey === 'now' ? -90 : -100;
-  const angle = ((360 / safeTotal) * index + angleOffset) * (Math.PI / 180);
-  const ringByStatus = {
-    now: 22,
-    progress: 30,
-    next: 39,
-    overdue: 44,
-    waiting: 45,
-    paused: 47,
-    neutral: 42,
-  };
-  const ring = ringByStatus[statusKey] || 42;
-  const jitter = index % 2 === 0 ? -2 : 2;
-  return {
-    x: 50 + Math.cos(angle) * (ring + jitter),
-    y: 50 + Math.sin(angle) * (ring + jitter),
-  };
+function polar(centerX, centerY, radius, angleDeg) {
+  const angle = angleDeg * (Math.PI / 180);
+  return { x: centerX + Math.cos(angle) * radius, y: centerY + Math.sin(angle) * radius };
+}
+
+function makeGoalLayout(goals, tasks) {
+  const goalsWithFallback = goals.length
+    ? goals
+    : [{ id: 'unlinked-goal', title: 'Life OS', status: 'active', progress: 0, targetDate: null, nextAction: '' }];
+  const unlinkedGoal = { id: 'unlinked', title: 'Без цели', status: 'unlinked', progress: 0, targetDate: null, nextAction: 'Связать эти задачи с Goals DB.' };
+  const hasUnlinked = tasks.some((task) => !task.goalIds?.length);
+  const visibleGoals = hasUnlinked ? [...goalsWithFallback, unlinkedGoal] : goalsWithFallback;
+
+  return visibleGoals.slice(0, 7).map((goal, index, arr) => {
+    const angle = -90 + (360 / Math.max(arr.length, 1)) * index;
+    const pos = polar(50, 50, arr.length === 1 ? 0 : 29, angle);
+    return {
+      ...goal,
+      x: Math.max(18, Math.min(82, pos.x)),
+      y: Math.max(18, Math.min(82, pos.y)),
+      angle,
+      monogram: goal.id === 'unlinked' ? '??' : goalIcon(goal.title),
+    };
+  });
+}
+
+function buildGoalTaskNodes(goals, tasks, filter) {
+  const goalLayouts = makeGoalLayout(goals, tasks);
+  const goalById = new Map(goalLayouts.map((goal) => [goal.id, goal]));
+  const fallbackGoal = goalLayouts.find((goal) => goal.id === 'unlinked') || goalLayouts[0];
+  const filteredTasks = sortTasksForMap(tasks).filter((task) => filter === 'all' || normalizeStatus(task.status) === filter);
+  const grouped = new Map();
+
+  filteredTasks.forEach((task) => {
+    const primaryGoalId = task.goalIds?.find((id) => goalById.has(id)) || fallbackGoal?.id;
+    if (!primaryGoalId) return;
+    if (!grouped.has(primaryGoalId)) grouped.set(primaryGoalId, []);
+    grouped.get(primaryGoalId).push(task);
+  });
+
+  const taskNodes = [];
+  goalLayouts.forEach((goal) => {
+    const related = (grouped.get(goal.id) || []).slice(0, 5);
+    related.forEach((task, index) => {
+      const spread = related.length === 1 ? 0 : (index - (related.length - 1) / 2) * 17;
+      const baseAngle = goal.angle + spread;
+      const ring = goal.id === 'unlinked' ? 18 : 14;
+      const pos = polar(goal.x, goal.y, ring, baseAngle);
+      const statusKey = normalizeStatus(task.status);
+      taskNodes.push({
+        id: task.id,
+        type: 'task',
+        title: task.title || 'Без названия',
+        shortTitle: compactTitle(task.title),
+        monogram: taskIcon(task.project),
+        progress: task.progress ?? 0,
+        status: task.status || 'unknown',
+        statusKey,
+        project: task.project || 'Life OS',
+        dueDate: task.dueDate || null,
+        priority: task.priority ?? 0,
+        goalId: goal.id,
+        goalTitle: goal.title,
+        x: Math.max(8, Math.min(92, pos.x)),
+        y: Math.max(8, Math.min(92, pos.y)),
+        summary: task.nextAction || task.summary || 'Следующий шаг пока не указан.',
+      });
+    });
+  });
+
+  const goalNodes = goalLayouts.map((goal) => ({
+    id: goal.id,
+    type: 'goal',
+    title: goal.title || 'Цель',
+    shortTitle: compactTitle(goal.title, 'Цель'),
+    monogram: goal.monogram,
+    progress: goal.progress ?? 0,
+    status: goal.status || 'goal',
+    statusKey: normalizeStatus(goal.status),
+    project: 'Goal',
+    dueDate: goal.targetDate || null,
+    priority: '—',
+    x: goal.x,
+    y: goal.y,
+    summary: goal.nextAction || 'Цель из Goals DB.',
+  }));
+
+  return { goalNodes, taskNodes, filteredTasks };
 }
 
 function buildMapFromSnapshot(snapshot, filter = 'all') {
@@ -116,40 +197,22 @@ function buildMapFromSnapshot(snapshot, filter = 'all') {
   const goals = snapshot.goals || [];
   const sessions = snapshot.sessions || [];
   const activeTasks = tasks.filter((task) => normalizeStatus(task.status) !== 'done');
-  const filteredTasks = sortTasksForMap(activeTasks).filter((task) => filter === 'all' || normalizeStatus(task.status) === filter);
-  const visibleTasks = filteredTasks.slice(0, 10);
-  const nodes = visibleTasks.map((task, index) => {
-    const statusKey = normalizeStatus(task.status);
-    const slot = radialPosition(index, visibleTasks.length, statusKey);
-    return {
-      id: task.id,
-      title: task.title || 'Без названия',
-      shortTitle: compactTitle(task.title),
-      monogram: taskIcon(task.project),
-      progress: task.progress ?? 0,
-      status: task.status || 'unknown',
-      statusKey,
-      project: task.project || 'Life OS',
-      dueDate: task.dueDate || null,
-      priority: task.priority ?? 0,
-      x: Math.max(9, Math.min(91, slot.x)),
-      y: Math.max(9, Math.min(91, slot.y)),
-      summary: task.nextAction || task.summary || 'Следующий шаг пока не указан.',
-    };
-  });
+  const { goalNodes, taskNodes, filteredTasks } = buildGoalTaskNodes(goals, activeTasks, filter);
   const nowTask = activeTasks.find((task) => normalizeStatus(task.status) === 'now') || activeTasks.find((task) => normalizeStatus(task.status) === 'progress') || activeTasks[0];
   const nextTask = activeTasks.find((task) => normalizeStatus(task.status) === 'next') || activeTasks.find((task) => task.id !== nowTask?.id);
   const waitingTasks = activeTasks.filter((task) => ['waiting', 'paused', 'overdue'].includes(normalizeStatus(task.status)));
+  const linkedTasksCount = activeTasks.filter((task) => task.goalIds?.length).length;
   const totalSessionMinutes = sessions.reduce((sum, session) => sum + (Number(session.durationMin) || 0), 0);
 
   return {
-    id: 'root', title: 'AI-first Life OS', icon: 'OS',
+    id: 'root', type: 'root', title: 'AI-first Life OS', icon: 'OS', monogram: 'OS',
     progress: snapshot.currentFocus?.progress ?? nowTask?.progress ?? 0,
     status: snapshot.meta?.source || 'snapshot',
     current: snapshot.currentFocus?.title || nowTask?.title || 'Life OS Map',
     next: snapshot.currentFocus?.nextAction || nowTask?.nextAction || 'Следующий шаг не указан.',
-    nodes, planning: snapshot.planning || {}, rawTasks: tasks, activeTasks, filteredTasks,
-    nowTask, nextTask, waitingTasks, goals, sessions, totalSessionMinutes,
+    goalNodes, taskNodes, nodes: [...goalNodes, ...taskNodes],
+    planning: snapshot.planning || {}, rawTasks: tasks, activeTasks, filteredTasks,
+    nowTask, nextTask, waitingTasks, goals, sessions, linkedTasksCount, totalSessionMinutes,
   };
 }
 
@@ -166,19 +229,23 @@ function MiniMetric({ label, value, tone = 'neutral' }) {
   return <div className={`miniMetric tone-${tone}`}><span>{label}</span><b>{value}</b></div>;
 }
 
-function Planet({ node, onSelect, selected }) {
+function NodeBubble({ node, onSelect, selected }) {
+  const isGoal = node.type === 'goal';
   return (
     <motion.button
-      className={`planet ${selected ? 'selectedPlanet' : ''} status-${node.statusKey}`}
+      className={`${isGoal ? 'goalNode' : 'planet'} ${selected ? 'selectedPlanet' : ''} status-${node.statusKey}`}
       style={{ left: `${node.x}%`, top: `${node.y}%` }}
       onClick={(event) => { event.stopPropagation(); onSelect(node); }}
       whileTap={{ scale: 0.96 }}
-      animate={{ y: [-3, 3, -3] }}
-      transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+      animate={isGoal ? { scale: [1, 1.025, 1] } : { y: [-3, 3, -3] }}
+      transition={{ duration: isGoal ? 6 : 5, repeat: Infinity, ease: 'easeInOut' }}
       title={node.title}
     >
-      <div className="planetBall"><span>{node.monogram}</span></div>
-      <div className="planetLabel"><strong>{node.shortTitle}</strong><small>{statusLabel(node.status)} · {node.progress}%</small></div>
+      <div className={isGoal ? 'goalBall' : 'planetBall'}><span>{node.monogram}</span></div>
+      <div className={isGoal ? 'goalLabel' : 'planetLabel'}>
+        <strong>{node.shortTitle}</strong>
+        <small>{isGoal ? `цель · ${node.progress}%` : `${statusLabel(node.status)} · ${node.progress}%`}</small>
+      </div>
     </motion.button>
   );
 }
@@ -210,7 +277,7 @@ function App() {
   const [workspaceVisible, setWorkspaceVisible] = useState(true);
   const [mapFilter, setMapFilter] = useState('all');
   const map = useMemo(() => buildMapFromSnapshot(snapshot, mapFilter), [snapshot, mapFilter]);
-  const activeNode = selected || map.nodes.find((node) => node.id === map.nowTask?.id) || map.nodes[0] || map;
+  const activeNode = selected || map.taskNodes.find((node) => node.id === map.nowTask?.id) || map.taskNodes[0] || map.goalNodes[0] || map;
   const stars = useMemo(() => Array.from({ length: 80 }, (_, i) => ({ left: `${(i * 37) % 100}%`, top: `${(i * 61) % 100}%`, size: 1 + ((i * 13) % 3) })), []);
 
   const closePanel = () => setPanel(null);
@@ -225,9 +292,15 @@ function App() {
     return () => { active = false; };
   }, []);
 
+  const toggleWorkspace = (event) => {
+    event.stopPropagation();
+    setWorkspaceVisible((value) => !value);
+    setPanel(null);
+  };
+
   const selectTask = (task) => {
-    const nextNode = map.nodes.find((node) => node.id === task.id) || {
-      id: task.id, title: task.title, shortTitle: compactTitle(task.title), monogram: taskIcon(task.project),
+    const nextNode = map.taskNodes.find((node) => node.id === task.id) || {
+      id: task.id, type: 'task', title: task.title, shortTitle: compactTitle(task.title), monogram: taskIcon(task.project),
       status: task.status, statusKey: normalizeStatus(task.status), project: task.project,
       progress: task.progress, dueDate: task.dueDate, priority: task.priority,
       summary: task.nextAction || 'Следующий шаг пока не указан.',
@@ -240,13 +313,11 @@ function App() {
     <main className={`app ${workspaceVisible ? '' : 'mapOnly'}`} onClick={closePanel}>
       <div className="stars">{stars.map((s, i) => <i key={i} style={{ left: s.left, top: s.top, width: s.size, height: s.size }} />)}</div>
 
-      <button className="workspaceToggle" onClick={(e) => { e.stopPropagation(); setWorkspaceVisible((v) => !v); }}>
-        {workspaceVisible ? 'Скрыть панели' : 'Показать панели'}
-      </button>
+      <button className="workspaceToggle" onClick={toggleWorkspace}>{workspaceVisible ? 'Скрыть панели' : 'Показать панели'}</button>
 
       <div className="mapFilters" onClick={(e) => e.stopPropagation()}>
         {FILTERS.map((filter) => (
-          <button key={filter.id} className={mapFilter === filter.id ? 'activeFilter' : ''} onClick={() => { setMapFilter(filter.id); setSelected(null); }}>
+          <button key={filter.id} className={mapFilter === filter.id ? 'activeFilter' : ''} onClick={() => { setMapFilter(filter.id); setSelected(null); setPanel(null); }}>
             {filter.label}
           </button>
         ))}
@@ -264,7 +335,7 @@ function App() {
             <div className="metricsStrip">
               <MiniMetric label="Задачи" value={map.activeTasks.length} tone="green" />
               <MiniMetric label="Цели" value={map.goals.length} tone="blue" />
-              <MiniMetric label="Сессии" value={map.sessions.length} tone="amber" />
+              <MiniMetric label="Связано" value={`${map.linkedTasksCount}/${map.activeTasks.length}`} tone="amber" />
             </div>
             <div className="connectionStrip">
               <span className={snapshot.meta?.connected?.tasks ? 'ok' : ''}>Tasks</span>
@@ -286,10 +357,12 @@ function App() {
 
       <section className="map" aria-label="Life OS map" onClick={closePanel}>
         <div className="orbit orbit1" /><div className="orbit orbit2" /><div className="orbit orbit3" /><div className="orbit orbit4" />
+        {map.goalNodes.map((goal) => <div key={`line-${goal.id}`} className="goalLine" style={{ left: `${goal.x}%`, top: `${goal.y}%` }} />)}
         <button className="center" onClick={(event) => { event.stopPropagation(); setSelected(map); setPanel('mission'); }}>
           <span>{map.icon}</span><strong>{map.title}</strong><small>{map.status}</small>
         </button>
-        {map.nodes.map((node) => <Planet key={node.id} node={node} selected={activeNode?.id === node.id} onSelect={(nextNode) => { setSelected(nextNode); setPanel('mission'); }} />)}
+        {map.goalNodes.map((node) => <NodeBubble key={node.id} node={node} selected={activeNode?.id === node.id} onSelect={(nextNode) => { setSelected(nextNode); setPanel('mission'); }} />)}
+        {map.taskNodes.map((node) => <NodeBubble key={node.id} node={node} selected={activeNode?.id === node.id} onSelect={(nextNode) => { setSelected(nextNode); setPanel('mission'); }} />)}
       </section>
 
       <nav className="bottomNav" onClick={(e) => e.stopPropagation()}>
@@ -304,10 +377,10 @@ function App() {
         {panel && (
           <motion.aside key={panel + activeNode?.id + apiState} className="sheet" initial={{ y: 32, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 32, opacity: 0 }} onClick={(e) => e.stopPropagation()}>
             <button className="sheetClose" onClick={closePanel} aria-label="Закрыть">×</button>
-            {panel === 'mission' && activeNode && <><div className="sheetTitle"><span>{activeNode.monogram || activeNode.icon || 'OS'}</span><div><div className="metaRow"><StatusPill status={activeNode.status} statusKey={activeNode.statusKey} /><em>{activeNode.project}</em></div><h2>{activeNode.title}</h2></div></div><p>{activeNode.summary || map.current}</p><div className="detailGrid"><div><small>Прогресс</small><b>{activeNode.progress || 0}%</b></div><div><small>Срок</small><b>{formatDate(activeNode.dueDate)}</b></div><div><small>Приоритет</small><b>{activeNode.priority || '—'}</b></div></div><Progress value={activeNode.progress || map.progress} /></>}
-            {panel === 'data' && <><h2>Workspace snapshot</h2><p><b>API:</b> {apiState}</p><p><b>Источник:</b> {snapshot.meta?.source || 'unknown'}</p><p><b>Endpoint:</b> <code>/api/life-os/snapshot</code></p><div className="detailGrid"><div><small>Tasks</small><b>{snapshot.tasks?.length || 0}</b></div><div><small>Goals</small><b>{snapshot.goals?.length || 0}</b></div><div><small>Sessions</small><b>{snapshot.sessions?.length || 0}</b></div></div><p><b>Время сессий:</b> {minutesLabel(map.totalSessionMinutes)}</p>{snapshot.meta?.warnings?.length ? <p className="warningText">Warnings: {snapshot.meta.warnings.join(' · ')}</p> : null}</>}
+            {panel === 'mission' && activeNode && <><div className="sheetTitle"><span>{activeNode.monogram || activeNode.icon || 'OS'}</span><div><div className="metaRow"><StatusPill status={activeNode.status} statusKey={activeNode.statusKey} /><em>{activeNode.type === 'goal' ? 'Goal' : activeNode.project}</em></div><h2>{activeNode.title}</h2></div></div><p>{activeNode.summary || map.current}</p><div className="detailGrid"><div><small>Прогресс</small><b>{activeNode.progress || 0}%</b></div><div><small>Срок</small><b>{formatDate(activeNode.dueDate)}</b></div><div><small>{activeNode.type === 'goal' ? 'Тип' : 'Приоритет'}</small><b>{activeNode.type === 'goal' ? 'Цель' : activeNode.priority || '—'}</b></div></div><Progress value={activeNode.progress || map.progress} /></>}
+            {panel === 'data' && <><h2>Workspace snapshot</h2><p><b>API:</b> {apiState}</p><p><b>Источник:</b> {snapshot.meta?.source || 'unknown'}</p><p><b>Endpoint:</b> <code>/api/life-os/snapshot</code></p><div className="detailGrid"><div><small>Tasks</small><b>{snapshot.tasks?.length || 0}</b></div><div><small>Goals</small><b>{snapshot.goals?.length || 0}</b></div><div><small>Sessions</small><b>{snapshot.sessions?.length || 0}</b></div></div><p><b>Связано с целями:</b> {map.linkedTasksCount} из {map.activeTasks.length} активных задач.</p><p><b>Время сессий:</b> {minutesLabel(map.totalSessionMinutes)}</p>{snapshot.meta?.warnings?.length ? <p className="warningText">Warnings: {snapshot.meta.warnings.join(' · ')}</p> : null}</>}
             {panel === 'plan' && <><h2>Goals & Sessions</h2><div className="splitPanel"><div><h3>Цели</h3>{map.goals.slice(0, 4).map((goal) => <GoalRow key={goal.id} goal={goal} />)}{!map.goals.length && <p>Goals DB пока не отдала записи.</p>}</div><div><h3>Сессии</h3>{map.sessions.slice(0, 4).map((session) => <SessionRow key={session.id} session={session} />)}{!map.sessions.length && <p>Work Sessions DB пока не отдала записи.</p>}</div></div></>}
-            {panel === 'copilot' && <><h2>Life OS Copilot</h2><p>Карта теперь фильтруется по состояниям задач. Следующий слой — группировка планет по целям, запись событий обратно в Notion и автоматические рекомендации следующего шага.</p></>}
+            {panel === 'copilot' && <><h2>Life OS Copilot</h2><p>Я вернул карту к canvas-логике: центр системы → цели → задачи. Следующий слой — сделать drag/zoom как в canvas и добавить запись изменений обратно в Notion.</p></>}
           </motion.aside>
         )}
       </AnimatePresence>
