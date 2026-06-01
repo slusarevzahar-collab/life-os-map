@@ -1,37 +1,141 @@
 # Life OS Map
 
-Интерактивный навигатор проектов, задач, целей и рабочих сессий Захара.
+Интерактивный AI-first навигатор целей, задач, рабочих сессий и следующих действий Захара.
 
 ## Что это
 
-Life OS Map — визуальная карта в космическом стиле: центральная система, планеты-задачи, цели, рабочие сессии, AI Copilot и будущая синхронизация с Notion.
+Life OS Map — не просто dashboard. Это визуальная карта жизни/проектов:
+
+```text
+AI-first Life OS → Goals → Tasks → Work Sessions → Time / Progress / Copilot
+```
+
+Карта должна быть главным способом ориентироваться во всём объёме целей и задач. Панели слева/справа — вспомогательные: их можно скрывать, чтобы работать с чистой картой.
 
 ## Текущий статус
 
-- React/Vite-проект создан.
-- Базовый интерфейс карты перенесён из ChatGPT Canvas в GitHub.
-- Добавлен mock Notion Adapter.
-- Будущий endpoint: `/api/life-os/snapshot`.
+Работает:
 
-## Будущая архитектура
+- React/Vite frontend.
+- Express backend.
+- Live-чтение Notion Tasks DB.
+- Live-чтение Goals DB и Work Sessions DB, если переданы ID.
+- Canvas-like модель: root → goals → tasks.
+- Фильтры карты: Все / Сейчас / Следующее / В работе / Пауза.
+- Command Deck, Active Queue, Data panel, Plan panel, Copilot panel.
+- Notion adapter вынесен в `server/notionAdapter.js`.
+- Архитектурный план хранится в `docs/NAVIGATOR_MASTER_PLAN.md`.
+
+## Простая схема
 
 ```text
-Notion DB → backend/API → notionAdapter → Life OS Map
+Notion DBs
+  ↓
+server/notionAdapter.js
+  ↓
+server.js: /api/life-os/snapshot
+  ↓
+React frontend
+  ↓
+Life OS Map UI
 ```
 
-Notion token нельзя хранить в браузере. Поэтому для настоящей синхронизации нужен backend route, который безопасно читает Notion и отдаёт карте JSON.
+## Как запускать в Codespaces
 
-## Как запустить
+Нужно два терминала.
+
+### Терминал 1 — API / backend
+
+Это сервер, который читает Notion. Он работает на порту `3001`.
 
 ```bash
-npm install
+NOTION_TOKEN="ТВОЙ_ТОКЕН" NOTION_TASKS_DB_ID="a6fbb0e23b2542908e374a1298cf3842" NOTION_GOALS_DB_ID="a399c256328b4a5aa2f6e70402309b78" NOTION_SESSIONS_DB_ID="704ef8ce0e144db3b1cf9871b5194fa7" npm run api
+```
+
+Токен нельзя присылать в чат и нельзя коммитить в GitHub.
+
+Если всё хорошо, увидишь:
+
+```text
+Life OS API listening on http://localhost:3001
+NOTION_TOKEN is set
+NOTION_TASKS_DB_ID is set
+NOTION_GOALS_DB_ID is set
+NOTION_SESSIONS_DB_ID is set
+```
+
+Этот терминал не закрывать.
+
+### Терминал 2 — frontend / сайт
+
+Это интерфейс карты. Он обычно работает на `5173` или `5174`.
+
+```bash
 npm run dev
 ```
 
-## Следующие шаги
+Открывать сайт нужно через вкладку Ports / Порты или через всплывающее окно Codespaces.
 
-1. Проверить запуск проекта.
-2. Подключить preview через Codespaces / Vercel.
-3. Создать backend route `/api/life-os/snapshot`.
-4. Подключить Notion API.
-5. Заменить mock data на живые данные.
+## Как обновлять код
+
+Если ассистент внёс правки в GitHub:
+
+```bash
+git pull
+```
+
+Потом перезапусти нужный процесс.
+
+Для frontend:
+
+```bash
+Ctrl + C
+npm run dev
+```
+
+Для API:
+
+```bash
+Ctrl + C
+NOTION_TOKEN="ТВОЙ_ТОКЕН" NOTION_TASKS_DB_ID="a6fbb0e23b2542908e374a1298cf3842" NOTION_GOALS_DB_ID="a399c256328b4a5aa2f6e70402309b78" NOTION_SESSIONS_DB_ID="704ef8ce0e144db3b1cf9871b5194fa7" npm run api
+```
+
+## Частые ошибки
+
+### EADDRINUSE / port 3001 already in use
+
+API уже запущен в другом терминале. Найди старый терминал с `Life OS API listening...` и нажми `Ctrl + C`, либо не запускай второй API.
+
+### `fallback` в интерфейсе
+
+Frontend не видит API или API не запущен. Проверь терминал API и перезагрузи сайт.
+
+### `connected`, но нет Goals/Sessions
+
+Проверь, что:
+
+- в команду API переданы `NOTION_GOALS_DB_ID` и `NOTION_SESSIONS_DB_ID`;
+- Notion integration `Life OS Map Backend` подключена к этим базам;
+- в базах есть записи.
+
+### Порт 5173/5174 меняется
+
+Это нормально. Vite берёт свободный порт. Смотри актуальную ссылку в Ports / Порты.
+
+## Ближайший roadmap
+
+1. Стабилизировать canvas-layout карты.
+2. Добавить drag/zoom и ограничения пустой области.
+3. Разделить frontend на компоненты.
+4. Добавить write API для Work Sessions DB.
+5. Добавить task event API: старт, пауза, завершение, перенос.
+6. Добавить календарную и временную аналитику.
+7. Усилить визуальный стиль до premium / serious tool.
+
+## Важная логика продукта
+
+Не превращать карту в обычный список задач. Список задач полезен, но главный смысл Life OS Map — видеть систему целиком:
+
+```text
+куда я иду → какие цели активны → какие задачи двигают цель → сколько времени уходит → что делать дальше
+```
