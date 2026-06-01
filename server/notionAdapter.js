@@ -103,6 +103,31 @@ function firstDate(props, names) {
   return dateStart(findProp(props, names));
 }
 
+function textProperty(value = '') {
+  return { rich_text: [{ text: { content: String(value || '') } }] };
+}
+
+function titleProperty(value = '') {
+  return { title: [{ text: { content: String(value || 'Untitled') } }] };
+}
+
+function selectProperty(value) {
+  return value ? { select: { name: String(value) } } : undefined;
+}
+
+function numberProperty(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? { number } : undefined;
+}
+
+function dateProperty(value) {
+  return value ? { date: { start: value } } : undefined;
+}
+
+function cleanProperties(properties) {
+  return Object.fromEntries(Object.entries(properties).filter(([, value]) => value !== undefined && value !== null));
+}
+
 function normalizeKey(value = '') {
   return String(value)
     .toLowerCase()
@@ -243,7 +268,7 @@ export async function getNotionSnapshot({ notionToken, tasksDbId, goalsDbId, ses
   return {
     meta: {
       source: goalsDbId || sessionsDbId ? 'notion-live-workspace' : 'notion-live-tasks-db',
-      version: '0.5.0',
+      version: '0.6.0',
       updatedAt: new Date().toISOString(),
       warnings,
       connected: {
@@ -267,4 +292,49 @@ export async function getNotionSnapshot({ notionToken, tasksDbId, goalsDbId, ses
     sessions,
     planning: buildPlanning(tasks),
   };
+}
+
+export async function createWorkSession({ notionToken, sessionsDbId, payload }) {
+  if (!notionToken || !sessionsDbId) {
+    throw new Error('NOTION_TOKEN and NOTION_SESSIONS_DB_ID are required');
+  }
+
+  const notion = new Client({ auth: notionToken });
+  const title = payload.title || payload.session || `Work session · ${new Date().toLocaleString('ru-RU')}`;
+  const properties = cleanProperties({
+    Session: titleProperty(title),
+    Task: textProperty(payload.task || ''),
+    Project: selectProperty(payload.project || 'Life OS'),
+    Status: selectProperty(payload.status || 'Finished'),
+    'Started At': dateProperty(payload.startedAt),
+    'Finished At': dateProperty(payload.finishedAt),
+    'Duration Min': numberProperty(payload.durationMin),
+    Result: textProperty(payload.result || ''),
+    'Next Step': textProperty(payload.nextStep || payload.nextAction || ''),
+  });
+
+  const response = await notion.pages.create({ parent: { database_id: sessionsDbId }, properties });
+  return { id: response.id, url: response.url };
+}
+
+export async function updateTaskEvent({ notionToken, taskId, event }) {
+  if (!notionToken || !taskId) {
+    throw new Error('NOTION_TOKEN and taskId are required');
+  }
+
+  const notion = new Client({ auth: notionToken });
+  const now = new Date().toISOString();
+  const properties = cleanProperties({
+    Status: selectProperty(event.status),
+    Progress: numberProperty(event.progress),
+    'Due Date': dateProperty(event.dueDate),
+    'Planned Date': dateProperty(event.plannedDate),
+    'Last Touched': dateProperty(now),
+    'Next Action': event.nextAction ? textProperty(event.nextAction) : undefined,
+    'Time Debt': numberProperty(event.timeDebt),
+    'Reschedule Count': numberProperty(event.rescheduleCount),
+  });
+
+  const response = await notion.pages.update({ page_id: taskId, properties });
+  return { id: response.id, url: response.url };
 }
