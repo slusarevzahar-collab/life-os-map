@@ -8,6 +8,8 @@ export const FILTERS = [
 
 const STATUS_WEIGHT = { now: 0, progress: 1, next: 2, overdue: 3, waiting: 4, paused: 5, neutral: 6, done: 7 };
 
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
 export function normalizeStatus(status = '') {
   const value = String(status).toLowerCase();
   if (value.includes('now') || value.includes('сейчас')) return 'now';
@@ -23,14 +25,8 @@ export function normalizeStatus(status = '') {
 export function statusLabel(status = '') {
   const key = normalizeStatus(status);
   const labels = {
-    now: 'Сейчас',
-    progress: 'В работе',
-    next: 'Следующее',
-    done: 'Готово',
-    paused: 'Пауза',
-    waiting: 'Ожидает',
-    overdue: 'Просрочено',
-    neutral: status || 'Без статуса',
+    now: 'Сейчас', progress: 'В работе', next: 'Следующее', done: 'Готово',
+    paused: 'Пауза', waiting: 'Ожидает', overdue: 'Просрочено', neutral: status || 'Без статуса',
   };
   return labels[key] || status || 'Без статуса';
 }
@@ -44,11 +40,8 @@ export function compactTitle(title = '', fallback = 'Задача') {
 
 export function formatDate(date) {
   if (!date) return 'без срока';
-  try {
-    return new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: 'short' }).format(new Date(date));
-  } catch {
-    return date;
-  }
+  try { return new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: 'short' }).format(new Date(date)); }
+  catch { return date; }
 }
 
 export function taskIcon(project = '') {
@@ -106,11 +99,12 @@ function makeGoalLayout(goals, tasks) {
 
   return visibleGoals.slice(0, 7).map((goal, index, arr) => {
     const angle = -90 + (360 / Math.max(arr.length, 1)) * index;
-    const pos = polar(50, 50, arr.length === 1 ? 0 : 29, angle);
+    const radius = arr.length === 1 ? 0 : 27;
+    const pos = polar(50, 50, radius, angle);
     return {
       ...goal,
-      x: Math.max(18, Math.min(82, pos.x)),
-      y: Math.max(18, Math.min(82, pos.y)),
+      x: clamp(pos.x, 18, 82),
+      y: clamp(pos.y, 22, 78),
       angle,
       monogram: goal.id === 'unlinked' ? '??' : goalIcon(goal.title),
     };
@@ -135,9 +129,9 @@ function buildGoalTaskNodes(goals, tasks, filter) {
   goalLayouts.forEach((goal) => {
     const related = (grouped.get(goal.id) || []).slice(0, 5);
     related.forEach((task, index) => {
-      const spread = related.length === 1 ? 0 : (index - (related.length - 1) / 2) * 17;
-      const baseAngle = goal.angle + spread;
-      const ring = goal.id === 'unlinked' ? 18 : 14;
+      const spread = related.length === 1 ? 0 : (index - (related.length - 1) / 2) * 18;
+      const baseAngle = goal.angle + 180 + spread;
+      const ring = goal.id === 'unlinked' ? 15 : 12;
       const pos = polar(goal.x, goal.y, ring, baseAngle);
       const statusKey = normalizeStatus(task.status);
       taskNodes.push({
@@ -154,8 +148,8 @@ function buildGoalTaskNodes(goals, tasks, filter) {
         priority: task.priority ?? 0,
         goalId: goal.id,
         goalTitle: goal.title,
-        x: Math.max(8, Math.min(92, pos.x)),
-        y: Math.max(8, Math.min(92, pos.y)),
+        x: clamp(pos.x, 12, 88),
+        y: clamp(pos.y, 15, 84),
         summary: task.nextAction || task.summary || 'Следующий шаг пока не указан.',
       });
     });
@@ -194,28 +188,13 @@ export function buildMapFromSnapshot(snapshot, filter = 'all') {
   const totalSessionMinutes = sessions.reduce((sum, session) => sum + (Number(session.durationMin) || 0), 0);
 
   return {
-    id: 'root',
-    type: 'root',
-    title: 'AI-first Life OS',
-    icon: 'OS',
-    monogram: 'OS',
+    id: 'root', type: 'root', title: 'AI-first Life OS', icon: 'OS', monogram: 'OS',
     progress: snapshot.currentFocus?.progress ?? nowTask?.progress ?? 0,
     status: snapshot.meta?.source || 'snapshot',
     current: snapshot.currentFocus?.title || nowTask?.title || 'Life OS Map',
     next: snapshot.currentFocus?.nextAction || nowTask?.nextAction || 'Следующий шаг не указан.',
-    goalNodes,
-    taskNodes,
-    nodes: [...goalNodes, ...taskNodes],
-    planning: snapshot.planning || {},
-    rawTasks: tasks,
-    activeTasks,
-    filteredTasks,
-    nowTask,
-    nextTask,
-    waitingTasks,
-    goals,
-    sessions,
-    linkedTasksCount,
-    totalSessionMinutes,
+    goalNodes, taskNodes, nodes: [...goalNodes, ...taskNodes],
+    planning: snapshot.planning || {}, rawTasks: tasks, activeTasks, filteredTasks,
+    nowTask, nextTask, waitingTasks, goals, sessions, linkedTasksCount, totalSessionMinutes,
   };
 }
