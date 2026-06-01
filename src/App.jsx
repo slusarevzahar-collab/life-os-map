@@ -24,12 +24,12 @@ const fallbackSnapshot = {
 };
 
 const sceneSlots = [
-  { icon: '✅', x: 50, y: 25 },
-  { icon: '🎬', x: 66, y: 33 },
-  { icon: '🎯', x: 73, y: 52 },
-  { icon: '⏱️', x: 63, y: 70 },
-  { icon: '🔌', x: 36, y: 70 },
-  { icon: '📥', x: 27, y: 50 },
+  { icon: '✓', x: 50, y: 25 },
+  { icon: '▶', x: 66, y: 33 },
+  { icon: '◎', x: 73, y: 52 },
+  { icon: '◷', x: 63, y: 70 },
+  { icon: '◇', x: 36, y: 70 },
+  { icon: '↧', x: 27, y: 50 },
 ];
 
 function normalizeStatus(status = '') {
@@ -42,6 +42,21 @@ function normalizeStatus(status = '') {
   if (value.includes('waiting')) return 'waiting';
   if (value.includes('overdue')) return 'overdue';
   return 'neutral';
+}
+
+function statusLabel(status = '') {
+  const key = normalizeStatus(status);
+  const labels = {
+    now: 'Сейчас',
+    progress: 'В работе',
+    next: 'Следующее',
+    done: 'Готово',
+    paused: 'Пауза',
+    waiting: 'Ожидает',
+    overdue: 'Просрочено',
+    neutral: status || 'Без статуса',
+  };
+  return labels[key] || status || 'Без статуса';
 }
 
 function compactTitle(title = '', fallback = 'Задача') {
@@ -61,31 +76,31 @@ function formatDate(date) {
   }
 }
 
-function projectIcon(project = '') {
+function taskIcon(project = '') {
   const key = String(project).toLowerCase();
-  if (key.includes('inbox')) return '📥';
-  if (key.includes('content')) return '🎬';
-  if (key.includes('sleda')) return '🔎';
-  if (key.includes('agent')) return '🤖';
-  if (key.includes('github')) return '💻';
-  if (key.includes('yandex')) return '⚡';
-  return '✅';
+  if (key.includes('inbox')) return 'IN';
+  if (key.includes('content')) return 'AI';
+  if (key.includes('sleda')) return 'SD';
+  if (key.includes('agent')) return 'AG';
+  if (key.includes('github')) return 'GH';
+  if (key.includes('yandex')) return 'YA';
+  return 'OS';
 }
 
 function buildMapFromSnapshot(snapshot) {
   const tasks = snapshot.tasks || [];
-  const visibleTasks = tasks
-    .filter((task) => !String(task.status || '').toLowerCase().includes('done'))
-    .slice(0, 6);
+  const activeTasks = tasks.filter((task) => !String(task.status || '').toLowerCase().includes('done'));
+  const visibleTasks = activeTasks.slice(0, 6);
 
   const nodes = visibleTasks.map((task, index) => {
-    const visual = sceneSlots[index] || { icon: '🛰️', x: 50, y: 50 };
+    const visual = sceneSlots[index] || { icon: '•', x: 50, y: 50 };
     const statusKey = normalizeStatus(task.status);
     return {
       id: task.id,
       title: task.title || 'Без названия',
       shortTitle: compactTitle(task.title),
-      icon: projectIcon(task.project) || visual.icon,
+      icon: visual.icon,
+      monogram: taskIcon(task.project),
       progress: task.progress ?? 0,
       status: task.status || 'unknown',
       statusKey,
@@ -98,17 +113,25 @@ function buildMapFromSnapshot(snapshot) {
     };
   });
 
+  const nowTask = activeTasks.find((task) => normalizeStatus(task.status) === 'now') || activeTasks.find((task) => normalizeStatus(task.status) === 'progress') || activeTasks[0];
+  const nextTask = activeTasks.find((task) => normalizeStatus(task.status) === 'next') || activeTasks.find((task) => task.id !== nowTask?.id);
+  const waitingTasks = activeTasks.filter((task) => ['waiting', 'paused', 'overdue'].includes(normalizeStatus(task.status)));
+
   return {
     id: 'root',
     title: 'AI-first Life OS',
-    icon: '☀️',
+    icon: 'OS',
     progress: snapshot.currentFocus?.progress ?? 0,
     status: snapshot.meta?.source || 'snapshot',
-    current: snapshot.currentFocus?.title || 'Life OS Map',
-    next: snapshot.currentFocus?.nextAction || 'Следующий шаг не указан.',
+    current: snapshot.currentFocus?.title || nowTask?.title || 'Life OS Map',
+    next: snapshot.currentFocus?.nextAction || nowTask?.nextAction || 'Следующий шаг не указан.',
     nodes,
     planning: snapshot.planning || {},
     rawTasks: tasks,
+    activeTasks,
+    nowTask,
+    nextTask,
+    waitingTasks,
   };
 }
 
@@ -118,7 +141,11 @@ function Progress({ value }) {
 }
 
 function StatusPill({ status, statusKey }) {
-  return <span className={`statusPill status-${statusKey || normalizeStatus(status)}`}>{status || 'unknown'}</span>;
+  return <span className={`statusPill status-${statusKey || normalizeStatus(status)}`}>{statusLabel(status)}</span>;
+}
+
+function MiniMetric({ label, value, tone = 'neutral' }) {
+  return <div className={`miniMetric tone-${tone}`}><span>{label}</span><b>{value}</b></div>;
 }
 
 function Planet({ node, onSelect, selected }) {
@@ -135,12 +162,26 @@ function Planet({ node, onSelect, selected }) {
       transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
       title={node.title}
     >
-      <div className="planetBall"><span>{node.icon}</span></div>
+      <div className="planetBall"><span>{node.monogram}</span></div>
       <div className="planetLabel">
         <strong>{node.shortTitle}</strong>
-        <small>{node.project} · {node.progress}%</small>
+        <small>{statusLabel(node.status)} · {node.progress}%</small>
       </div>
     </motion.button>
+  );
+}
+
+function TaskRow({ task, active, onClick }) {
+  const statusKey = normalizeStatus(task.status);
+  return (
+    <button className={`taskRow ${active ? 'activeTaskRow' : ''}`} onClick={onClick}>
+      <span className={`taskDot status-${statusKey}`} />
+      <span className="taskRowMain">
+        <b>{task.title}</b>
+        <small>{task.project || 'Life OS'} · {statusLabel(task.status)} · {task.progress || 0}%</small>
+      </span>
+      <span className="taskRowDate">{formatDate(task.dueDate)}</span>
+    </button>
   );
 }
 
@@ -150,7 +191,7 @@ function App() {
   const map = useMemo(() => buildMapFromSnapshot(snapshot), [snapshot]);
   const [selected, setSelected] = useState(null);
   const [panel, setPanel] = useState(null);
-  const activeNode = selected || map.nodes.find((node) => node.statusKey === 'now') || map.nodes[0] || map;
+  const activeNode = selected || map.nodes.find((node) => node.id === map.nowTask?.id) || map.nodes[0] || map;
   const stars = useMemo(() => Array.from({ length: 70 }, (_, i) => ({ left: `${(i * 37) % 100}%`, top: `${(i * 61) % 100}%`, size: 1 + ((i * 13) % 3) })), []);
 
   const openPanel = (nextPanel) => {
@@ -178,13 +219,30 @@ function App() {
     return () => { active = false; };
   }, []);
 
+  const selectTask = (task) => {
+    const nextNode = map.nodes.find((node) => node.id === task.id) || {
+      id: task.id,
+      title: task.title,
+      shortTitle: compactTitle(task.title),
+      monogram: taskIcon(task.project),
+      status: task.status,
+      statusKey: normalizeStatus(task.status),
+      project: task.project,
+      progress: task.progress,
+      dueDate: task.dueDate,
+      priority: task.priority,
+      summary: task.nextAction || 'Следующий шаг пока не указан.',
+    };
+    setSelected(nextNode);
+    setPanel('mission');
+  };
+
   return (
     <main className="app" onClick={closePanel}>
       <div className="stars">{stars.map((s, i) => <i key={i} style={{ left: s.left, top: s.top, width: s.size, height: s.size }} />)}</div>
 
-      <section className="mission" onClick={(event) => event.stopPropagation()}>
-        <div className="missionHeader">
-          <span className="sun">{map.icon}</span>
+      <section className="commandDeck" onClick={(event) => event.stopPropagation()}>
+        <div className="deckHeader">
           <div>
             <small>MISSION CONTROL · {apiState}</small>
             <h1>{map.title}</h1>
@@ -192,8 +250,33 @@ function App() {
           <strong>{map.progress}%</strong>
         </div>
         <Progress value={map.progress} />
-        <p><b>Сейчас:</b> {map.current}</p>
-        <p><b>Следующий шаг:</b> {map.next}</p>
+        <div className="deckFocusGrid">
+          <div className="focusBlock currentFocusBlock">
+            <span>Сейчас</span>
+            <b>{map.current}</b>
+            <small>{map.next}</small>
+          </div>
+          <div className="focusBlock">
+            <span>Следующее</span>
+            <b>{map.nextTask?.title || 'Не выбрано'}</b>
+            <small>{map.nextTask?.nextAction || 'Нет следующего шага'}</small>
+          </div>
+        </div>
+        <div className="metricsStrip">
+          <MiniMetric label="Активно" value={map.activeTasks.length} tone="green" />
+          <MiniMetric label="На карте" value={map.nodes.length} tone="blue" />
+          <MiniMetric label="Ждёт" value={map.waitingTasks.length} tone="amber" />
+        </div>
+      </section>
+
+      <section className="taskRail" onClick={(event) => event.stopPropagation()}>
+        <div className="railHeader">
+          <small>ACTIVE QUEUE</small>
+          <b>{map.activeTasks.length}</b>
+        </div>
+        <div className="taskList">
+          {map.activeTasks.slice(0, 7).map((task) => <TaskRow key={task.id} task={task} active={activeNode?.id === task.id} onClick={() => selectTask(task)} />)}
+        </div>
       </section>
 
       <section className="map" aria-label="Life OS map" onClick={closePanel}>
@@ -227,7 +310,7 @@ function App() {
           event.stopPropagation();
           openPanel('copilot');
         }}
-      >🤖</button>
+      >AI</button>
 
       <AnimatePresence mode="wait">
         {panel && (
@@ -243,7 +326,7 @@ function App() {
             {panel === 'mission' && activeNode && (
               <>
                 <div className="sheetTitle">
-                  <span>{activeNode.icon}</span>
+                  <span>{activeNode.monogram || activeNode.icon || 'OS'}</span>
                   <div>
                     <div className="metaRow"><StatusPill status={activeNode.status} statusKey={activeNode.statusKey} /><em>{activeNode.project}</em></div>
                     <h2>{activeNode.title}</h2>
@@ -272,16 +355,16 @@ function App() {
               <>
                 <h2>Следующий технический план</h2>
                 <ol>
-                  <li>Довести отображение реальных задач до нормальной читаемости.</li>
-                  <li>Добавить Goals DB в snapshot.</li>
-                  <li>Добавить Work Sessions DB и статистику времени.</li>
+                  <li>Подключить Goals DB в snapshot.</li>
+                  <li>Подключить Work Sessions DB и статистику времени.</li>
+                  <li>Добавить фильтр: Now / Next / Waiting / Done.</li>
                   <li>Сделать mobile dashboard + mini-map.</li>
                 </ol>
               </>
             )}
             {panel === 'copilot' && (
               <>
-                <h2>Орби · Copilot</h2>
+                <h2>Life OS Copilot</h2>
                 <p>Я уже вижу живые задачи из Notion. Следующий слой — цели, сессии, просрочки и рекомендации следующего шага.</p>
               </>
             )}
