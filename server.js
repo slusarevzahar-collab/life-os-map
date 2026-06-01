@@ -5,12 +5,15 @@ const app = express();
 const port = process.env.API_PORT || 3001;
 const notionToken = process.env.NOTION_TOKEN;
 const tasksDbId = process.env.NOTION_TASKS_DB_ID;
+const goalsDbId = process.env.NOTION_GOALS_DB_ID;
+const sessionsDbId = process.env.NOTION_SESSIONS_DB_ID;
 
 const mockSnapshot = {
   meta: {
     source: 'mock-backend-snapshot',
     version: '0.1.0',
     updatedAt: new Date().toISOString(),
+    warnings: [],
   },
   currentFocus: {
     id: 'task_life_os_map',
@@ -28,6 +31,7 @@ const mockSnapshot = {
       progress: 38,
       targetDate: '2026-06-30',
       status: 'active',
+      nextAction: 'Заменить mock snapshot на Notion workspace snapshot.',
     },
   ],
   tasks: [
@@ -41,33 +45,14 @@ const mockSnapshot = {
       dueDate: '2026-06-04',
       nextAction: 'Заменить mock data на backend response.',
     },
-    {
-      id: 'task_mobile_ux',
-      title: 'Переработать мобильный UX в dashboard + mini-map',
-      project: 'Life OS',
-      status: 'next',
-      progress: 0,
-      priority: 2,
-      dueDate: '2026-06-07',
-      nextAction: 'Сделать мобильный режим не копией canvas, а рабочей панелью.',
-    },
-    {
-      id: 'task_ai_inbox',
-      title: 'AI Inbox: Telegram → Make → Notion MVP',
-      project: 'AI Inbox',
-      status: 'next',
-      progress: 35,
-      priority: 3,
-      dueDate: '2026-06-05',
-      nextAction: 'Проверить создание записей из Telegram-бота.',
-    },
   ],
   sessions: [],
   planning: {
-    onTrack: 2,
-    next: 2,
-    waiting: 1,
+    onTrack: 1,
+    next: 1,
+    waiting: 0,
     overdue: 0,
+    done: 0,
   },
 };
 
@@ -77,6 +62,10 @@ function plainText(richText = []) {
 
 function selectName(property) {
   return property?.select?.name || property?.status?.name || null;
+}
+
+function multiSelectNames(property) {
+  return Array.isArray(property?.multi_select) ? property.multi_select.map((item) => item.name) : [];
 }
 
 function titleText(property) {
@@ -95,6 +84,10 @@ function dateStart(property) {
   return property?.date?.start || null;
 }
 
+function relationIds(property) {
+  return Array.isArray(property?.relation) ? property.relation.map((item) => item.id) : [];
+}
+
 function findProp(props, names) {
   for (const name of names) {
     if (props[name]) return props[name];
@@ -102,17 +95,73 @@ function findProp(props, names) {
   return undefined;
 }
 
+function firstTitle(props, names) {
+  return titleText(findProp(props, names));
+}
+
+function firstRichText(props, names) {
+  return richText(findProp(props, names));
+}
+
+function firstSelect(props, names) {
+  return selectName(findProp(props, names));
+}
+
+function firstNumber(props, names) {
+  return numberValue(findProp(props, names));
+}
+
+function firstDate(props, names) {
+  return dateStart(findProp(props, names));
+}
+
 function mapNotionTask(page) {
   const props = page.properties || {};
   return {
     id: page.id,
-    title: titleText(findProp(props, ['Task', 'Name', 'Название', 'Задача'])) || 'Untitled task',
-    project: selectName(findProp(props, ['Project', 'Проект'])) || 'Life OS',
-    status: selectName(findProp(props, ['Status', 'Статус'])) || 'unknown',
-    progress: numberValue(findProp(props, ['Progress', 'Прогресс', 'Progress %'])) || 0,
-    priority: numberValue(findProp(props, ['Priority', 'Приоритет'])) || 0,
-    dueDate: dateStart(findProp(props, ['Due Date', 'Дата', 'Срок', 'Deadline'])) || null,
-    nextAction: richText(findProp(props, ['Next Action', 'Следующее действие', 'Следующий шаг'])) || '',
+    title: firstTitle(props, ['Task', 'Name', 'Название', 'Задача']) || 'Untitled task',
+    project: firstSelect(props, ['Project', 'Проект']) || 'Life OS',
+    status: firstSelect(props, ['Status', 'Статус']) || 'unknown',
+    progress: firstNumber(props, ['Progress', 'Прогресс', 'Progress %']) || 0,
+    priority: firstNumber(props, ['Priority', 'Приоритет']) || 0,
+    dueDate: firstDate(props, ['Due Date', 'Дата', 'Срок', 'Deadline']) || null,
+    startedAt: firstDate(props, ['Started At', 'Start', 'Начало']) || null,
+    finishedAt: firstDate(props, ['Finished At', 'Finish', 'Конец', 'Завершено']) || null,
+    durationMin: firstNumber(props, ['Duration Min', 'Duration', 'Минуты', 'Длительность']) || 0,
+    timeDebt: firstNumber(props, ['Time Debt', 'Долг времени']) || 0,
+    nextAction: firstRichText(props, ['Next Action', 'Следующее действие', 'Следующий шаг']) || '',
+    goalIds: relationIds(findProp(props, ['Goal', 'Goals', 'Цель', 'Цели'])),
+    tags: multiSelectNames(findProp(props, ['Tags', 'Теги'])),
+  };
+}
+
+function mapNotionGoal(page) {
+  const props = page.properties || {};
+  return {
+    id: page.id,
+    title: firstTitle(props, ['Goal', 'Name', 'Название', 'Цель']) || 'Untitled goal',
+    status: firstSelect(props, ['Status', 'Статус']) || 'unknown',
+    horizon: firstSelect(props, ['Horizon', 'Период', 'Горизонт']) || firstRichText(props, ['Horizon', 'Период', 'Горизонт']) || '',
+    progress: firstNumber(props, ['Progress', 'Прогресс', 'Progress %']) || 0,
+    targetDate: firstDate(props, ['Target Date', 'Due Date', 'Дата', 'Срок', 'Deadline']) || null,
+    nextAction: firstRichText(props, ['Next Action', 'Следующее действие', 'Следующий шаг']) || '',
+    taskIds: relationIds(findProp(props, ['Tasks', 'Task', 'Задачи', 'Задача'])),
+  };
+}
+
+function mapNotionSession(page) {
+  const props = page.properties || {};
+  return {
+    id: page.id,
+    title: firstTitle(props, ['Session', 'Name', 'Название', 'Сессия']) || 'Work session',
+    task: firstRichText(props, ['Task', 'Задача']) || '',
+    project: firstSelect(props, ['Project', 'Проект']) || 'Life OS',
+    status: firstSelect(props, ['Status', 'Статус']) || 'unknown',
+    startedAt: firstDate(props, ['Started At', 'Start', 'Начало']) || null,
+    finishedAt: firstDate(props, ['Finished At', 'Finish', 'Конец', 'Завершено']) || null,
+    durationMin: firstNumber(props, ['Duration Min', 'Duration', 'Минуты', 'Длительность']) || 0,
+    result: firstRichText(props, ['Result', 'Результат']) || '',
+    nextStep: firstRichText(props, ['Next Step', 'Next Action', 'Следующий шаг']) || '',
   };
 }
 
@@ -131,29 +180,58 @@ function buildPlanning(tasks) {
   );
 }
 
+async function queryDatabase(notion, databaseId, mapper, label, warnings) {
+  if (!databaseId) return [];
+
+  try {
+    const response = await notion.databases.query({
+      database_id: databaseId,
+      page_size: 50,
+    });
+    return response.results.map(mapper);
+  } catch (error) {
+    const message = `${label}: ${error.message}`;
+    warnings.push(message);
+    console.warn(`Life OS ${message}`);
+    return [];
+  }
+}
+
+function chooseCurrentFocus(tasks) {
+  return (
+    tasks.find((task) => String(task.status).toLowerCase().includes('now')) ||
+    tasks.find((task) => String(task.status).toLowerCase().includes('сейчас')) ||
+    tasks.find((task) => String(task.status).toLowerCase().includes('in progress')) ||
+    tasks.find((task) => String(task.status).toLowerCase().includes('в работе')) ||
+    tasks[0]
+  );
+}
+
 async function getNotionSnapshot() {
   if (!notionToken || !tasksDbId) return null;
 
   const notion = new Client({ auth: notionToken });
-  const response = await notion.databases.query({
-    database_id: tasksDbId,
-    page_size: 20,
-  });
-
-  const tasks = response.results
-    .map(mapNotionTask)
+  const warnings = [];
+  const tasks = (await queryDatabase(notion, tasksDbId, mapNotionTask, 'Tasks DB', warnings))
     .sort((a, b) => (a.priority || 999) - (b.priority || 999));
-  const currentFocus =
-    tasks.find((task) => String(task.status).toLowerCase().includes('now')) ||
-    tasks.find((task) => String(task.status).toLowerCase().includes('in progress')) ||
-    tasks.find((task) => String(task.status).toLowerCase().includes('в работе')) ||
-    tasks[0];
+  const goals = (await queryDatabase(notion, goalsDbId, mapNotionGoal, 'Goals DB', warnings))
+    .sort((a, b) => (b.progress || 0) - (a.progress || 0));
+  const sessions = (await queryDatabase(notion, sessionsDbId, mapNotionSession, 'Work Sessions DB', warnings))
+    .sort((a, b) => String(b.startedAt || '').localeCompare(String(a.startedAt || '')));
+
+  const currentFocus = chooseCurrentFocus(tasks);
 
   return {
     meta: {
-      source: 'notion-live-tasks-db',
-      version: '0.2.1',
+      source: goalsDbId || sessionsDbId ? 'notion-live-workspace' : 'notion-live-tasks-db',
+      version: '0.3.0',
       updatedAt: new Date().toISOString(),
+      warnings,
+      connected: {
+        tasks: Boolean(tasksDbId),
+        goals: Boolean(goalsDbId) && goals.length > 0,
+        sessions: Boolean(sessionsDbId) && sessions.length > 0,
+      },
     },
     currentFocus: currentFocus
       ? {
@@ -165,9 +243,9 @@ async function getNotionSnapshot() {
           nextAction: currentFocus.nextAction || 'Следующий шаг не указан.',
         }
       : mockSnapshot.currentFocus,
-    goals: [],
+    goals,
     tasks,
-    sessions: [],
+    sessions,
     planning: buildPlanning(tasks),
   };
 }
@@ -201,4 +279,6 @@ app.listen(port, () => {
   console.log(`Life OS API listening on http://localhost:${port}`);
   console.log(notionToken ? 'NOTION_TOKEN is set' : 'NOTION_TOKEN is not set; using mock snapshot');
   console.log(tasksDbId ? 'NOTION_TASKS_DB_ID is set' : 'NOTION_TASKS_DB_ID is not set; using mock snapshot');
+  console.log(goalsDbId ? 'NOTION_GOALS_DB_ID is set' : 'NOTION_GOALS_DB_ID is not set; goals disabled');
+  console.log(sessionsDbId ? 'NOTION_SESSIONS_DB_ID is set' : 'NOTION_SESSIONS_DB_ID is not set; sessions disabled');
 });
