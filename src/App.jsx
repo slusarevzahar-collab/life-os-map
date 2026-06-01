@@ -24,12 +24,12 @@ const fallbackSnapshot = {
 };
 
 const sceneSlots = [
-  { icon: '✅', x: 50, y: 26 },
-  { icon: '🎬', x: 64, y: 32 },
-  { icon: '🎯', x: 74, y: 48 },
-  { icon: '⏱️', x: 66, y: 70 },
-  { icon: '🔌', x: 34, y: 70 },
-  { icon: '📥', x: 26, y: 48 },
+  { icon: '✅', x: 50, y: 25 },
+  { icon: '🎬', x: 66, y: 33 },
+  { icon: '🎯', x: 73, y: 52 },
+  { icon: '⏱️', x: 63, y: 70 },
+  { icon: '🔌', x: 36, y: 70 },
+  { icon: '📥', x: 27, y: 50 },
 ];
 
 function normalizeStatus(status = '') {
@@ -46,10 +46,10 @@ function normalizeStatus(status = '') {
 
 function compactTitle(title = '', fallback = 'Задача') {
   const clean = String(title || fallback).replace(/^(Milestone:\s*)/i, '').trim();
-  if (clean.length <= 22) return clean;
+  if (clean.length <= 20) return clean;
   const words = clean.split(/\s+/).filter(Boolean);
   const short = words.slice(0, 3).join(' ');
-  return short.length > 22 ? `${short.slice(0, 20)}…` : `${short}…`;
+  return short.length > 20 ? `${short.slice(0, 18)}…` : `${short}…`;
 }
 
 function formatDate(date) {
@@ -126,7 +126,10 @@ function Planet({ node, onSelect, selected }) {
     <motion.button
       className={`planet ${selected ? 'selectedPlanet' : ''} status-${node.statusKey}`}
       style={{ left: `${node.x}%`, top: `${node.y}%` }}
-      onClick={() => onSelect(node)}
+      onClick={(event) => {
+        event.stopPropagation();
+        onSelect(node);
+      }}
       whileTap={{ scale: 0.96 }}
       animate={{ y: [-3, 3, -3] }}
       transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
@@ -146,9 +149,15 @@ function App() {
   const [apiState, setApiState] = useState('loading');
   const map = useMemo(() => buildMapFromSnapshot(snapshot), [snapshot]);
   const [selected, setSelected] = useState(null);
-  const [panel, setPanel] = useState('mission');
+  const [panel, setPanel] = useState(null);
   const activeNode = selected || map.nodes.find((node) => node.statusKey === 'now') || map.nodes[0] || map;
   const stars = useMemo(() => Array.from({ length: 70 }, (_, i) => ({ left: `${(i * 37) % 100}%`, top: `${(i * 61) % 100}%`, size: 1 + ((i * 13) % 3) })), []);
+
+  const openPanel = (nextPanel) => {
+    setPanel((current) => (current === nextPanel ? null : nextPanel));
+  };
+
+  const closePanel = () => setPanel(null);
 
   useEffect(() => {
     let active = true;
@@ -170,10 +179,10 @@ function App() {
   }, []);
 
   return (
-    <main className="app">
+    <main className="app" onClick={closePanel}>
       <div className="stars">{stars.map((s, i) => <i key={i} style={{ left: s.left, top: s.top, width: s.size, height: s.size }} />)}</div>
 
-      <section className="mission">
+      <section className="mission" onClick={(event) => event.stopPropagation()}>
         <div className="missionHeader">
           <span className="sun">{map.icon}</span>
           <div>
@@ -187,74 +196,97 @@ function App() {
         <p><b>Следующий шаг:</b> {map.next}</p>
       </section>
 
-      <section className="map" aria-label="Life OS map">
+      <section className="map" aria-label="Life OS map" onClick={closePanel}>
         <div className="orbit orbit1" />
         <div className="orbit orbit2" />
         <div className="orbit orbit3" />
-        <button className="center" onClick={() => setSelected(map)}>
+        <button
+          className="center"
+          onClick={(event) => {
+            event.stopPropagation();
+            setSelected(map);
+            setPanel('mission');
+          }}
+        >
           <span>{map.icon}</span>
           <strong>{map.title}</strong>
           <small>{map.status}</small>
         </button>
-        {map.nodes.map((node) => <Planet key={node.id} node={node} selected={activeNode?.id === node.id} onSelect={setSelected} />)}
+        {map.nodes.map((node) => <Planet key={node.id} node={node} selected={activeNode?.id === node.id} onSelect={(nextNode) => { setSelected(nextNode); setPanel('mission'); }} />)}
       </section>
 
-      <nav className="bottomNav">
-        <button onClick={() => setPanel('mission')}>Фокус</button>
-        <button onClick={() => setPanel('data')}>Данные</button>
-        <button onClick={() => setPanel('plan')}>План</button>
+      <nav className="bottomNav" onClick={(event) => event.stopPropagation()}>
+        <button className={panel === 'mission' ? 'activeNav' : ''} onClick={() => openPanel('mission')}>Фокус</button>
+        <button className={panel === 'data' ? 'activeNav' : ''} onClick={() => openPanel('data')}>Данные</button>
+        <button className={panel === 'plan' ? 'activeNav' : ''} onClick={() => openPanel('plan')}>План</button>
       </nav>
 
-      <button className="orbi" onClick={() => setPanel('copilot')}>🤖</button>
+      <button
+        className="orbi"
+        onClick={(event) => {
+          event.stopPropagation();
+          openPanel('copilot');
+        }}
+      >🤖</button>
 
       <AnimatePresence mode="wait">
-        <motion.aside key={panel + activeNode?.id + apiState} className="sheet" initial={{ y: 32, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 32, opacity: 0 }}>
-          {panel === 'mission' && activeNode && (
-            <>
-              <div className="sheetTitle">
-                <span>{activeNode.icon}</span>
-                <div>
-                  <div className="metaRow"><StatusPill status={activeNode.status} statusKey={activeNode.statusKey} /><em>{activeNode.project}</em></div>
-                  <h2>{activeNode.title}</h2>
+        {panel && (
+          <motion.aside
+            key={panel + activeNode?.id + apiState}
+            className="sheet"
+            initial={{ y: 32, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 32, opacity: 0 }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button className="sheetClose" onClick={closePanel} aria-label="Закрыть">×</button>
+            {panel === 'mission' && activeNode && (
+              <>
+                <div className="sheetTitle">
+                  <span>{activeNode.icon}</span>
+                  <div>
+                    <div className="metaRow"><StatusPill status={activeNode.status} statusKey={activeNode.statusKey} /><em>{activeNode.project}</em></div>
+                    <h2>{activeNode.title}</h2>
+                  </div>
                 </div>
-              </div>
-              <p>{activeNode.summary || map.current}</p>
-              <div className="detailGrid">
-                <div><small>Прогресс</small><b>{activeNode.progress || 0}%</b></div>
-                <div><small>Срок</small><b>{formatDate(activeNode.dueDate)}</b></div>
-                <div><small>Приоритет</small><b>{activeNode.priority || '—'}</b></div>
-              </div>
-              <Progress value={activeNode.progress || map.progress} />
-            </>
-          )}
-          {panel === 'data' && (
-            <>
-              <h2>Backend snapshot</h2>
-              <p><b>API status:</b> {apiState}</p>
-              <p><b>Источник:</b> {snapshot.meta?.source || 'unknown'}</p>
-              <p><b>Endpoint:</b> <code>/api/life-os/snapshot</code></p>
-              <p><b>Задач в snapshot:</b> {snapshot.tasks?.length || 0}</p>
-              <p><b>Активных узлов на карте:</b> {map.nodes.length}</p>
-            </>
-          )}
-          {panel === 'plan' && (
-            <>
-              <h2>Следующий технический план</h2>
-              <ol>
-                <li>Довести отображение реальных задач до нормальной читаемости.</li>
-                <li>Добавить Goals DB в snapshot.</li>
-                <li>Добавить Work Sessions DB и статистику времени.</li>
-                <li>Сделать mobile dashboard + mini-map.</li>
-              </ol>
-            </>
-          )}
-          {panel === 'copilot' && (
-            <>
-              <h2>Орби · Copilot</h2>
-              <p>Я уже вижу живые задачи из Notion. Следующий слой — цели, сессии, просрочки и рекомендации следующего шага.</p>
-            </>
-          )}
-        </motion.aside>
+                <p>{activeNode.summary || map.current}</p>
+                <div className="detailGrid">
+                  <div><small>Прогресс</small><b>{activeNode.progress || 0}%</b></div>
+                  <div><small>Срок</small><b>{formatDate(activeNode.dueDate)}</b></div>
+                  <div><small>Приоритет</small><b>{activeNode.priority || '—'}</b></div>
+                </div>
+                <Progress value={activeNode.progress || map.progress} />
+              </>
+            )}
+            {panel === 'data' && (
+              <>
+                <h2>Backend snapshot</h2>
+                <p><b>API status:</b> {apiState}</p>
+                <p><b>Источник:</b> {snapshot.meta?.source || 'unknown'}</p>
+                <p><b>Endpoint:</b> <code>/api/life-os/snapshot</code></p>
+                <p><b>Задач в snapshot:</b> {snapshot.tasks?.length || 0}</p>
+                <p><b>Активных узлов на карте:</b> {map.nodes.length}</p>
+              </>
+            )}
+            {panel === 'plan' && (
+              <>
+                <h2>Следующий технический план</h2>
+                <ol>
+                  <li>Довести отображение реальных задач до нормальной читаемости.</li>
+                  <li>Добавить Goals DB в snapshot.</li>
+                  <li>Добавить Work Sessions DB и статистику времени.</li>
+                  <li>Сделать mobile dashboard + mini-map.</li>
+                </ol>
+              </>
+            )}
+            {panel === 'copilot' && (
+              <>
+                <h2>Орби · Copilot</h2>
+                <p>Я уже вижу живые задачи из Notion. Следующий слой — цели, сессии, просрочки и рекомендации следующего шага.</p>
+              </>
+            )}
+          </motion.aside>
+        )}
       </AnimatePresence>
     </main>
   );
