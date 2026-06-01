@@ -189,10 +189,20 @@ button { font: inherit; }
   border-radius: 999px;
   transform: translate(-50%, -50%);
 }
-.orbit1 { width: 300px; height: 300px; }
-.orbit2 { width: 440px; height: 440px; }
-.orbit3 { width: 580px; height: 580px; }
-.orbit4 { width: 710px; height: 710px; opacity: .55; }
+.orbit1 { width: 260px; height: 260px; }
+.orbit2 { width: 430px; height: 430px; }
+.orbit3 { width: 600px; height: 600px; }
+.orbit4 { width: 760px; height: 760px; opacity: .55; }
+.goalLine {
+  position: absolute;
+  width: 1px;
+  height: 50%;
+  transform-origin: 50% 100%;
+  transform: translate(-50%, -100%);
+  background: linear-gradient(to top, rgba(103,232,249,.18), transparent);
+  pointer-events: none;
+  opacity: .55;
+}
 .center {
   position: absolute;
   left: 50%;
@@ -215,7 +225,8 @@ button { font: inherit; }
 .center strong { font-size: 15px; line-height: 1.05; }
 .center small { color: rgba(255,255,255,.48); font-size: 12px; }
 
-.planet {
+.planet,
+.goalNode {
   position: absolute;
   width: 112px;
   transform: translate(-50%, -50%);
@@ -225,9 +236,10 @@ button { font: inherit; }
   text-align: center;
   cursor: pointer;
 }
-.planetBall {
-  width: 70px;
-  height: 70px;
+.goalNode { width: 132px; z-index: 4; }
+.planet { z-index: 5; }
+.planetBall,
+.goalBall {
   margin: auto;
   display: grid;
   place-items: center;
@@ -235,12 +247,21 @@ button { font: inherit; }
   border: 1px solid rgba(255,255,255,.14);
   background: radial-gradient(circle at 30% 20%, rgba(255,255,255,.28), rgba(255,255,255,.08) 35%, rgba(0,0,0,.38));
   box-shadow: 0 14px 40px rgba(0,0,0,.4);
-  font-size: 18px;
   font-weight: 900;
   color: #dffaff;
 }
-.selectedPlanet .planetBall { border-color: rgba(110,231,183,.85); box-shadow: 0 0 46px rgba(110,231,183,.28); }
-.planetLabel {
+.planetBall { width: 58px; height: 58px; font-size: 15px; }
+.goalBall {
+  width: 86px;
+  height: 86px;
+  font-size: 19px;
+  border-color: rgba(103,232,249,.28);
+  background: radial-gradient(circle at 30% 20%, rgba(255,255,255,.32), rgba(103,232,249,.12) 34%, rgba(0,0,0,.38));
+}
+.selectedPlanet .planetBall,
+.selectedPlanet .goalBall { border-color: rgba(110,231,183,.85); box-shadow: 0 0 46px rgba(110,231,183,.28); }
+.planetLabel,
+.goalLabel {
   margin-top: 7px;
   padding: 7px 9px;
   border-radius: 15px;
@@ -248,8 +269,12 @@ button { font: inherit; }
   background: rgba(0,0,0,.78);
   backdrop-filter: blur(10px);
 }
-.planetLabel strong { display: block; font-size: 11px; line-height: 1.12; }
-.planetLabel small { display: block; margin-top: 3px; font-size: 9px; color: rgba(255,255,255,.52); }
+.goalLabel { border-color: rgba(103,232,249,.2); background: rgba(3,7,18,.82); }
+.planetLabel strong,
+.goalLabel strong { display: block; font-size: 11px; line-height: 1.12; }
+.goalLabel strong { font-size: 12px; }
+.planetLabel small,
+.goalLabel small { display: block; margin-top: 3px; font-size: 9px; color: rgba(255,255,255,.52); }
 
 .statusPill {
   display: inline-flex;
@@ -390,20 +415,22 @@ button { font: inherit; }
   .connectionStrip { display: none; }
   .focusBlock { min-height: auto; }
   .focusBlock small { display: none; }
-  .map { width: 580px; height: 580px; min-width: 580px; min-height: 580px; top: 57%; opacity: .74; }
-  .mapOnly .map { width: 680px; height: 680px; min-width: 680px; min-height: 680px; top: 51%; }
-  .orbit1 { width: 260px; height: 260px; }
+  .map { width: 620px; height: 620px; min-width: 620px; min-height: 620px; top: 57%; opacity: .74; }
+  .mapOnly .map { width: 760px; height: 760px; min-width: 760px; min-height: 760px; top: 51%; }
+  .orbit1 { width: 250px; height: 250px; }
   .orbit2 { width: 390px; height: 390px; }
-  .orbit3 { width: 510px; height: 510px; }
-  .orbit4 { width: 640px; height: 640px; }
+  .orbit3 { width: 540px; height: 540px; }
+  .orbit4 { width: 700px; height: 700px; }
   .center { width: 124px; height: 124px; }
   .center span { font-size: 20px; }
   .center strong { font-size: 13px; }
-  .planetBall { width: 62px; height: 62px; font-size: 15px; }
-  .planet { width: 92px; }
-  .planetLabel { padding: 6px 7px; }
-  .planetLabel strong { font-size: 10px; }
-  .planetLabel small { font-size: 8px; }
+  .goalBall { width: 72px; height: 72px; font-size: 16px; }
+  .planetBall { width: 50px; height: 50px; font-size: 13px; }
+  .goalNode { width: 112px; }
+  .planet { width: 88px; }
+  .planetLabel, .goalLabel { padding: 6px 7px; }
+  .planetLabel strong, .goalLabel strong { font-size: 10px; }
+  .planetLabel small, .goalLabel small { font-size: 8px; }
   .sheet { bottom: 126px; max-height: 38vh; padding: 13px 42px 13px 13px; }
   .detailGrid { grid-template-columns: 1fr 1fr 1fr; }
   .splitPanel { grid-template-columns: 1fr; }
