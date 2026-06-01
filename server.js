@@ -27,6 +27,7 @@ const mockSnapshot = {
     {
       id: 'goal_life_os_mvp',
       title: 'Собрать рабочую Life OS Map + AI Inbox MVP',
+      area: 'Life OS',
       horizon: '1 month',
       progress: 38,
       targetDate: '2026-06-30',
@@ -39,6 +40,7 @@ const mockSnapshot = {
       id: 'task_life_os_map',
       title: 'Подготовить Notion data adapter для Life OS Map',
       project: 'Life OS',
+      goalName: 'Life OS',
       status: 'in_progress',
       progress: 55,
       priority: 1,
@@ -115,31 +117,49 @@ function firstDate(props, names) {
   return dateStart(findProp(props, names));
 }
 
+function normalizeKey(value = '') {
+  return String(value)
+    .toLowerCase()
+    .replace(/ё/g, 'е')
+    .replace(/[^a-zа-я0-9]+/g, ' ')
+    .trim();
+}
+
 function mapNotionTask(page) {
   const props = page.properties || {};
+  const goalName = firstSelect(props, ['Goal', 'Цель']) || '';
   return {
     id: page.id,
     title: firstTitle(props, ['Task', 'Name', 'Название', 'Задача']) || 'Untitled task',
     project: firstSelect(props, ['Project', 'Проект']) || 'Life OS',
+    goalName,
+    goalKey: normalizeKey(goalName),
     status: firstSelect(props, ['Status', 'Статус']) || 'unknown',
     progress: firstNumber(props, ['Progress', 'Прогресс', 'Progress %']) || 0,
     priority: firstNumber(props, ['Priority', 'Приоритет']) || 0,
     dueDate: firstDate(props, ['Due Date', 'Дата', 'Срок', 'Deadline']) || null,
+    plannedDate: firstDate(props, ['Planned Date', 'Плановая дата']) || null,
+    lastTouched: firstDate(props, ['Last Touched', 'Последнее касание']) || null,
     startedAt: firstDate(props, ['Started At', 'Start', 'Начало']) || null,
     finishedAt: firstDate(props, ['Finished At', 'Finish', 'Конец', 'Завершено']) || null,
     durationMin: firstNumber(props, ['Duration Min', 'Duration', 'Минуты', 'Длительность']) || 0,
     timeDebt: firstNumber(props, ['Time Debt', 'Долг времени']) || 0,
     nextAction: firstRichText(props, ['Next Action', 'Следующее действие', 'Следующий шаг']) || '',
-    goalIds: relationIds(findProp(props, ['Goal', 'Goals', 'Цель', 'Цели'])),
+    goalIds: relationIds(findProp(props, ['Goal Link', 'Goals Relation', 'Goals', 'Цель-связь', 'Цели'])),
     tags: multiSelectNames(findProp(props, ['Tags', 'Теги'])),
   };
 }
 
 function mapNotionGoal(page) {
   const props = page.properties || {};
+  const title = firstTitle(props, ['Goal', 'Name', 'Название', 'Цель']) || 'Untitled goal';
+  const area = firstSelect(props, ['Area', 'Направление']) || title;
   return {
     id: page.id,
-    title: firstTitle(props, ['Goal', 'Name', 'Название', 'Цель']) || 'Untitled goal',
+    title,
+    area,
+    goalKey: normalizeKey(area || title),
+    titleKey: normalizeKey(title),
     status: firstSelect(props, ['Status', 'Статус']) || 'unknown',
     horizon: firstSelect(props, ['Horizon', 'Период', 'Горизонт']) || firstRichText(props, ['Horizon', 'Период', 'Горизонт']) || '',
     progress: firstNumber(props, ['Progress', 'Прогресс', 'Progress %']) || 0,
@@ -163,6 +183,20 @@ function mapNotionSession(page) {
     result: firstRichText(props, ['Result', 'Результат']) || '',
     nextStep: firstRichText(props, ['Next Step', 'Next Action', 'Следующий шаг']) || '',
   };
+}
+
+function attachGoalsToTasks(tasks, goals) {
+  const byKey = new Map();
+  goals.forEach((goal) => {
+    if (goal.goalKey) byKey.set(goal.goalKey, goal.id);
+    if (goal.titleKey) byKey.set(goal.titleKey, goal.id);
+  });
+
+  return tasks.map((task) => {
+    if (task.goalIds?.length) return task;
+    const matchedGoalId = byKey.get(task.goalKey) || byKey.get(normalizeKey(task.project));
+    return matchedGoalId ? { ...task, goalIds: [matchedGoalId] } : task;
+  });
 }
 
 function buildPlanning(tasks) {
@@ -212,10 +246,11 @@ async function getNotionSnapshot() {
 
   const notion = new Client({ auth: notionToken });
   const warnings = [];
-  const tasks = (await queryDatabase(notion, tasksDbId, mapNotionTask, 'Tasks DB', warnings))
+  const rawTasks = (await queryDatabase(notion, tasksDbId, mapNotionTask, 'Tasks DB', warnings))
     .sort((a, b) => (a.priority || 999) - (b.priority || 999));
   const goals = (await queryDatabase(notion, goalsDbId, mapNotionGoal, 'Goals DB', warnings))
     .sort((a, b) => (b.progress || 0) - (a.progress || 0));
+  const tasks = attachGoalsToTasks(rawTasks, goals);
   const sessions = (await queryDatabase(notion, sessionsDbId, mapNotionSession, 'Work Sessions DB', warnings))
     .sort((a, b) => String(b.startedAt || '').localeCompare(String(a.startedAt || '')));
 
@@ -224,7 +259,7 @@ async function getNotionSnapshot() {
   return {
     meta: {
       source: goalsDbId || sessionsDbId ? 'notion-live-workspace' : 'notion-live-tasks-db',
-      version: '0.3.0',
+      version: '0.4.0',
       updatedAt: new Date().toISOString(),
       warnings,
       connected: {
