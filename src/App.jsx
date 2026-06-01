@@ -16,37 +16,85 @@ const fallbackSnapshot = {
     nextAction: 'Подключить карту к данным через backend snapshot.',
   },
   tasks: [
-    { id: 'task_life_os_map', title: 'Life OS Map', icon: '☀️', project: 'Life OS', status: 'in_progress', progress: 55, x: 50, y: 50, summary: 'Центр системы.' },
-    { id: 'task_mobile_ux', title: 'Mobile UX', icon: '📱', project: 'Life OS', status: 'next', progress: 0, x: 50, y: 26, summary: 'Сделать мобильный режим dashboard + mini-map.' },
-    { id: 'task_ai_inbox', title: 'AI Inbox', icon: '📥', project: 'AI Inbox', status: 'next', progress: 35, x: 27, y: 45, summary: 'Telegram → Make → Notion.' },
+    { id: 'task_life_os_map', title: 'Life OS Map', project: 'Life OS', status: 'in_progress', progress: 55, summary: 'Центр системы.' },
+    { id: 'task_mobile_ux', title: 'Mobile UX', project: 'Life OS', status: 'next', progress: 0, summary: 'Сделать мобильный режим dashboard + mini-map.' },
+    { id: 'task_ai_inbox', title: 'AI Inbox', project: 'AI Inbox', status: 'next', progress: 35, summary: 'Telegram → Make → Notion.' },
   ],
   planning: { onTrack: 1, next: 2, waiting: 1, overdue: 0 },
 };
 
-const visualNodes = {
-  task_life_os_map: { icon: '☀️', x: 50, y: 50 },
-  task_mobile_ux: { icon: '📱', x: 50, y: 26 },
-  task_ai_inbox: { icon: '📥', x: 27, y: 45 },
-  task_backend_api: { icon: '🔌', x: 34, y: 67 },
-  default_0: { icon: '✅', x: 50, y: 26 },
-  default_1: { icon: '🎯', x: 73, y: 45 },
-  default_2: { icon: '⏱️', x: 66, y: 67 },
-  default_3: { icon: '🎬', x: 64, y: 30 },
-};
+const sceneSlots = [
+  { icon: '✅', x: 50, y: 26 },
+  { icon: '🎬', x: 64, y: 32 },
+  { icon: '🎯', x: 74, y: 48 },
+  { icon: '⏱️', x: 66, y: 70 },
+  { icon: '🔌', x: 34, y: 70 },
+  { icon: '📥', x: 26, y: 48 },
+];
+
+function normalizeStatus(status = '') {
+  const value = String(status).toLowerCase();
+  if (value.includes('now')) return 'now';
+  if (value.includes('in progress') || value.includes('progress')) return 'progress';
+  if (value.includes('next')) return 'next';
+  if (value.includes('done')) return 'done';
+  if (value.includes('paused')) return 'paused';
+  if (value.includes('waiting')) return 'waiting';
+  if (value.includes('overdue')) return 'overdue';
+  return 'neutral';
+}
+
+function compactTitle(title = '', fallback = 'Задача') {
+  const clean = String(title || fallback).replace(/^(Milestone:\s*)/i, '').trim();
+  if (clean.length <= 22) return clean;
+  const words = clean.split(/\s+/).filter(Boolean);
+  const short = words.slice(0, 3).join(' ');
+  return short.length > 22 ? `${short.slice(0, 20)}…` : `${short}…`;
+}
+
+function formatDate(date) {
+  if (!date) return 'без срока';
+  try {
+    return new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: 'short' }).format(new Date(date));
+  } catch {
+    return date;
+  }
+}
+
+function projectIcon(project = '') {
+  const key = String(project).toLowerCase();
+  if (key.includes('inbox')) return '📥';
+  if (key.includes('content')) return '🎬';
+  if (key.includes('sleda')) return '🔎';
+  if (key.includes('agent')) return '🤖';
+  if (key.includes('github')) return '💻';
+  if (key.includes('yandex')) return '⚡';
+  return '✅';
+}
 
 function buildMapFromSnapshot(snapshot) {
   const tasks = snapshot.tasks || [];
-  const nodes = tasks.slice(0, 6).map((task, index) => {
-    const visual = visualNodes[task.id] || visualNodes[`default_${index}`] || { icon: '🛰️', x: 50, y: 50 };
+  const visibleTasks = tasks
+    .filter((task) => !String(task.status || '').toLowerCase().includes('done'))
+    .slice(0, 6);
+
+  const nodes = visibleTasks.map((task, index) => {
+    const visual = sceneSlots[index] || { icon: '🛰️', x: 50, y: 50 };
+    const statusKey = normalizeStatus(task.status);
     return {
       id: task.id,
-      title: task.title,
-      icon: visual.icon,
+      title: task.title || 'Без названия',
+      shortTitle: compactTitle(task.title),
+      icon: projectIcon(task.project) || visual.icon,
       progress: task.progress ?? 0,
-      status: task.status || 'status unknown',
+      status: task.status || 'unknown',
+      statusKey,
+      project: task.project || 'Life OS',
+      dueDate: task.dueDate || null,
+      priority: task.priority ?? 0,
       x: visual.x,
       y: visual.y,
-      summary: task.nextAction || task.summary || task.project || 'Нет описания.',
+      summary: task.nextAction || task.summary || 'Следующий шаг пока не указан.',
     };
   });
 
@@ -59,27 +107,35 @@ function buildMapFromSnapshot(snapshot) {
     current: snapshot.currentFocus?.title || 'Life OS Map',
     next: snapshot.currentFocus?.nextAction || 'Следующий шаг не указан.',
     nodes,
+    planning: snapshot.planning || {},
+    rawTasks: tasks,
   };
 }
 
 function Progress({ value }) {
-  return <div className="progress"><span style={{ width: `${value}%` }} /></div>;
+  const safe = Math.max(0, Math.min(100, Number(value) || 0));
+  return <div className="progress"><span style={{ width: `${safe}%` }} /></div>;
 }
 
-function Planet({ node, onSelect }) {
+function StatusPill({ status, statusKey }) {
+  return <span className={`statusPill status-${statusKey || normalizeStatus(status)}`}>{status || 'unknown'}</span>;
+}
+
+function Planet({ node, onSelect, selected }) {
   return (
     <motion.button
-      className="planet"
+      className={`planet ${selected ? 'selectedPlanet' : ''} status-${node.statusKey}`}
       style={{ left: `${node.x}%`, top: `${node.y}%` }}
       onClick={() => onSelect(node)}
       whileTap={{ scale: 0.96 }}
       animate={{ y: [-3, 3, -3] }}
       transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+      title={node.title}
     >
       <div className="planetBall"><span>{node.icon}</span></div>
       <div className="planetLabel">
-        <strong>{node.title}</strong>
-        <small>{node.status} · {node.progress}%</small>
+        <strong>{node.shortTitle}</strong>
+        <small>{node.project} · {node.progress}%</small>
       </div>
     </motion.button>
   );
@@ -91,7 +147,7 @@ function App() {
   const map = useMemo(() => buildMapFromSnapshot(snapshot), [snapshot]);
   const [selected, setSelected] = useState(null);
   const [panel, setPanel] = useState('mission');
-  const activeNode = selected || map.nodes[0] || map;
+  const activeNode = selected || map.nodes.find((node) => node.statusKey === 'now') || map.nodes[0] || map;
   const stars = useMemo(() => Array.from({ length: 70 }, (_, i) => ({ left: `${(i * 37) % 100}%`, top: `${(i * 61) % 100}%`, size: 1 + ((i * 13) % 3) })), []);
 
   useEffect(() => {
@@ -140,7 +196,7 @@ function App() {
           <strong>{map.title}</strong>
           <small>{map.status}</small>
         </button>
-        {map.nodes.map((node) => <Planet key={node.id} node={node} onSelect={setSelected} />)}
+        {map.nodes.map((node) => <Planet key={node.id} node={node} selected={activeNode?.id === node.id} onSelect={setSelected} />)}
       </section>
 
       <nav className="bottomNav">
@@ -155,8 +211,19 @@ function App() {
         <motion.aside key={panel + activeNode?.id + apiState} className="sheet" initial={{ y: 32, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 32, opacity: 0 }}>
           {panel === 'mission' && activeNode && (
             <>
-              <div className="sheetTitle"><span>{activeNode.icon}</span><div><small>{activeNode.status}</small><h2>{activeNode.title}</h2></div></div>
+              <div className="sheetTitle">
+                <span>{activeNode.icon}</span>
+                <div>
+                  <div className="metaRow"><StatusPill status={activeNode.status} statusKey={activeNode.statusKey} /><em>{activeNode.project}</em></div>
+                  <h2>{activeNode.title}</h2>
+                </div>
+              </div>
               <p>{activeNode.summary || map.current}</p>
+              <div className="detailGrid">
+                <div><small>Прогресс</small><b>{activeNode.progress || 0}%</b></div>
+                <div><small>Срок</small><b>{formatDate(activeNode.dueDate)}</b></div>
+                <div><small>Приоритет</small><b>{activeNode.priority || '—'}</b></div>
+              </div>
               <Progress value={activeNode.progress || map.progress} />
             </>
           )}
@@ -167,14 +234,16 @@ function App() {
               <p><b>Источник:</b> {snapshot.meta?.source || 'unknown'}</p>
               <p><b>Endpoint:</b> <code>/api/life-os/snapshot</code></p>
               <p><b>Задач в snapshot:</b> {snapshot.tasks?.length || 0}</p>
+              <p><b>Активных узлов на карте:</b> {map.nodes.length}</p>
             </>
           )}
           {panel === 'plan' && (
             <>
               <h2>Следующий технический план</h2>
               <ol>
-                <li>Проверить, что frontend читает API.</li>
-                <li>Заменить mock backend на чтение Notion DB.</li>
+                <li>Довести отображение реальных задач до нормальной читаемости.</li>
+                <li>Добавить Goals DB в snapshot.</li>
+                <li>Добавить Work Sessions DB и статистику времени.</li>
                 <li>Сделать mobile dashboard + mini-map.</li>
               </ol>
             </>
@@ -182,7 +251,7 @@ function App() {
           {panel === 'copilot' && (
             <>
               <h2>Орби · Copilot</h2>
-              <p>Я должен помогать выбирать следующий шаг, видеть просрочки, переносы, цели и рабочие сессии. Сейчас я уже получаю основу данных через snapshot-слой.</p>
+              <p>Я уже вижу живые задачи из Notion. Следующий слой — цели, сессии, просрочки и рекомендации следующего шага.</p>
             </>
           )}
         </motion.aside>
