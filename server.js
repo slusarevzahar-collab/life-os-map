@@ -1,5 +1,10 @@
 import express from 'express';
-import { getNotionSnapshot, mockSnapshot } from './server/notionAdapter.js';
+import {
+  createWorkSession,
+  getNotionSnapshot,
+  mockSnapshot,
+  updateTaskEvent,
+} from './server/notionAdapter.js';
 
 const app = express();
 const port = process.env.API_PORT || 3001;
@@ -35,11 +40,37 @@ app.get('/api/life-os/snapshot', async (_req, res) => {
   }
 });
 
+app.post('/api/life-os/sessions', async (req, res) => {
+  try {
+    const result = await createWorkSession({ notionToken, sessionsDbId, payload: req.body || {} });
+    res.status(201).json({ ok: true, session: result });
+  } catch (error) {
+    console.error('Life OS create session error:', error.message);
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.patch('/api/life-os/tasks/:id', async (req, res) => {
+  try {
+    const result = await updateTaskEvent({ notionToken, taskId: req.params.id, event: req.body || {} });
+    res.json({ ok: true, task: result });
+  } catch (error) {
+    console.error('Life OS update task error:', error.message);
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
 app.get('/api/life-os/health', (_req, res) => {
   res.json({
     ok: true,
     service: 'life-os-api',
     port,
+    endpoints: [
+      'GET /api/life-os/snapshot',
+      'POST /api/life-os/sessions',
+      'PATCH /api/life-os/tasks/:id',
+      'GET /api/life-os/health',
+    ],
     notion: {
       token: Boolean(notionToken),
       tasks: Boolean(tasksDbId),
