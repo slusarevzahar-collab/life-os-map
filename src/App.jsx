@@ -4,76 +4,61 @@ import { motion, AnimatePresence } from 'framer-motion';
 import './styles.css';
 
 const fallbackSnapshot = {
-  meta: {
-    source: 'local-fallback',
-    version: '0.1.0',
-    updatedAt: null,
-  },
-  currentFocus: {
-    title: 'Life OS Map',
-    status: 'in_progress',
-    progress: 55,
-    nextAction: 'Подключить карту к данным через backend snapshot.',
-  },
+  meta: { source: 'local-fallback', version: '0.1.0', updatedAt: null, warnings: [] },
+  currentFocus: { title: 'Life OS Map', status: 'in_progress', progress: 55, nextAction: 'Подключить карту к данным через backend snapshot.' },
+  goals: [],
+  sessions: [],
   tasks: [
     { id: 'task_life_os_map', title: 'Life OS Map', project: 'Life OS', status: 'in_progress', progress: 55, summary: 'Центр системы.' },
     { id: 'task_mobile_ux', title: 'Mobile UX', project: 'Life OS', status: 'next', progress: 0, summary: 'Сделать мобильный режим dashboard + mini-map.' },
     { id: 'task_ai_inbox', title: 'AI Inbox', project: 'AI Inbox', status: 'next', progress: 35, summary: 'Telegram → Make → Notion.' },
   ],
-  planning: { onTrack: 1, next: 2, waiting: 1, overdue: 0 },
+  planning: { onTrack: 1, next: 2, waiting: 1, overdue: 0, done: 0 },
 };
 
 const sceneSlots = [
-  { icon: '✓', x: 50, y: 25 },
-  { icon: '▶', x: 66, y: 33 },
-  { icon: '◎', x: 73, y: 52 },
-  { icon: '◷', x: 63, y: 70 },
-  { icon: '◇', x: 36, y: 70 },
-  { icon: '↧', x: 27, y: 50 },
+  { x: 50, y: 21 },
+  { x: 69, y: 33 },
+  { x: 76, y: 53 },
+  { x: 63, y: 73 },
+  { x: 36, y: 73 },
+  { x: 24, y: 52 },
+  { x: 31, y: 32 },
+  { x: 50, y: 82 },
 ];
 
 function normalizeStatus(status = '') {
   const value = String(status).toLowerCase();
-  if (value.includes('now')) return 'now';
-  if (value.includes('in progress') || value.includes('progress')) return 'progress';
-  if (value.includes('next')) return 'next';
-  if (value.includes('done')) return 'done';
-  if (value.includes('paused')) return 'paused';
-  if (value.includes('waiting')) return 'waiting';
-  if (value.includes('overdue')) return 'overdue';
+  if (value.includes('now') || value.includes('сейчас')) return 'now';
+  if (value.includes('in progress') || value.includes('progress') || value.includes('в работе')) return 'progress';
+  if (value.includes('next') || value.includes('след')) return 'next';
+  if (value.includes('done') || value.includes('готово') || value.includes('finished')) return 'done';
+  if (value.includes('paused') || value.includes('пауза')) return 'paused';
+  if (value.includes('waiting') || value.includes('ожид')) return 'waiting';
+  if (value.includes('overdue') || value.includes('просроч')) return 'overdue';
   return 'neutral';
 }
 
 function statusLabel(status = '') {
   const key = normalizeStatus(status);
   const labels = {
-    now: 'Сейчас',
-    progress: 'В работе',
-    next: 'Следующее',
-    done: 'Готово',
-    paused: 'Пауза',
-    waiting: 'Ожидает',
-    overdue: 'Просрочено',
-    neutral: status || 'Без статуса',
+    now: 'Сейчас', progress: 'В работе', next: 'Следующее', done: 'Готово',
+    paused: 'Пауза', waiting: 'Ожидает', overdue: 'Просрочено', neutral: status || 'Без статуса',
   };
   return labels[key] || status || 'Без статуса';
 }
 
 function compactTitle(title = '', fallback = 'Задача') {
   const clean = String(title || fallback).replace(/^(Milestone:\s*)/i, '').trim();
-  if (clean.length <= 20) return clean;
+  if (clean.length <= 22) return clean;
   const words = clean.split(/\s+/).filter(Boolean);
-  const short = words.slice(0, 3).join(' ');
-  return short.length > 20 ? `${short.slice(0, 18)}…` : `${short}…`;
+  return `${words.slice(0, 3).join(' ').slice(0, 22)}…`;
 }
 
 function formatDate(date) {
   if (!date) return 'без срока';
-  try {
-    return new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: 'short' }).format(new Date(date));
-  } catch {
-    return date;
-  }
+  try { return new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: 'short' }).format(new Date(date)); }
+  catch { return date; }
 }
 
 function taskIcon(project = '') {
@@ -87,51 +72,52 @@ function taskIcon(project = '') {
   return 'OS';
 }
 
+function minutesLabel(minutes = 0) {
+  const value = Number(minutes) || 0;
+  if (value <= 0) return '0 мин';
+  if (value < 60) return `${value} мин`;
+  const hours = Math.floor(value / 60);
+  const rest = value % 60;
+  return rest ? `${hours} ч ${rest} мин` : `${hours} ч`;
+}
+
 function buildMapFromSnapshot(snapshot) {
   const tasks = snapshot.tasks || [];
-  const activeTasks = tasks.filter((task) => !String(task.status || '').toLowerCase().includes('done'));
-  const visibleTasks = activeTasks.slice(0, 6);
-
+  const goals = snapshot.goals || [];
+  const sessions = snapshot.sessions || [];
+  const activeTasks = tasks.filter((task) => normalizeStatus(task.status) !== 'done');
+  const visibleTasks = activeTasks.slice(0, 8);
   const nodes = visibleTasks.map((task, index) => {
-    const visual = sceneSlots[index] || { icon: '•', x: 50, y: 50 };
-    const statusKey = normalizeStatus(task.status);
+    const slot = sceneSlots[index] || { x: 50, y: 50 };
     return {
       id: task.id,
       title: task.title || 'Без названия',
       shortTitle: compactTitle(task.title),
-      icon: visual.icon,
       monogram: taskIcon(task.project),
       progress: task.progress ?? 0,
       status: task.status || 'unknown',
-      statusKey,
+      statusKey: normalizeStatus(task.status),
       project: task.project || 'Life OS',
       dueDate: task.dueDate || null,
       priority: task.priority ?? 0,
-      x: visual.x,
-      y: visual.y,
+      x: slot.x,
+      y: slot.y,
       summary: task.nextAction || task.summary || 'Следующий шаг пока не указан.',
     };
   });
-
   const nowTask = activeTasks.find((task) => normalizeStatus(task.status) === 'now') || activeTasks.find((task) => normalizeStatus(task.status) === 'progress') || activeTasks[0];
   const nextTask = activeTasks.find((task) => normalizeStatus(task.status) === 'next') || activeTasks.find((task) => task.id !== nowTask?.id);
   const waitingTasks = activeTasks.filter((task) => ['waiting', 'paused', 'overdue'].includes(normalizeStatus(task.status)));
+  const totalSessionMinutes = sessions.reduce((sum, session) => sum + (Number(session.durationMin) || 0), 0);
 
   return {
-    id: 'root',
-    title: 'AI-first Life OS',
-    icon: 'OS',
+    id: 'root', title: 'AI-first Life OS', icon: 'OS',
     progress: snapshot.currentFocus?.progress ?? 0,
     status: snapshot.meta?.source || 'snapshot',
     current: snapshot.currentFocus?.title || nowTask?.title || 'Life OS Map',
     next: snapshot.currentFocus?.nextAction || nowTask?.nextAction || 'Следующий шаг не указан.',
-    nodes,
-    planning: snapshot.planning || {},
-    rawTasks: tasks,
-    activeTasks,
-    nowTask,
-    nextTask,
-    waitingTasks,
+    nodes, planning: snapshot.planning || {}, rawTasks: tasks, activeTasks, nowTask, nextTask, waitingTasks,
+    goals, sessions, totalSessionMinutes,
   };
 }
 
@@ -153,20 +139,14 @@ function Planet({ node, onSelect, selected }) {
     <motion.button
       className={`planet ${selected ? 'selectedPlanet' : ''} status-${node.statusKey}`}
       style={{ left: `${node.x}%`, top: `${node.y}%` }}
-      onClick={(event) => {
-        event.stopPropagation();
-        onSelect(node);
-      }}
+      onClick={(event) => { event.stopPropagation(); onSelect(node); }}
       whileTap={{ scale: 0.96 }}
       animate={{ y: [-3, 3, -3] }}
       transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
       title={node.title}
     >
       <div className="planetBall"><span>{node.monogram}</span></div>
-      <div className="planetLabel">
-        <strong>{node.shortTitle}</strong>
-        <small>{statusLabel(node.status)} · {node.progress}%</small>
-      </div>
+      <div className="planetLabel"><strong>{node.shortTitle}</strong><small>{statusLabel(node.status)} · {node.progress}%</small></div>
     </motion.button>
   );
 }
@@ -176,61 +156,57 @@ function TaskRow({ task, active, onClick }) {
   return (
     <button className={`taskRow ${active ? 'activeTaskRow' : ''}`} onClick={onClick}>
       <span className={`taskDot status-${statusKey}`} />
-      <span className="taskRowMain">
-        <b>{task.title}</b>
-        <small>{task.project || 'Life OS'} · {statusLabel(task.status)} · {task.progress || 0}%</small>
-      </span>
+      <span className="taskRowMain"><b>{task.title}</b><small>{task.project || 'Life OS'} · {statusLabel(task.status)} · {task.progress || 0}%</small></span>
       <span className="taskRowDate">{formatDate(task.dueDate)}</span>
     </button>
+  );
+}
+
+function GoalRow({ goal }) {
+  return (
+    <div className="compactRow">
+      <span className="compactDot" />
+      <div><b>{goal.title}</b><small>{goal.status || 'status'} · {goal.progress || 0}% · {formatDate(goal.targetDate)}</small></div>
+    </div>
+  );
+}
+
+function SessionRow({ session }) {
+  return (
+    <div className="compactRow">
+      <span className="compactDot sessionDot" />
+      <div><b>{session.title}</b><small>{session.project || 'Life OS'} · {session.status || 'status'} · {minutesLabel(session.durationMin)}</small></div>
+    </div>
   );
 }
 
 function App() {
   const [snapshot, setSnapshot] = useState(fallbackSnapshot);
   const [apiState, setApiState] = useState('loading');
-  const map = useMemo(() => buildMapFromSnapshot(snapshot), [snapshot]);
-  const [selected, setSelected] = useState(null);
   const [panel, setPanel] = useState(null);
+  const [selected, setSelected] = useState(null);
+  const [workspaceVisible, setWorkspaceVisible] = useState(true);
+  const map = useMemo(() => buildMapFromSnapshot(snapshot), [snapshot]);
   const activeNode = selected || map.nodes.find((node) => node.id === map.nowTask?.id) || map.nodes[0] || map;
-  const stars = useMemo(() => Array.from({ length: 70 }, (_, i) => ({ left: `${(i * 37) % 100}%`, top: `${(i * 61) % 100}%`, size: 1 + ((i * 13) % 3) })), []);
-
-  const openPanel = (nextPanel) => {
-    setPanel((current) => (current === nextPanel ? null : nextPanel));
-  };
+  const stars = useMemo(() => Array.from({ length: 80 }, (_, i) => ({ left: `${(i * 37) % 100}%`, top: `${(i * 61) % 100}%`, size: 1 + ((i * 13) % 3) })), []);
 
   const closePanel = () => setPanel(null);
+  const openPanel = (nextPanel) => setPanel((current) => (current === nextPanel ? null : nextPanel));
 
   useEffect(() => {
     let active = true;
     fetch('/api/life-os/snapshot')
-      .then((res) => {
-        if (!res.ok) throw new Error(`API returned ${res.status}`);
-        return res.json();
-      })
-      .then((data) => {
-        if (!active) return;
-        setSnapshot(data);
-        setApiState('connected');
-      })
-      .catch(() => {
-        if (!active) return;
-        setApiState('fallback');
-      });
+      .then((res) => { if (!res.ok) throw new Error(`API returned ${res.status}`); return res.json(); })
+      .then((data) => { if (!active) return; setSnapshot(data); setApiState('connected'); })
+      .catch(() => { if (!active) return; setApiState('fallback'); });
     return () => { active = false; };
   }, []);
 
   const selectTask = (task) => {
     const nextNode = map.nodes.find((node) => node.id === task.id) || {
-      id: task.id,
-      title: task.title,
-      shortTitle: compactTitle(task.title),
-      monogram: taskIcon(task.project),
-      status: task.status,
-      statusKey: normalizeStatus(task.status),
-      project: task.project,
-      progress: task.progress,
-      dueDate: task.dueDate,
-      priority: task.priority,
+      id: task.id, title: task.title, shortTitle: compactTitle(task.title), monogram: taskIcon(task.project),
+      status: task.status, statusKey: normalizeStatus(task.status), project: task.project,
+      progress: task.progress, dueDate: task.dueDate, priority: task.priority,
       summary: task.nextAction || 'Следующий шаг пока не указан.',
     };
     setSelected(nextNode);
@@ -238,136 +214,64 @@ function App() {
   };
 
   return (
-    <main className="app" onClick={closePanel}>
+    <main className={`app ${workspaceVisible ? '' : 'mapOnly'}`} onClick={closePanel}>
       <div className="stars">{stars.map((s, i) => <i key={i} style={{ left: s.left, top: s.top, width: s.size, height: s.size }} />)}</div>
 
-      <section className="commandDeck" onClick={(event) => event.stopPropagation()}>
-        <div className="deckHeader">
-          <div>
-            <small>MISSION CONTROL · {apiState}</small>
-            <h1>{map.title}</h1>
-          </div>
-          <strong>{map.progress}%</strong>
-        </div>
-        <Progress value={map.progress} />
-        <div className="deckFocusGrid">
-          <div className="focusBlock currentFocusBlock">
-            <span>Сейчас</span>
-            <b>{map.current}</b>
-            <small>{map.next}</small>
-          </div>
-          <div className="focusBlock">
-            <span>Следующее</span>
-            <b>{map.nextTask?.title || 'Не выбрано'}</b>
-            <small>{map.nextTask?.nextAction || 'Нет следующего шага'}</small>
-          </div>
-        </div>
-        <div className="metricsStrip">
-          <MiniMetric label="Активно" value={map.activeTasks.length} tone="green" />
-          <MiniMetric label="На карте" value={map.nodes.length} tone="blue" />
-          <MiniMetric label="Ждёт" value={map.waitingTasks.length} tone="amber" />
-        </div>
-      </section>
+      <button className="workspaceToggle" onClick={(e) => { e.stopPropagation(); setWorkspaceVisible((v) => !v); }}>
+        {workspaceVisible ? 'Скрыть панели' : 'Показать панели'}
+      </button>
 
-      <section className="taskRail" onClick={(event) => event.stopPropagation()}>
-        <div className="railHeader">
-          <small>ACTIVE QUEUE</small>
-          <b>{map.activeTasks.length}</b>
-        </div>
-        <div className="taskList">
-          {map.activeTasks.slice(0, 7).map((task) => <TaskRow key={task.id} task={task} active={activeNode?.id === task.id} onClick={() => selectTask(task)} />)}
-        </div>
-      </section>
+      <AnimatePresence>
+        {workspaceVisible && (
+          <motion.section className="commandDeck sidePanel leftPanel" initial={{ x: -24, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -24, opacity: 0 }} onClick={(e) => e.stopPropagation()}>
+            <div className="deckHeader"><div><small>MISSION CONTROL · {apiState}</small><h1>{map.title}</h1></div><strong>{map.progress}%</strong></div>
+            <Progress value={map.progress} />
+            <div className="deckFocusGrid">
+              <div className="focusBlock currentFocusBlock"><span>Сейчас</span><b>{map.current}</b><small>{map.next}</small></div>
+              <div className="focusBlock"><span>Следующее</span><b>{map.nextTask?.title || 'Не выбрано'}</b><small>{map.nextTask?.nextAction || 'Нет следующего шага'}</small></div>
+            </div>
+            <div className="metricsStrip">
+              <MiniMetric label="Задачи" value={map.activeTasks.length} tone="green" />
+              <MiniMetric label="Цели" value={map.goals.length} tone="blue" />
+              <MiniMetric label="Сессии" value={map.sessions.length} tone="amber" />
+            </div>
+          </motion.section>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {workspaceVisible && (
+          <motion.section className="taskRail sidePanel rightPanel" initial={{ x: 24, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 24, opacity: 0 }} onClick={(e) => e.stopPropagation()}>
+            <div className="railHeader"><small>ACTIVE QUEUE</small><b>{map.activeTasks.length}</b></div>
+            <div className="taskList">{map.activeTasks.slice(0, 12).map((task) => <TaskRow key={task.id} task={task} active={activeNode?.id === task.id} onClick={() => selectTask(task)} />)}</div>
+          </motion.section>
+        )}
+      </AnimatePresence>
 
       <section className="map" aria-label="Life OS map" onClick={closePanel}>
-        <div className="orbit orbit1" />
-        <div className="orbit orbit2" />
-        <div className="orbit orbit3" />
-        <button
-          className="center"
-          onClick={(event) => {
-            event.stopPropagation();
-            setSelected(map);
-            setPanel('mission');
-          }}
-        >
-          <span>{map.icon}</span>
-          <strong>{map.title}</strong>
-          <small>{map.status}</small>
+        <div className="orbit orbit1" /><div className="orbit orbit2" /><div className="orbit orbit3" /><div className="orbit orbit4" />
+        <button className="center" onClick={(event) => { event.stopPropagation(); setSelected(map); setPanel('mission'); }}>
+          <span>{map.icon}</span><strong>{map.title}</strong><small>{map.status}</small>
         </button>
         {map.nodes.map((node) => <Planet key={node.id} node={node} selected={activeNode?.id === node.id} onSelect={(nextNode) => { setSelected(nextNode); setPanel('mission'); }} />)}
       </section>
 
-      <nav className="bottomNav" onClick={(event) => event.stopPropagation()}>
+      <nav className="bottomNav" onClick={(e) => e.stopPropagation()}>
         <button className={panel === 'mission' ? 'activeNav' : ''} onClick={() => openPanel('mission')}>Фокус</button>
         <button className={panel === 'data' ? 'activeNav' : ''} onClick={() => openPanel('data')}>Данные</button>
         <button className={panel === 'plan' ? 'activeNav' : ''} onClick={() => openPanel('plan')}>План</button>
       </nav>
 
-      <button
-        className="orbi"
-        onClick={(event) => {
-          event.stopPropagation();
-          openPanel('copilot');
-        }}
-      >AI</button>
+      <button className="orbi" onClick={(e) => { e.stopPropagation(); openPanel('copilot'); }}>AI</button>
 
       <AnimatePresence mode="wait">
         {panel && (
-          <motion.aside
-            key={panel + activeNode?.id + apiState}
-            className="sheet"
-            initial={{ y: 32, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 32, opacity: 0 }}
-            onClick={(event) => event.stopPropagation()}
-          >
+          <motion.aside key={panel + activeNode?.id + apiState} className="sheet" initial={{ y: 32, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 32, opacity: 0 }} onClick={(e) => e.stopPropagation()}>
             <button className="sheetClose" onClick={closePanel} aria-label="Закрыть">×</button>
-            {panel === 'mission' && activeNode && (
-              <>
-                <div className="sheetTitle">
-                  <span>{activeNode.monogram || activeNode.icon || 'OS'}</span>
-                  <div>
-                    <div className="metaRow"><StatusPill status={activeNode.status} statusKey={activeNode.statusKey} /><em>{activeNode.project}</em></div>
-                    <h2>{activeNode.title}</h2>
-                  </div>
-                </div>
-                <p>{activeNode.summary || map.current}</p>
-                <div className="detailGrid">
-                  <div><small>Прогресс</small><b>{activeNode.progress || 0}%</b></div>
-                  <div><small>Срок</small><b>{formatDate(activeNode.dueDate)}</b></div>
-                  <div><small>Приоритет</small><b>{activeNode.priority || '—'}</b></div>
-                </div>
-                <Progress value={activeNode.progress || map.progress} />
-              </>
-            )}
-            {panel === 'data' && (
-              <>
-                <h2>Backend snapshot</h2>
-                <p><b>API status:</b> {apiState}</p>
-                <p><b>Источник:</b> {snapshot.meta?.source || 'unknown'}</p>
-                <p><b>Endpoint:</b> <code>/api/life-os/snapshot</code></p>
-                <p><b>Задач в snapshot:</b> {snapshot.tasks?.length || 0}</p>
-                <p><b>Активных узлов на карте:</b> {map.nodes.length}</p>
-              </>
-            )}
-            {panel === 'plan' && (
-              <>
-                <h2>Следующий технический план</h2>
-                <ol>
-                  <li>Подключить Goals DB в snapshot.</li>
-                  <li>Подключить Work Sessions DB и статистику времени.</li>
-                  <li>Добавить фильтр: Now / Next / Waiting / Done.</li>
-                  <li>Сделать mobile dashboard + mini-map.</li>
-                </ol>
-              </>
-            )}
-            {panel === 'copilot' && (
-              <>
-                <h2>Life OS Copilot</h2>
-                <p>Я уже вижу живые задачи из Notion. Следующий слой — цели, сессии, просрочки и рекомендации следующего шага.</p>
-              </>
-            )}
+            {panel === 'mission' && activeNode && <><div className="sheetTitle"><span>{activeNode.monogram || activeNode.icon || 'OS'}</span><div><div className="metaRow"><StatusPill status={activeNode.status} statusKey={activeNode.statusKey} /><em>{activeNode.project}</em></div><h2>{activeNode.title}</h2></div></div><p>{activeNode.summary || map.current}</p><div className="detailGrid"><div><small>Прогресс</small><b>{activeNode.progress || 0}%</b></div><div><small>Срок</small><b>{formatDate(activeNode.dueDate)}</b></div><div><small>Приоритет</small><b>{activeNode.priority || '—'}</b></div></div><Progress value={activeNode.progress || map.progress} /></>}
+            {panel === 'data' && <><h2>Workspace snapshot</h2><p><b>API:</b> {apiState}</p><p><b>Источник:</b> {snapshot.meta?.source || 'unknown'}</p><p><b>Endpoint:</b> <code>/api/life-os/snapshot</code></p><div className="detailGrid"><div><small>Tasks</small><b>{snapshot.tasks?.length || 0}</b></div><div><small>Goals</small><b>{snapshot.goals?.length || 0}</b></div><div><small>Sessions</small><b>{snapshot.sessions?.length || 0}</b></div></div><p><b>Время сессий:</b> {minutesLabel(map.totalSessionMinutes)}</p>{snapshot.meta?.warnings?.length ? <p className="warningText">Warnings: {snapshot.meta.warnings.join(' · ')}</p> : null}</>}
+            {panel === 'plan' && <><h2>Goals & Sessions</h2><div className="splitPanel"><div><h3>Цели</h3>{map.goals.slice(0, 4).map((goal) => <GoalRow key={goal.id} goal={goal} />)}{!map.goals.length && <p>Goals DB пока не отдала записи.</p>}</div><div><h3>Сессии</h3>{map.sessions.slice(0, 4).map((session) => <SessionRow key={session.id} session={session} />)}{!map.sessions.length && <p>Work Sessions DB пока не отдала записи.</p>}</div></div></>}
+            {panel === 'copilot' && <><h2>Life OS Copilot</h2><p>Панели можно скрыть, чтобы работать с картой как с главным навигатором. Следующий слой — фильтры карты, иерархия задач от целей и запись действий обратно в Notion.</p></>}
           </motion.aside>
         )}
       </AnimatePresence>
