@@ -16,16 +16,15 @@ const fallbackSnapshot = {
   planning: { onTrack: 1, next: 2, waiting: 1, overdue: 0, done: 0 },
 };
 
-const sceneSlots = [
-  { x: 50, y: 21 },
-  { x: 69, y: 33 },
-  { x: 76, y: 53 },
-  { x: 63, y: 73 },
-  { x: 36, y: 73 },
-  { x: 24, y: 52 },
-  { x: 31, y: 32 },
-  { x: 50, y: 82 },
+const FILTERS = [
+  { id: 'all', label: 'Все' },
+  { id: 'now', label: 'Сейчас' },
+  { id: 'next', label: 'Следующее' },
+  { id: 'progress', label: 'В работе' },
+  { id: 'paused', label: 'Пауза' },
 ];
+
+const STATUS_WEIGHT = { now: 0, progress: 1, next: 2, overdue: 3, waiting: 4, paused: 5, neutral: 6, done: 7 };
 
 function normalizeStatus(status = '') {
   const value = String(status).toLowerCase();
@@ -81,14 +80,47 @@ function minutesLabel(minutes = 0) {
   return rest ? `${hours} ч ${rest} мин` : `${hours} ч`;
 }
 
-function buildMapFromSnapshot(snapshot) {
+function sortTasksForMap(tasks) {
+  return [...tasks].sort((a, b) => {
+    const statusDiff = (STATUS_WEIGHT[normalizeStatus(a.status)] ?? 99) - (STATUS_WEIGHT[normalizeStatus(b.status)] ?? 99);
+    if (statusDiff !== 0) return statusDiff;
+    const priorityDiff = (Number(a.priority) || 999) - (Number(b.priority) || 999);
+    if (priorityDiff !== 0) return priorityDiff;
+    return (Number(b.progress) || 0) - (Number(a.progress) || 0);
+  });
+}
+
+function radialPosition(index, total, statusKey) {
+  const safeTotal = Math.max(total, 1);
+  const angleOffset = statusKey === 'now' ? -90 : -100;
+  const angle = ((360 / safeTotal) * index + angleOffset) * (Math.PI / 180);
+  const ringByStatus = {
+    now: 22,
+    progress: 30,
+    next: 39,
+    overdue: 44,
+    waiting: 45,
+    paused: 47,
+    neutral: 42,
+  };
+  const ring = ringByStatus[statusKey] || 42;
+  const jitter = index % 2 === 0 ? -2 : 2;
+  return {
+    x: 50 + Math.cos(angle) * (ring + jitter),
+    y: 50 + Math.sin(angle) * (ring + jitter),
+  };
+}
+
+function buildMapFromSnapshot(snapshot, filter = 'all') {
   const tasks = snapshot.tasks || [];
   const goals = snapshot.goals || [];
   const sessions = snapshot.sessions || [];
   const activeTasks = tasks.filter((task) => normalizeStatus(task.status) !== 'done');
-  const visibleTasks = activeTasks.slice(0, 8);
+  const filteredTasks = sortTasksForMap(activeTasks).filter((task) => filter === 'all' || normalizeStatus(task.status) === filter);
+  const visibleTasks = filteredTasks.slice(0, 10);
   const nodes = visibleTasks.map((task, index) => {
-    const slot = sceneSlots[index] || { x: 50, y: 50 };
+    const statusKey = normalizeStatus(task.status);
+    const slot = radialPosition(index, visibleTasks.length, statusKey);
     return {
       id: task.id,
       title: task.title || 'Без названия',
@@ -96,12 +128,12 @@ function buildMapFromSnapshot(snapshot) {
       monogram: taskIcon(task.project),
       progress: task.progress ?? 0,
       status: task.status || 'unknown',
-      statusKey: normalizeStatus(task.status),
+      statusKey,
       project: task.project || 'Life OS',
       dueDate: task.dueDate || null,
       priority: task.priority ?? 0,
-      x: slot.x,
-      y: slot.y,
+      x: Math.max(9, Math.min(91, slot.x)),
+      y: Math.max(9, Math.min(91, slot.y)),
       summary: task.nextAction || task.summary || 'Следующий шаг пока не указан.',
     };
   });
@@ -112,12 +144,12 @@ function buildMapFromSnapshot(snapshot) {
 
   return {
     id: 'root', title: 'AI-first Life OS', icon: 'OS',
-    progress: snapshot.currentFocus?.progress ?? 0,
+    progress: snapshot.currentFocus?.progress ?? nowTask?.progress ?? 0,
     status: snapshot.meta?.source || 'snapshot',
     current: snapshot.currentFocus?.title || nowTask?.title || 'Life OS Map',
     next: snapshot.currentFocus?.nextAction || nowTask?.nextAction || 'Следующий шаг не указан.',
-    nodes, planning: snapshot.planning || {}, rawTasks: tasks, activeTasks, nowTask, nextTask, waitingTasks,
-    goals, sessions, totalSessionMinutes,
+    nodes, planning: snapshot.planning || {}, rawTasks: tasks, activeTasks, filteredTasks,
+    nowTask, nextTask, waitingTasks, goals, sessions, totalSessionMinutes,
   };
 }
 
@@ -163,21 +195,11 @@ function TaskRow({ task, active, onClick }) {
 }
 
 function GoalRow({ goal }) {
-  return (
-    <div className="compactRow">
-      <span className="compactDot" />
-      <div><b>{goal.title}</b><small>{goal.status || 'status'} · {goal.progress || 0}% · {formatDate(goal.targetDate)}</small></div>
-    </div>
-  );
+  return <div className="compactRow"><span className="compactDot" /><div><b>{goal.title}</b><small>{goal.status || 'status'} · {goal.progress || 0}% · {formatDate(goal.targetDate)}</small></div></div>;
 }
 
 function SessionRow({ session }) {
-  return (
-    <div className="compactRow">
-      <span className="compactDot sessionDot" />
-      <div><b>{session.title}</b><small>{session.project || 'Life OS'} · {session.status || 'status'} · {minutesLabel(session.durationMin)}</small></div>
-    </div>
-  );
+  return <div className="compactRow"><span className="compactDot sessionDot" /><div><b>{session.title}</b><small>{session.project || 'Life OS'} · {session.status || 'status'} · {minutesLabel(session.durationMin)}</small></div></div>;
 }
 
 function App() {
@@ -186,7 +208,8 @@ function App() {
   const [panel, setPanel] = useState(null);
   const [selected, setSelected] = useState(null);
   const [workspaceVisible, setWorkspaceVisible] = useState(true);
-  const map = useMemo(() => buildMapFromSnapshot(snapshot), [snapshot]);
+  const [mapFilter, setMapFilter] = useState('all');
+  const map = useMemo(() => buildMapFromSnapshot(snapshot, mapFilter), [snapshot, mapFilter]);
   const activeNode = selected || map.nodes.find((node) => node.id === map.nowTask?.id) || map.nodes[0] || map;
   const stars = useMemo(() => Array.from({ length: 80 }, (_, i) => ({ left: `${(i * 37) % 100}%`, top: `${(i * 61) % 100}%`, size: 1 + ((i * 13) % 3) })), []);
 
@@ -221,6 +244,14 @@ function App() {
         {workspaceVisible ? 'Скрыть панели' : 'Показать панели'}
       </button>
 
+      <div className="mapFilters" onClick={(e) => e.stopPropagation()}>
+        {FILTERS.map((filter) => (
+          <button key={filter.id} className={mapFilter === filter.id ? 'activeFilter' : ''} onClick={() => { setMapFilter(filter.id); setSelected(null); }}>
+            {filter.label}
+          </button>
+        ))}
+      </div>
+
       <AnimatePresence>
         {workspaceVisible && (
           <motion.section className="commandDeck sidePanel leftPanel" initial={{ x: -24, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -24, opacity: 0 }} onClick={(e) => e.stopPropagation()}>
@@ -235,6 +266,11 @@ function App() {
               <MiniMetric label="Цели" value={map.goals.length} tone="blue" />
               <MiniMetric label="Сессии" value={map.sessions.length} tone="amber" />
             </div>
+            <div className="connectionStrip">
+              <span className={snapshot.meta?.connected?.tasks ? 'ok' : ''}>Tasks</span>
+              <span className={snapshot.meta?.connected?.goals ? 'ok' : ''}>Goals</span>
+              <span className={snapshot.meta?.connected?.sessions ? 'ok' : ''}>Sessions</span>
+            </div>
           </motion.section>
         )}
       </AnimatePresence>
@@ -242,8 +278,8 @@ function App() {
       <AnimatePresence>
         {workspaceVisible && (
           <motion.section className="taskRail sidePanel rightPanel" initial={{ x: 24, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 24, opacity: 0 }} onClick={(e) => e.stopPropagation()}>
-            <div className="railHeader"><small>ACTIVE QUEUE</small><b>{map.activeTasks.length}</b></div>
-            <div className="taskList">{map.activeTasks.slice(0, 12).map((task) => <TaskRow key={task.id} task={task} active={activeNode?.id === task.id} onClick={() => selectTask(task)} />)}</div>
+            <div className="railHeader"><small>ACTIVE QUEUE · {mapFilter}</small><b>{map.filteredTasks.length}</b></div>
+            <div className="taskList">{map.filteredTasks.slice(0, 14).map((task) => <TaskRow key={task.id} task={task} active={activeNode?.id === task.id} onClick={() => selectTask(task)} />)}</div>
           </motion.section>
         )}
       </AnimatePresence>
@@ -271,7 +307,7 @@ function App() {
             {panel === 'mission' && activeNode && <><div className="sheetTitle"><span>{activeNode.monogram || activeNode.icon || 'OS'}</span><div><div className="metaRow"><StatusPill status={activeNode.status} statusKey={activeNode.statusKey} /><em>{activeNode.project}</em></div><h2>{activeNode.title}</h2></div></div><p>{activeNode.summary || map.current}</p><div className="detailGrid"><div><small>Прогресс</small><b>{activeNode.progress || 0}%</b></div><div><small>Срок</small><b>{formatDate(activeNode.dueDate)}</b></div><div><small>Приоритет</small><b>{activeNode.priority || '—'}</b></div></div><Progress value={activeNode.progress || map.progress} /></>}
             {panel === 'data' && <><h2>Workspace snapshot</h2><p><b>API:</b> {apiState}</p><p><b>Источник:</b> {snapshot.meta?.source || 'unknown'}</p><p><b>Endpoint:</b> <code>/api/life-os/snapshot</code></p><div className="detailGrid"><div><small>Tasks</small><b>{snapshot.tasks?.length || 0}</b></div><div><small>Goals</small><b>{snapshot.goals?.length || 0}</b></div><div><small>Sessions</small><b>{snapshot.sessions?.length || 0}</b></div></div><p><b>Время сессий:</b> {minutesLabel(map.totalSessionMinutes)}</p>{snapshot.meta?.warnings?.length ? <p className="warningText">Warnings: {snapshot.meta.warnings.join(' · ')}</p> : null}</>}
             {panel === 'plan' && <><h2>Goals & Sessions</h2><div className="splitPanel"><div><h3>Цели</h3>{map.goals.slice(0, 4).map((goal) => <GoalRow key={goal.id} goal={goal} />)}{!map.goals.length && <p>Goals DB пока не отдала записи.</p>}</div><div><h3>Сессии</h3>{map.sessions.slice(0, 4).map((session) => <SessionRow key={session.id} session={session} />)}{!map.sessions.length && <p>Work Sessions DB пока не отдала записи.</p>}</div></div></>}
-            {panel === 'copilot' && <><h2>Life OS Copilot</h2><p>Панели можно скрыть, чтобы работать с картой как с главным навигатором. Следующий слой — фильтры карты, иерархия задач от целей и запись действий обратно в Notion.</p></>}
+            {panel === 'copilot' && <><h2>Life OS Copilot</h2><p>Карта теперь фильтруется по состояниям задач. Следующий слой — группировка планет по целям, запись событий обратно в Notion и автоматические рекомендации следующего шага.</p></>}
           </motion.aside>
         )}
       </AnimatePresence>
