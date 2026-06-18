@@ -111,11 +111,49 @@ export function ActiveQueue({ map, mapFilter, activeNode, onSelectTask }) {
 export function BottomNav({ panel, onOpen }) {
   return (
     <nav className="bottomNav" onClick={(event) => event.stopPropagation()}>
+      <button className={panel === 'guide' ? 'activeNav' : ''} onClick={() => onOpen('guide')}>Обзор</button>
       <button className={panel === 'mission' ? 'activeNav' : ''} onClick={() => onOpen('mission')}>Фокус</button>
       <button className={panel === 'queue' ? 'activeNav' : ''} onClick={() => onOpen('queue')}>Очередь</button>
       <button className={panel === 'data' ? 'activeNav' : ''} onClick={() => onOpen('data')}>Данные</button>
       <button className={panel === 'plan' ? 'activeNav' : ''} onClick={() => onOpen('plan')}>План</button>
     </nav>
+  );
+}
+
+function GuidePanel({ map, onOpen }) {
+  return (
+    <>
+      <div className="guideHeader">
+        <span>Стартовая навигация</span>
+        <h2>С чего начать в Life OS</h2>
+        <p>Этот экран не должен быть складом всего подряд. Он показывает, что сейчас главное, где лежит очередь задач и как перейти к деталям.</p>
+      </div>
+
+      <div className="guideGrid">
+        <button className="guideCard" onClick={() => onOpen('mission')}>
+          <strong>1. Фокус</strong>
+          <span>Слева показано, что делать сейчас и какой следующий шаг.</span>
+        </button>
+        <button className="guideCard" onClick={() => onOpen('queue')}>
+          <strong>2. Очередь</strong>
+          <span>Справа лежат все задачи. Карта показывает только главные узлы, чтобы не было каши.</span>
+        </button>
+        <button className="guideCard" onClick={() => onOpen('plan')}>
+          <strong>3. План</strong>
+          <span>Здесь цели и рабочие сессии: куда движемся и что уже делали.</span>
+        </button>
+        <button className="guideCard" onClick={() => onOpen('data')}>
+          <strong>4. Данные</strong>
+          <span>Проверка, откуда карта взяла информацию: Notion, задачи, цели, сессии.</span>
+        </button>
+      </div>
+
+      <div className="guideNext">
+        <span>Сейчас главное</span>
+        <b>{map.current}</b>
+        <small>{map.next}</small>
+      </div>
+    </>
   );
 }
 
@@ -241,13 +279,14 @@ export function DetailSheet({
   apiState,
   onClose,
   onSelectTask,
+  onOpen,
 }) {
   if (!panel) return null;
 
   return (
     <motion.aside
       key={panel + activeNode?.id + apiState}
-      className="sheet"
+      className={`sheet sheet-${panel}`}
       initial={{ y: 28, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       exit={{ y: 28, opacity: 0 }}
@@ -255,6 +294,7 @@ export function DetailSheet({
     >
       <button className="sheetClose" onClick={onClose} aria-label="Закрыть">×</button>
 
+      {panel === 'guide' ? <GuidePanel map={map} onOpen={onOpen} /> : null}
       {panel === 'mission' && activeNode ? <MissionPanel activeNode={activeNode} map={map} /> : null}
       {panel === 'queue' ? <QueuePanel map={map} activeNode={activeNode} onSelectTask={onSelectTask} /> : null}
       {panel === 'data' ? <DataPanel snapshot={snapshot} map={map} apiState={apiState} /> : null}
