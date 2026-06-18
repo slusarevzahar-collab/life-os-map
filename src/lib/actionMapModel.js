@@ -1,191 +1,263 @@
 import { normalizeStatus } from './lifeOsData.js';
 
-const PROJECT_ICONS = [
-  ['inbox', '📥'],
-  ['telegram', '🤖'],
-  ['sleda', '🔎'],
-  ['след', '🔎'],
-  ['life os', '☀️'],
-  ['github', '💻'],
-  ['codex', '💻'],
-  ['canvas', '🧪'],
-  ['content', '🎬'],
-  ['контент', '🎬'],
-  ['yandex', '⚡'],
-  ['яндекс', '⚡'],
-  ['4life', '🌿'],
-  ['oracle', '🔮'],
-  ['body', '🧍'],
-  ['english', '🇬🇧'],
+const TOP_AREAS = [
+  { id: 'projects', title: 'Проекты', icon: 'PR', summary: 'Все продуктовые и рабочие проекты. Нажми, чтобы открыть вложенную карту проектов.' },
+  { id: 'navigator', title: 'Навигатор', icon: 'OS', summary: 'Всё, что относится к Life OS Map, Notion-памяти, структуре и интерфейсу.' },
+  { id: 'inbox', title: 'AI Inbox', icon: 'IN', summary: 'Входящий поток: Telegram, посты, сигналы, заметки, материалы и будущий бот.' },
+  { id: 'goals', title: 'Цели', icon: 'GO', summary: 'Цели из Notion: крупные направления, к которым привязываются задачи.' },
+  { id: 'income', title: 'Доход', icon: '₽', summary: 'Всё, что связано с клиентами, деньгами, продажами, монетизацией и быстрым доходом.' },
+  { id: 'life', title: 'Жизнь', icon: 'LF', summary: 'Личные сферы, тело, обучение, творчество, отношения и баланс жизни.' },
+  { id: 'backlog', title: 'Идеи / потом', icon: 'BK', summary: 'То, что важно сохранить, но не должно сбивать текущий фокус.' },
+];
+
+const PROJECT_ICON_MAP = [
+  ['sleda', 'SD'],
+  ['след', 'SD'],
+  ['life os', 'OS'],
+  ['navigator', 'OS'],
+  ['навиг', 'OS'],
+  ['inbox', 'IN'],
+  ['telegram', 'TG'],
+  ['github', 'GH'],
+  ['codex', 'CD'],
+  ['canvas', 'CV'],
+  ['content', 'CT'],
+  ['контент', 'CT'],
+  ['yandex', 'YA'],
+  ['яндекс', 'YA'],
+  ['4life', '4L'],
+  ['oracle', 'OR'],
+  ['body', 'BD'],
+  ['english', 'EN'],
+  ['англий', 'EN'],
+  ['health', 'HL'],
+  ['тело', 'BD'],
+  ['деньги', '₽'],
+  ['доход', '₽'],
 ];
 
 function clean(value = '') {
   return String(value || '').trim();
 }
 
-function slug(value = '') {
-  return clean(value)
-    .toLowerCase()
-    .replace(/ё/g, 'е')
-    .replace(/[^a-zа-я0-9]+/g, '-')
-    .replace(/^-|-$/g, '') || 'item';
+function key(value = '') {
+  return clean(value).toLowerCase().replace(/ё/g, 'е');
 }
 
-function iconFor(title = '') {
-  const key = clean(title).toLowerCase();
-  const match = PROJECT_ICONS.find(([token]) => key.includes(token));
-  return match?.[1] || '🪐';
+function slug(value = '') {
+  return key(value).replace(/[^a-zа-я0-9]+/g, '-').replace(/^-|-$/g, '') || 'item';
+}
+
+function iconFor(title = '', fallback = 'ND') {
+  const lower = key(title);
+  const match = PROJECT_ICON_MAP.find(([token]) => lower.includes(token));
+  if (match) return match[1];
+  const words = clean(title).split(/\s+/).filter(Boolean);
+  if (!words.length) return fallback;
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return `${words[0][0] || ''}${words[1][0] || ''}`.toUpperCase();
 }
 
 function avg(items, field = 'progress') {
   if (!items.length) return 0;
-  const sum = items.reduce((acc, item) => acc + (Number(item[field]) || 0), 0);
-  return Math.round(sum / items.length);
+  return Math.round(items.reduce((sum, item) => sum + (Number(item[field]) || 0), 0) / items.length);
+}
+
+function statusState(status = '') {
+  const normalized = normalizeStatus(status);
+  if (normalized === 'now' || normalized === 'progress') return 'active';
+  if (normalized === 'next') return 'next';
+  if (normalized === 'paused' || normalized === 'waiting') return 'paused';
+  if (normalized === 'done') return 'done';
+  return 'queue';
 }
 
 function stateFromTasks(tasks = []) {
-  if (tasks.some((task) => normalizeStatus(task.status) === 'now')) return 'active';
-  if (tasks.some((task) => normalizeStatus(task.status) === 'progress')) return 'active';
-  if (tasks.some((task) => normalizeStatus(task.status) === 'next')) return 'next';
-  if (tasks.some((task) => ['paused', 'waiting'].includes(normalizeStatus(task.status)))) return 'paused';
-  if (tasks.some((task) => normalizeStatus(task.status) === 'done')) return 'done';
+  if (tasks.some((task) => statusState(task.status) === 'active')) return 'active';
+  if (tasks.some((task) => statusState(task.status) === 'next')) return 'next';
+  if (tasks.some((task) => statusState(task.status) === 'paused')) return 'paused';
   return 'queue';
 }
 
 function stateLabel(state) {
-  const labels = {
-    active: 'в работе',
-    next: 'следующий шаг',
-    queue: 'очередь',
-    idea: 'идея',
-    done: 'сделано',
-    paused: 'пауза',
-  };
-  return labels[state] || 'область';
-}
-
-function sortByAttention(a, b) {
-  const weight = { active: 0, next: 1, queue: 2, paused: 3, idea: 4, done: 5 };
-  const stateDiff = (weight[a.state] ?? 9) - (weight[b.state] ?? 9);
-  if (stateDiff) return stateDiff;
-  const taskDiff = (b.tasks || 0) - (a.tasks || 0);
-  if (taskDiff) return taskDiff;
-  return (b.progress || 0) - (a.progress || 0);
+  return ({ active: 'в работе', next: 'следующее', paused: 'пауза', done: 'сделано', queue: 'очередь' })[state] || 'ветка';
 }
 
 function topTask(tasks = []) {
-  return [...tasks].sort((a, b) => (Number(a.priority) || 999) - (Number(b.priority) || 999))[0];
+  return [...tasks].sort((a, b) => {
+    const priority = (Number(a.priority) || 999) - (Number(b.priority) || 999);
+    if (priority) return priority;
+    return (Number(b.progress) || 0) - (Number(a.progress) || 0);
+  })[0];
 }
 
-function taskSummary(task) {
-  return task?.nextAction || task?.summary || task?.title || 'Следующий шаг пока не указан.';
+function isProjectTask(task) {
+  const text = key(`${task.project} ${task.goalName} ${task.title}`);
+  return ['sleda', 'след', 'oracle', '4life', 'yandex', 'яндекс', 'content', 'контент', 'body', 'pregnancy', 'project', 'продукт'].some((token) => text.includes(token));
 }
 
-function taskToNode(task, index) {
-  const status = normalizeStatus(task.status);
+function taskToLeaf(task) {
   return {
-    id: task.id,
+    id: `task-${task.id}`,
+    sourceId: task.id,
     title: task.title || 'Задача',
-    icon: iconFor(task.project || task.title),
+    icon: iconFor(task.project || task.title, 'TS'),
     status: task.status || 'задача',
-    state: status === 'now' || status === 'progress' ? 'active' : status === 'next' ? 'next' : status === 'paused' || status === 'waiting' ? 'paused' : status === 'done' ? 'done' : 'queue',
+    state: statusState(task.status),
     progress: Number(task.progress) || 0,
     tasks: 1,
-    summary: taskSummary(task),
-    details: [task.project, task.goalName, task.nextAction].filter(Boolean),
+    summary: task.nextAction || task.summary || task.title || 'Следующий шаг пока не указан.',
+    details: [task.nextAction, task.goalName, task.project].filter(Boolean),
+    children: [],
+    kind: 'task',
     raw: task,
-    index,
   };
 }
 
-function groupTasks(tasks = [], goals = []) {
-  const activeTasks = tasks.filter((task) => normalizeStatus(task.status) !== 'done');
-  const groups = new Map();
-
-  activeTasks.forEach((task) => {
-    const key = clean(task.project) || clean(task.goalName) || 'Life OS';
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(task);
-  });
-
-  const goalByTitle = new Map(goals.map((goal) => [slug(goal.title), goal]));
-
-  return [...groups.entries()].map(([title, group]) => {
-    const first = topTask(group);
-    const goal = goalByTitle.get(slug(title));
-    const state = stateFromTasks(group);
-
-    return {
-      id: `area-${slug(title)}`,
-      title,
-      icon: iconFor(title),
-      status: goal?.status || stateLabel(state),
-      state,
-      progress: goal?.progress ?? avg(group),
-      tasks: group.length,
-      summary: goal?.nextAction || first?.nextAction || `Ветка ${title}: ${group.length} активных задач.`,
-      details: group.slice(0, 4).map((task) => task.title),
-      children: group.slice(0, 8).map(taskToNode),
-      rawTasks: group,
-      goal,
-    };
-  }).sort(sortByAttention);
-}
-
-function makeRoot(snapshot, areas) {
-  const current = snapshot.currentFocus || {};
-  const tasks = snapshot.tasks || [];
-  const progress = Number(current.progress) || avg(tasks) || 0;
-  const activeCount = tasks.filter((task) => normalizeStatus(task.status) !== 'done').length;
-
+function makeGroupNode({ id, title, icon, items, summary, kind = 'group', children }) {
+  const taskItems = items || [];
+  const childItems = children || taskItems.map(taskToLeaf);
+  const first = topTask(taskItems);
+  const state = taskItems.length ? stateFromTasks(taskItems) : 'queue';
   return {
-    id: 'root',
-    title: 'AI-first Life OS',
-    subtitle: 'Главная орбита',
-    icon: '☀️',
-    status: 'центр системы',
-    state: 'active',
-    progress,
-    tasks: activeCount,
-    summary: 'Карта жизни, проектов, целей, задач и следующих действий.',
-    session: {
-      current: current.title || 'Life OS Map: сделать карту рабочим навигатором',
-      next: current.nextAction || 'Выбрать ветку и закрыть ближайший практический шаг.',
-      recommendation: 'Смотри на карту как на навигатор: центр → ветка → задача → следующий шаг.',
-    },
-    children: areas,
+    id,
+    title,
+    icon,
+    status: stateLabel(state),
+    state,
+    progress: taskItems.length ? avg(taskItems) : 0,
+    tasks: taskItems.length || childItems.length,
+    summary: summary || first?.nextAction || `${title}: ${taskItems.length || childItems.length} элементов.`,
+    details: taskItems.slice(0, 4).map((task) => task.title),
+    children: childItems,
+    kind,
   };
+}
+
+function groupByProject(tasks = []) {
+  const map = new Map();
+  tasks.forEach((task) => {
+    const title = clean(task.project) || clean(task.goalName) || 'Без проекта';
+    if (!map.has(title)) map.set(title, []);
+    map.get(title).push(task);
+  });
+  return [...map.entries()].map(([title, items]) => makeGroupNode({
+    id: `project-${slug(title)}`,
+    title,
+    icon: iconFor(title, 'PR'),
+    items,
+    kind: 'project',
+  }));
+}
+
+function buildGoals(goals = [], tasks = []) {
+  return goals.map((goal) => {
+    const related = tasks.filter((task) => task.goalIds?.includes(goal.id) || task.goalName === goal.title);
+    const state = related.length ? stateFromTasks(related) : statusState(goal.status);
+    return {
+      id: `goal-${goal.id}`,
+      sourceId: goal.id,
+      title: goal.title || 'Цель',
+      icon: 'GO',
+      status: goal.status || stateLabel(state),
+      state,
+      progress: Number(goal.progress) || avg(related),
+      tasks: related.length,
+      summary: goal.nextAction || `Цель: ${goal.title}`,
+      details: related.slice(0, 4).map((task) => task.title),
+      children: related.map(taskToLeaf),
+      kind: 'goal',
+    };
+  });
+}
+
+function classifyTasks(tasks = [], goals = []) {
+  const activeTasks = tasks.filter((task) => statusState(task.status) !== 'done');
+  const byText = (tokens) => activeTasks.filter((task) => tokens.some((token) => key(`${task.project} ${task.goalName} ${task.title} ${task.tags?.join(' ')}`).includes(token)));
+  const projectTasks = activeTasks.filter(isProjectTask);
+  const navigatorTasks = byText(['life os', 'navigator', 'навигатор', 'notion', 'github', 'codex', 'map']);
+  const inboxTasks = byText(['inbox', 'telegram', 'bot', 'бот', 'signal', 'сигнал']);
+  const incomeTasks = byText(['доход', 'клиент', 'деньги', 'money', 'sales', 'продаж', '4life', 'парсер']);
+  const lifeTasks = byText(['здоров', 'тело', 'english', 'англий', 'творч', 'отнош', 'семья', 'мечт']);
+  const backlogTasks = activeTasks.filter((task) => ['queue', 'paused'].includes(statusState(task.status)) && !navigatorTasks.includes(task) && !inboxTasks.includes(task));
+
+  const topNodes = [];
+
+  if (projectTasks.length) topNodes.push(makeGroupNode({
+    id: 'area-projects',
+    title: 'Проекты',
+    icon: 'PR',
+    items: projectTasks,
+    summary: 'Нажми, чтобы открыть карту проектов и увидеть ветки внутри.',
+    children: groupByProject(projectTasks),
+  }));
+
+  if (navigatorTasks.length) topNodes.push(makeGroupNode({ id: 'area-navigator', title: 'Навигатор', icon: 'OS', items: navigatorTasks, summary: TOP_AREAS[1].summary }));
+  if (inboxTasks.length) topNodes.push(makeGroupNode({ id: 'area-inbox', title: 'AI Inbox', icon: 'IN', items: inboxTasks, summary: TOP_AREAS[2].summary }));
+
+  const goalNodes = buildGoals(goals, activeTasks).filter((goal) => goal.tasks > 0 || goal.progress > 0).slice(0, 8);
+  if (goalNodes.length) topNodes.push(makeGroupNode({ id: 'area-goals', title: 'Цели', icon: 'GO', items: activeTasks.filter((task) => task.goalIds?.length), summary: TOP_AREAS[3].summary, children: goalNodes }));
+
+  if (incomeTasks.length) topNodes.push(makeGroupNode({ id: 'area-income', title: 'Доход', icon: '₽', items: incomeTasks, summary: TOP_AREAS[4].summary }));
+  if (lifeTasks.length) topNodes.push(makeGroupNode({ id: 'area-life', title: 'Жизнь', icon: 'LF', items: lifeTasks, summary: TOP_AREAS[5].summary }));
+  if (backlogTasks.length) topNodes.push(makeGroupNode({ id: 'area-backlog', title: 'Идеи / потом', icon: 'BK', items: backlogTasks, summary: TOP_AREAS[6].summary }));
+
+  return topNodes.slice(0, 8);
 }
 
 export function buildActionMap(snapshot) {
-  const areas = groupTasks(snapshot.tasks || [], snapshot.goals || []);
-  return makeRoot(snapshot, areas);
+  const tasks = snapshot.tasks || [];
+  const goals = snapshot.goals || [];
+  const current = snapshot.currentFocus || {};
+  const children = classifyTasks(tasks, goals);
+  const activeCount = tasks.filter((task) => statusState(task.status) !== 'done').length;
+  const progress = Number(current.progress) || avg(tasks) || 0;
+  return {
+    id: 'root',
+    title: 'AI-first Life OS',
+    subtitle: 'Центр системы',
+    icon: 'OS',
+    status: 'центр',
+    state: 'active',
+    progress,
+    tasks: activeCount,
+    summary: 'Центр навигатора. Отсюда расходятся сферы, проекты, цели и рабочие ветки.',
+    details: ['Выбери планету, чтобы провалиться внутрь ветки.', 'Кнопка назад возвращает на уровень выше.', 'Данные приходят из Notion через backend snapshot.'],
+    session: {
+      current: current.title || 'Life OS Map: сделать карту рабочим навигатором',
+      next: current.nextAction || 'Выбрать ветку и закрыть ближайший практический шаг.',
+    },
+    children,
+  };
+}
+
+function findRecursive(node, nodeId) {
+  if (!node) return null;
+  if (node.id === nodeId) return node;
+  for (const child of node.children || []) {
+    const found = findRecursive(child, nodeId);
+    if (found) return found;
+  }
+  return null;
 }
 
 export function findNode(root, nodeId) {
-  if (!nodeId || nodeId === 'root') return root;
-  const stack = [root];
-  while (stack.length) {
-    const node = stack.shift();
-    if (node.id === nodeId) return node;
-    if (node.children?.length) stack.push(...node.children);
-  }
-  return root;
+  return findRecursive(root, nodeId) || root;
 }
 
-export function getChildMap(root, nodeId) {
-  const node = findNode(root, nodeId);
-  if (!node || node.id === 'root') return root;
-  return {
-    ...node,
-    subtitle: node.status || 'ветка',
-    children: node.children || [],
-    session: {
-      current: node.title,
-      next: node.summary,
-      recommendation: node.details?.[0] || 'Выбери подзадачу или вернись в центр.',
-    },
-  };
+export function findPath(root, nodeId) {
+  const path = [];
+  function walk(node) {
+    path.push(node.id);
+    if (node.id === nodeId) return true;
+    for (const child of node.children || []) {
+      if (walk(child)) return true;
+    }
+    path.pop();
+    return false;
+  }
+  walk(root);
+  return path.length ? path : ['root'];
 }
 
 export function shortText(value = '', limit = 52) {
