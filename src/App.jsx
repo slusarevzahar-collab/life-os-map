@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { motion, AnimatePresence } from 'framer-motion';
-import './styles.css';
+import './action-map.css';
 
 import { fallbackSnapshot } from './lib/lifeOsData.js';
 import { buildActionMap, findNode, getChildMap, shortText } from './lib/actionMapModel.js';
@@ -86,14 +86,6 @@ function OrbitMap({ map, selectedId, onSelect, onOpenBranch }) {
       <div className="orbit orbit2" />
       <div className="orbit orbit3" />
 
-      {children.map((node, index) => {
-        const angle = -90 + (360 / Math.max(children.length, 1)) * index;
-        const radius = children.length <= 4 ? 28 : 34;
-        const x = 50 + Math.cos((angle * Math.PI) / 180) * radius;
-        const y = 50 + Math.sin((angle * Math.PI) / 180) * radius;
-        return <div key={`line-${node.id}`} className="nodeLine" style={{ '--x': `${x}%`, '--y': `${y}%` }} />;
-      })}
-
       <button className="coreNode" onClick={() => onSelect(map)}>
         <span>{map.icon}</span>
         <b>{map.title}</b>
@@ -105,7 +97,7 @@ function OrbitMap({ map, selectedId, onSelect, onOpenBranch }) {
         const angle = -90 + (360 / Math.max(children.length, 1)) * index;
         const radius = children.length <= 4 ? 28 : 34;
         const x = 50 + Math.cos((angle * Math.PI) / 180) * radius;
-        const y = 50 + Math.sin((angle * Math.PI) / 180) * radius;
+        const y = 58 + Math.sin((angle * Math.PI) / 180) * radius;
         const hasChildren = Boolean(node.children?.length);
 
         return (
