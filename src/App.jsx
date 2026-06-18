@@ -26,22 +26,37 @@ function sideItems(node) {
   return list.filter((item, index, arr) => arr.findIndex((next) => next.id === item.id) === index);
 }
 
+function dataState(snapshot, apiState) {
+  if (apiState === 'fallback') return 'frontend fallback';
+  if (snapshot.meta?.source?.includes('mock')) return 'mock data';
+  return apiState;
+}
+
 function TopNav({ map, canBack, onBack, onCenter, apiState }) {
   return <header className="topNav"><button className="backButton" onClick={onBack} disabled={!canBack}>← Назад</button><div className="topTitle"><span>Life OS Map · {apiState}</span><b>{map.title}</b></div><button className="centerButton" onClick={onCenter}>Центр</button></header>;
 }
 
-function MissionPanel({ map, onSteps, onStats }) {
-  return <section className="mission"><div className="missionTop"><div><small><em /> MISSION CONTROL</small><h1><span>{map.icon}</span>{map.title}</h1></div><Ring value={map.progress} /></div><div className="missionLine activeLine">Сейчас: {map.session?.current || map.summary}</div><div className="missionLine nextLine">Следующий шаг: {map.session?.next || 'Выбери планету, чтобы открыть следующий уровень.'}</div><div className="missionButtons"><button onClick={onSteps}>Следующие шаги</button><button onClick={onStats}>Статистика</button></div></section>;
+function MissionPanel({ map, snapshot, onSteps, onStats }) {
+  const [open, setOpen] = useState(false);
+  const isMock = snapshot.meta?.source?.includes('mock');
+  const warnings = snapshot.meta?.warnings || [];
+
+  if (!open) {
+    return <section className="mission missionCollapsed"><button onClick={() => setOpen(true)}><span>{map.icon}</span><div><small>{isMock ? 'MOCK DATA' : 'MISSION CONTROL'}</small><b>{map.title}</b></div><Ring value={map.progress} /></button></section>;
+  }
+
+  return <section className="mission"><button className="collapseMission" onClick={() => setOpen(false)}>Свернуть</button><div className="missionTop"><div><small><em /> {isMock ? 'MOCK DATA · проверь backend/.env' : 'MISSION CONTROL'}</small><h1><span>{map.icon}</span>{map.title}</h1></div><Ring value={map.progress} /></div>{isMock ? <div className="warningLine">Сейчас карта получает mock-данные, поэтому выглядит пустой. Нужно, чтобы backend увидел NOTION_TOKEN и NOTION_TASKS_DB_ID.</div> : null}<div className="missionLine activeLine">Сейчас: {map.session?.current || map.summary}</div><div className="missionLine nextLine">Следующий шаг: {map.session?.next || 'Выбери планету, чтобы открыть следующий уровень.'}</div>{warnings.length ? <div className="warningLine">{warnings[0]}</div> : null}<div className="missionButtons"><button onClick={onSteps}>Следующие шаги</button><button onClick={onStats}>Статистика</button></div></section>;
 }
 
-function OrbitMap({ map, onOpen, onSelect }) {
+function OrbitMap({ map, hasSide, onOpen, onSelect }) {
   const children = topItems(map);
-  return <section className="mapStage"><div className="mapGlow" /><div className="orbit orbit1" /><div className="orbit orbit2" /><div className="orbit orbit3" /><button className="coreNode" onClick={() => onSelect(map)}><span>{map.icon}</span><b>{map.title}</b><small>{map.subtitle || map.status}</small><i style={{ width: `${Math.max(0, Math.min(100, map.progress || 0))}%` }} /></button>{children.map((node, index) => { const angle = -90 + (360 / Math.max(children.length, 1)) * index; const radius = children.length <= 4 ? 28 : 34; const x = 50 + Math.cos((angle * Math.PI) / 180) * radius; const y = 58 + Math.sin((angle * Math.PI) / 180) * radius; const hasChildren = Boolean(node.children?.length); return <motion.button key={node.id} className={`mapNode state-${node.state}`} style={{ left: `${x}%`, top: `${y}%` }} onClick={() => hasChildren ? onOpen(node.id) : onSelect(node)} whileTap={{ scale: 0.97 }} animate={{ y: [-2, 2, -2] }} transition={{ duration: 6 + index * 0.2, repeat: Infinity, ease: 'easeInOut' }}><span className="nodeOrb"><em>{node.icon}</em>{hasChildren ? <strong>{node.children.length}</strong> : null}</span><span className="nodeLabel"><b>{shortText(node.title, 20)}</b><small>{hasChildren ? 'открыть ветку' : node.status}</small></span></motion.button>; })}<div className="mapHint">Клик по планете - открыть ветку · задачи выбранной ветки справа</div></section>;
+  return <section className={`mapStage ${hasSide ? 'mapWithSide' : ''}`}><div className="mapGlow" /><div className="orbit orbit1" /><div className="orbit orbit2" /><div className="orbit orbit3" /><button className="coreNode" onClick={() => onSelect(map)}><span>{map.icon}</span><b>{map.title}</b><small>{map.subtitle || map.status}</small><i style={{ width: `${Math.max(0, Math.min(100, map.progress || 0))}%` }} /></button>{children.map((node, index) => { const angle = -90 + (360 / Math.max(children.length, 1)) * index; const radius = children.length <= 4 ? 28 : 34; const x = 50 + Math.cos((angle * Math.PI) / 180) * radius; const y = 58 + Math.sin((angle * Math.PI) / 180) * radius; const hasChildren = Boolean(node.children?.length || node.taskList?.length); return <motion.button key={node.id} className={`mapNode state-${node.state}`} style={{ left: `${x}%`, top: `${y}%` }} onClick={() => hasChildren ? onOpen(node.id) : onSelect(node)} whileTap={{ scale: 0.97 }} animate={{ y: [-2, 2, -2] }} transition={{ duration: 6 + index * 0.2, repeat: Infinity, ease: 'easeInOut' }}><span className="nodeOrb"><em>{node.icon}</em>{hasChildren ? <strong>{node.children?.length || node.taskList?.length || 0}</strong> : null}</span><span className="nodeLabel"><b>{shortText(node.title, 20)}</b><small>{hasChildren ? 'открыть ветку' : node.status}</small></span></motion.button>; })}<div className="mapHint">Клик по планете - открыть ветку · задачи выбранной ветки справа</div></section>;
 }
 
 function SideList({ map, onSelect }) {
   const items = sideItems(map);
-  return <aside className="sideList"><div className="sideListHead"><small>Задачи ветки</small><b>{items.length}</b></div>{items.length ? <div className="sideItems">{items.map((item) => <button key={item.id} onClick={() => onSelect(item)}><span>{item.icon}</span><div><b>{shortText(item.title, 42)}</b><small>{item.status || item.summary}</small></div></button>)}</div> : <p>На этом уровне задачи не выводятся как планеты. Открой одну из веток на карте.</p>}</aside>;
+  if (!items.length) return null;
+  return <aside className="sideList"><div className="sideListHead"><small>Задачи ветки</small><b>{items.length}</b></div><div className="sideItems">{items.map((item) => <button key={item.id} onClick={() => onSelect(item)}><span>{item.icon}</span><div><b>{shortText(item.title, 42)}</b><small>{item.status || item.summary}</small></div></button>)}</div></aside>;
 }
 
 function DetailCard({ node, onClose }) {
@@ -49,10 +64,11 @@ function DetailCard({ node, onClose }) {
   return <motion.aside className="detailCard" initial={{ y: 28, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 28, opacity: 0 }}><button className="closeDetail" onClick={onClose}>×</button><div className="detailHead"><span>{node.icon}</span><div><small>{node.status || node.subtitle}</small><h2>{node.title}</h2></div><Ring value={node.progress} /></div><p>{node.summary || 'Описание пока не заполнено.'}</p>{node.details?.length ? <div className="detailList">{node.details.slice(0, 4).map((item, index) => <div key={index}><b>{index + 1}.</b>{item}</div>)}</div> : null}</motion.aside>;
 }
 
-function UtilityPanel({ type, map, onClose }) {
+function UtilityPanel({ type, map, snapshot, onClose }) {
   if (!type) return null;
   const items = [...topItems(map), ...sideItems(map)];
-  return <motion.aside className="utilityPanel" initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 24, opacity: 0 }}><button className="closeDetail" onClick={onClose}>×</button><h2>{type === 'steps' ? 'Следующие шаги' : 'Статистика'}</h2>{type === 'steps' ? <div className="panelList">{items.slice(0, 7).map((node) => <div key={node.id}><b>{node.title}</b><span>{node.summary}</span></div>)}</div> : <div className="statGrid"><div><span>Веток</span><b>{topItems(map).length}</b></div><div><span>Задач</span><b>{sideItems(map).length}</b></div><div><span>Прогресс</span><b>{map.progress || 0}%</b></div></div>}</motion.aside>;
+  const connected = snapshot.meta?.connected || {};
+  return <motion.aside className="utilityPanel" initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 24, opacity: 0 }}><button className="closeDetail" onClick={onClose}>×</button><h2>{type === 'steps' ? 'Следующие шаги' : 'Статистика'}</h2>{type === 'steps' ? <div className="panelList">{items.slice(0, 7).map((node) => <div key={node.id}><b>{node.title}</b><span>{node.summary}</span></div>)}</div> : <div className="statGrid"><div><span>Веток</span><b>{topItems(map).length}</b></div><div><span>Задач</span><b>{sideItems(map).length}</b></div><div><span>Notion</span><b>{connected.tasks ? 'live' : 'mock'}</b></div></div>}</motion.aside>;
 }
 
 function App() {
@@ -62,17 +78,18 @@ function App() {
   const [selected, setSelected] = useState(null);
   const [panel, setPanel] = useState(null);
 
-  useEffect(() => { let active = true; fetch('/api/life-os/snapshot').then((r) => { if (!r.ok) throw new Error(`API ${r.status}`); return r.json(); }).then((data) => { if (!active) return; setSnapshot(data); setApiState('connected'); }).catch(() => { if (!active) return; setApiState('fallback'); }); return () => { active = false; }; }, []);
+  useEffect(() => { let active = true; fetch('/api/life-os/snapshot').then((r) => { if (!r.ok) throw new Error(`API ${r.status}`); return r.json(); }).then((data) => { if (!active) return; setSnapshot(data); setApiState(data.meta?.source?.includes('mock') ? 'mock data' : 'connected'); }).catch(() => { if (!active) return; setApiState('fallback'); }); return () => { active = false; }; }, []);
 
   const rootMap = useMemo(() => buildActionMap(snapshot), [snapshot]);
   const currentId = route[route.length - 1];
   const currentMap = useMemo(() => findNode(rootMap, currentId), [rootMap, currentId]);
+  const itemsOnSide = sideItems(currentMap);
   const canBack = route.length > 1;
   const openNode = (id) => { setRoute((prev) => [...prev, id]); setSelected(null); setPanel(null); };
   const goBack = () => { setRoute((prev) => prev.length > 1 ? prev.slice(0, -1) : prev); setSelected(null); setPanel(null); };
   const goCenter = () => { setRoute(['root']); setSelected(null); setPanel(null); };
 
-  return <main className="app actionApp" onClick={() => setPanel(null)}><Stars /><TopNav map={currentMap} canBack={canBack} onBack={goBack} onCenter={goCenter} apiState={apiState} /><MissionPanel map={currentMap} onSteps={() => setPanel('steps')} onStats={() => setPanel('stats')} /><OrbitMap map={currentMap} onOpen={openNode} onSelect={(node) => { setSelected(node); setPanel(null); }} /><SideList map={currentMap} onSelect={(node) => { setSelected(node); setPanel(null); }} /><AnimatePresence>{selected ? <DetailCard key={selected.id} node={selected} onClose={() => setSelected(null)} /> : null}{panel ? <UtilityPanel key={panel} type={panel} map={currentMap} onClose={() => setPanel(null)} /> : null}</AnimatePresence></main>;
+  return <main className={`app actionApp ${itemsOnSide.length ? 'hasSideList' : ''}`} onClick={() => setPanel(null)}><Stars /><TopNav map={currentMap} canBack={canBack} onBack={goBack} onCenter={goCenter} apiState={dataState(snapshot, apiState)} /><MissionPanel map={currentMap} snapshot={snapshot} onSteps={() => setPanel('steps')} onStats={() => setPanel('stats')} /><OrbitMap map={currentMap} hasSide={itemsOnSide.length > 0} onOpen={openNode} onSelect={(node) => { setSelected(node); setPanel(null); }} /><SideList map={currentMap} onSelect={(node) => { setSelected(node); setPanel(null); }} /><AnimatePresence>{selected ? <DetailCard key={selected.id} node={selected} onClose={() => setSelected(null)} /> : null}{panel ? <UtilityPanel key={panel} type={panel} map={currentMap} snapshot={snapshot} onClose={() => setPanel(null)} /> : null}</AnimatePresence></main>;
 }
 
 createRoot(document.getElementById('root')).render(<App />);
