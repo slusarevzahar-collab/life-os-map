@@ -51,7 +51,7 @@ function Stars() {
 function App() {
   const [snapshot, setSnapshot] = useState(fallbackSnapshot);
   const [apiState, setApiState] = useState('loading');
-  const [panel, setPanel] = useState(null);
+  const [panel, setPanel] = useState('guide');
   const [selected, setSelected] = useState(null);
   const [workspaceVisible, setWorkspaceVisible] = useState(true);
   const [mapFilter, setMapFilter] = useState('all');
@@ -137,6 +137,7 @@ function App() {
         </div>
         <div className="topBarMeta">
           <span className={`apiBadge api-${apiState}`}>{apiState}</span>
+          <button className="helpButton" onClick={() => openPanel('guide')}>Как пользоваться</button>
           <button className="workspaceToggle" onClick={toggleWorkspace}>
             {workspaceVisible ? 'Скрыть панели' : 'Показать панели'}
           </button>
@@ -191,6 +192,7 @@ function App() {
           apiState={apiState}
           onClose={closePanel}
           onSelectTask={selectTask}
+          onOpen={openPanel}
         />
       </AnimatePresence>
     </main>
