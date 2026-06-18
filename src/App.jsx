@@ -16,6 +16,16 @@ function Ring({ value }) {
   return <div className="ring" style={{ '--pct': `${pct * 3.6}deg` }}><span>{pct}%</span></div>;
 }
 
+function topItems(node) {
+  return (node.children || []).filter((item) => item.kind !== 'task' && item.kind !== 'signal' && item.kind !== 'dream');
+}
+
+function sideItems(node) {
+  const direct = (node.children || []).filter((item) => item.kind === 'task' || item.kind === 'signal' || item.kind === 'dream');
+  const list = [...(node.taskList || []), ...direct];
+  return list.filter((item, index, arr) => arr.findIndex((next) => next.id === item.id) === index);
+}
+
 function TopNav({ map, canBack, onBack, onCenter, apiState }) {
   return <header className="topNav"><button className="backButton" onClick={onBack} disabled={!canBack}>← Назад</button><div className="topTitle"><span>Life OS Map · {apiState}</span><b>{map.title}</b></div><button className="centerButton" onClick={onCenter}>Центр</button></header>;
 }
@@ -25,8 +35,13 @@ function MissionPanel({ map, onSteps, onStats }) {
 }
 
 function OrbitMap({ map, onOpen, onSelect }) {
-  const children = map.children || [];
-  return <section className="mapStage"><div className="mapGlow" /><div className="orbit orbit1" /><div className="orbit orbit2" /><div className="orbit orbit3" /><button className="coreNode" onClick={() => onSelect(map)}><span>{map.icon}</span><b>{map.title}</b><small>{map.subtitle || map.status}</small><i style={{ width: `${Math.max(0, Math.min(100, map.progress || 0))}%` }} /></button>{children.map((node, index) => { const angle = -90 + (360 / Math.max(children.length, 1)) * index; const radius = children.length <= 4 ? 28 : 34; const x = 50 + Math.cos((angle * Math.PI) / 180) * radius; const y = 58 + Math.sin((angle * Math.PI) / 180) * radius; const hasChildren = Boolean(node.children?.length); return <motion.button key={node.id} className={`mapNode state-${node.state}`} style={{ left: `${x}%`, top: `${y}%` }} onClick={() => hasChildren ? onOpen(node.id) : onSelect(node)} whileTap={{ scale: 0.97 }} animate={{ y: [-2, 2, -2] }} transition={{ duration: 6 + index * 0.2, repeat: Infinity, ease: 'easeInOut' }}><span className="nodeOrb"><em>{node.icon}</em>{hasChildren ? <strong>{node.children.length}</strong> : null}</span><span className="nodeLabel"><b>{shortText(node.title, 20)}</b><small>{hasChildren ? 'открыть ветку' : node.status}</small></span></motion.button>; })}<div className="mapHint">Клик по планете - открыть ветку · Назад - уровень выше · Центр - главная орбита</div></section>;
+  const children = topItems(map);
+  return <section className="mapStage"><div className="mapGlow" /><div className="orbit orbit1" /><div className="orbit orbit2" /><div className="orbit orbit3" /><button className="coreNode" onClick={() => onSelect(map)}><span>{map.icon}</span><b>{map.title}</b><small>{map.subtitle || map.status}</small><i style={{ width: `${Math.max(0, Math.min(100, map.progress || 0))}%` }} /></button>{children.map((node, index) => { const angle = -90 + (360 / Math.max(children.length, 1)) * index; const radius = children.length <= 4 ? 28 : 34; const x = 50 + Math.cos((angle * Math.PI) / 180) * radius; const y = 58 + Math.sin((angle * Math.PI) / 180) * radius; const hasChildren = Boolean(node.children?.length); return <motion.button key={node.id} className={`mapNode state-${node.state}`} style={{ left: `${x}%`, top: `${y}%` }} onClick={() => hasChildren ? onOpen(node.id) : onSelect(node)} whileTap={{ scale: 0.97 }} animate={{ y: [-2, 2, -2] }} transition={{ duration: 6 + index * 0.2, repeat: Infinity, ease: 'easeInOut' }}><span className="nodeOrb"><em>{node.icon}</em>{hasChildren ? <strong>{node.children.length}</strong> : null}</span><span className="nodeLabel"><b>{shortText(node.title, 20)}</b><small>{hasChildren ? 'открыть ветку' : node.status}</small></span></motion.button>; })}<div className="mapHint">Клик по планете - открыть ветку · задачи выбранной ветки справа</div></section>;
+}
+
+function SideList({ map, onSelect }) {
+  const items = sideItems(map);
+  return <aside className="sideList"><div className="sideListHead"><small>Задачи ветки</small><b>{items.length}</b></div>{items.length ? <div className="sideItems">{items.map((item) => <button key={item.id} onClick={() => onSelect(item)}><span>{item.icon}</span><div><b>{shortText(item.title, 42)}</b><small>{item.status || item.summary}</small></div></button>)}</div> : <p>На этом уровне задачи не выводятся как планеты. Открой одну из веток на карте.</p>}</aside>;
 }
 
 function DetailCard({ node, onClose }) {
@@ -36,8 +51,8 @@ function DetailCard({ node, onClose }) {
 
 function UtilityPanel({ type, map, onClose }) {
   if (!type) return null;
-  const children = map.children || [];
-  return <motion.aside className="utilityPanel" initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 24, opacity: 0 }}><button className="closeDetail" onClick={onClose}>×</button><h2>{type === 'steps' ? 'Следующие шаги' : 'Статистика'}</h2>{type === 'steps' ? <div className="panelList">{children.slice(0, 7).map((node) => <div key={node.id}><b>{node.title}</b><span>{node.summary}</span></div>)}</div> : <div className="statGrid"><div><span>Веток</span><b>{children.length}</b></div><div><span>Задач</span><b>{map.tasks || 0}</b></div><div><span>Прогресс</span><b>{map.progress || 0}%</b></div></div>}</motion.aside>;
+  const items = [...topItems(map), ...sideItems(map)];
+  return <motion.aside className="utilityPanel" initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 24, opacity: 0 }}><button className="closeDetail" onClick={onClose}>×</button><h2>{type === 'steps' ? 'Следующие шаги' : 'Статистика'}</h2>{type === 'steps' ? <div className="panelList">{items.slice(0, 7).map((node) => <div key={node.id}><b>{node.title}</b><span>{node.summary}</span></div>)}</div> : <div className="statGrid"><div><span>Веток</span><b>{topItems(map).length}</b></div><div><span>Задач</span><b>{sideItems(map).length}</b></div><div><span>Прогресс</span><b>{map.progress || 0}%</b></div></div>}</motion.aside>;
 }
 
 function App() {
@@ -57,7 +72,7 @@ function App() {
   const goBack = () => { setRoute((prev) => prev.length > 1 ? prev.slice(0, -1) : prev); setSelected(null); setPanel(null); };
   const goCenter = () => { setRoute(['root']); setSelected(null); setPanel(null); };
 
-  return <main className="app actionApp" onClick={() => setPanel(null)}><Stars /><TopNav map={currentMap} canBack={canBack} onBack={goBack} onCenter={goCenter} apiState={apiState} /><MissionPanel map={currentMap} onSteps={() => setPanel('steps')} onStats={() => setPanel('stats')} /><OrbitMap map={currentMap} onOpen={openNode} onSelect={(node) => { setSelected(node); setPanel(null); }} /><AnimatePresence>{selected ? <DetailCard key={selected.id} node={selected} onClose={() => setSelected(null)} /> : null}{panel ? <UtilityPanel key={panel} type={panel} map={currentMap} onClose={() => setPanel(null)} /> : null}</AnimatePresence></main>;
+  return <main className="app actionApp" onClick={() => setPanel(null)}><Stars /><TopNav map={currentMap} canBack={canBack} onBack={goBack} onCenter={goCenter} apiState={apiState} /><MissionPanel map={currentMap} onSteps={() => setPanel('steps')} onStats={() => setPanel('stats')} /><OrbitMap map={currentMap} onOpen={openNode} onSelect={(node) => { setSelected(node); setPanel(null); }} /><SideList map={currentMap} onSelect={(node) => { setSelected(node); setPanel(null); }} /><AnimatePresence>{selected ? <DetailCard key={selected.id} node={selected} onClose={() => setSelected(null)} /> : null}{panel ? <UtilityPanel key={panel} type={panel} map={currentMap} onClose={() => setPanel(null)} /> : null}</AnimatePresence></main>;
 }
 
 createRoot(document.getElementById('root')).render(<App />);
