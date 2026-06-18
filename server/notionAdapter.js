@@ -41,99 +41,43 @@ export const mockSnapshot = {
     },
   ],
   sessions: [],
+  projectAreas: [],
+  dreams: [],
+  signals: [],
   planning: { onTrack: 1, next: 1, waiting: 0, overdue: 0, done: 0 },
 };
 
-function plainText(richText = []) {
-  return richText.map((item) => item.plain_text || '').join('').trim();
-}
-
-function selectName(property) {
-  return property?.select?.name || property?.status?.name || null;
-}
-
-function multiSelectNames(property) {
-  return Array.isArray(property?.multi_select) ? property.multi_select.map((item) => item.name) : [];
-}
-
-function titleText(property) {
-  return plainText(property?.title || []);
-}
-
-function richText(property) {
-  return plainText(property?.rich_text || []);
-}
-
-function numberValue(property) {
-  return typeof property?.number === 'number' ? property.number : 0;
-}
-
-function dateStart(property) {
-  return property?.date?.start || null;
-}
-
-function relationIds(property) {
-  return Array.isArray(property?.relation) ? property.relation.map((item) => item.id) : [];
-}
+function plainText(richText = []) { return richText.map((item) => item.plain_text || '').join('').trim(); }
+function selectName(property) { return property?.select?.name || property?.status?.name || null; }
+function multiSelectNames(property) { return Array.isArray(property?.multi_select) ? property.multi_select.map((item) => item.name) : []; }
+function titleText(property) { return plainText(property?.title || []); }
+function richText(property) { return plainText(property?.rich_text || []); }
+function numberValue(property) { return typeof property?.number === 'number' ? property.number : 0; }
+function dateStart(property) { return property?.date?.start || null; }
+function urlValue(property) { return property?.url || null; }
+function relationIds(property) { return Array.isArray(property?.relation) ? property.relation.map((item) => item.id) : []; }
 
 function findProp(props, names) {
-  for (const name of names) {
-    if (props[name]) return props[name];
-  }
+  for (const name of names) if (props[name]) return props[name];
   return undefined;
 }
+function firstTitle(props, names) { return titleText(findProp(props, names)); }
+function firstRichText(props, names) { return richText(findProp(props, names)); }
+function firstSelect(props, names) { return selectName(findProp(props, names)); }
+function firstMultiSelect(props, names) { return multiSelectNames(findProp(props, names)); }
+function firstNumber(props, names) { return numberValue(findProp(props, names)); }
+function firstDate(props, names) { return dateStart(findProp(props, names)); }
+function firstUrl(props, names) { return urlValue(findProp(props, names)); }
 
-function firstTitle(props, names) {
-  return titleText(findProp(props, names));
-}
-
-function firstRichText(props, names) {
-  return richText(findProp(props, names));
-}
-
-function firstSelect(props, names) {
-  return selectName(findProp(props, names));
-}
-
-function firstNumber(props, names) {
-  return numberValue(findProp(props, names));
-}
-
-function firstDate(props, names) {
-  return dateStart(findProp(props, names));
-}
-
-function textProperty(value = '') {
-  return { rich_text: [{ text: { content: String(value || '') } }] };
-}
-
-function titleProperty(value = '') {
-  return { title: [{ text: { content: String(value || 'Untitled') } }] };
-}
-
-function selectProperty(value) {
-  return value ? { select: { name: String(value) } } : undefined;
-}
-
-function numberProperty(value) {
-  const number = Number(value);
-  return Number.isFinite(number) ? { number } : undefined;
-}
-
-function dateProperty(value) {
-  return value ? { date: { start: value } } : undefined;
-}
-
-function cleanProperties(properties) {
-  return Object.fromEntries(Object.entries(properties).filter(([, value]) => value !== undefined && value !== null));
-}
+function textProperty(value = '') { return { rich_text: [{ text: { content: String(value || '') } }] }; }
+function titleProperty(value = '') { return { title: [{ text: { content: String(value || 'Untitled') } }] }; }
+function selectProperty(value) { return value ? { select: { name: String(value) } } : undefined; }
+function numberProperty(value) { const number = Number(value); return Number.isFinite(number) ? { number } : undefined; }
+function dateProperty(value) { return value ? { date: { start: value } } : undefined; }
+function cleanProperties(properties) { return Object.fromEntries(Object.entries(properties).filter(([, value]) => value !== undefined && value !== null)); }
 
 function normalizeKey(value = '') {
-  return String(value)
-    .toLowerCase()
-    .replace(/ё/g, 'е')
-    .replace(/[^a-zа-я0-9]+/g, ' ')
-    .trim();
+  return String(value).toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9]+/g, ' ').trim();
 }
 
 function mapNotionTask(page) {
@@ -158,7 +102,7 @@ function mapNotionTask(page) {
     rescheduleCount: firstNumber(props, ['Reschedule Count', 'Переносы']) || 0,
     nextAction: firstRichText(props, ['Next Action', 'Следующее действие', 'Следующий шаг']) || '',
     goalIds: relationIds(findProp(props, ['Goal Link', 'Goals Relation', 'Goals', 'Цель-связь', 'Цели'])),
-    tags: multiSelectNames(findProp(props, ['Tags', 'Теги'])),
+    tags: firstMultiSelect(props, ['Tags', 'Теги']),
   };
 }
 
@@ -178,6 +122,56 @@ function mapNotionGoal(page) {
     targetDate: firstDate(props, ['Target Date', 'Due Date', 'Дата', 'Срок', 'Deadline']) || null,
     nextAction: firstRichText(props, ['Next Action', 'Следующее действие', 'Следующий шаг']) || '',
     taskIds: relationIds(findProp(props, ['Tasks', 'Task', 'Задачи', 'Задача'])),
+  };
+}
+
+function mapNotionProjectArea(page) {
+  const props = page.properties || {};
+  return {
+    id: page.id,
+    name: firstTitle(props, ['Name', 'Название']) || 'Untitled area',
+    type: firstSelect(props, ['Type']) || '',
+    status: firstSelect(props, ['Status']) || '',
+    focusLevel: firstSelect(props, ['Focus level']) || '',
+    goal: firstRichText(props, ['Goal']) || '',
+    currentState: firstRichText(props, ['Current state']) || '',
+    nextAction: firstRichText(props, ['Next action', 'Next Action']) || '',
+    why: firstRichText(props, ['Why it matters']) || '',
+    updatedAt: firstDate(props, ['Date updated']) || null,
+  };
+}
+
+function mapNotionDream(page) {
+  const props = page.properties || {};
+  return {
+    id: page.id,
+    title: firstTitle(props, ['Goal / Dream']) || 'Untitled dream',
+    type: firstSelect(props, ['Type']) || '',
+    status: firstSelect(props, ['Status']) || '',
+    visibility: firstSelect(props, ['Visibility']) || '',
+    lifeSphere: firstSelect(props, ['Life sphere']) || '',
+    linkedProject: firstRichText(props, ['Linked project']) || '',
+    nextStep: firstRichText(props, ['Next gentle step']) || '',
+    why: firstRichText(props, ['Why I want it']) || '',
+    targetDate: firstDate(props, ['Target date']) || null,
+    capturedAt: firstDate(props, ['Date captured']) || null,
+  };
+}
+
+function mapNotionSignal(page) {
+  const props = page.properties || {};
+  return {
+    id: page.id,
+    title: firstTitle(props, ['Signal']) || 'Untitled signal',
+    type: firstSelect(props, ['Type']) || '',
+    status: firstSelect(props, ['Status']) || '',
+    priority: firstSelect(props, ['Priority']) || '',
+    relatedProjects: firstMultiSelect(props, ['Related projects']),
+    summary: firstRichText(props, ['Summary']) || '',
+    nextAction: firstRichText(props, ['Next action', 'Next Action']) || '',
+    possibleUse: firstRichText(props, ['Possible use']) || '',
+    sourceUrl: firstUrl(props, ['Source URL']) || '',
+    capturedAt: firstDate(props, ['Date captured']) || null,
   };
 }
 
@@ -203,7 +197,6 @@ function attachGoalsToTasks(tasks, goals) {
     if (goal.goalKey) byKey.set(goal.goalKey, goal.id);
     if (goal.titleKey) byKey.set(goal.titleKey, goal.id);
   });
-
   return tasks.map((task) => {
     if (task.goalIds?.length) return task;
     const matchedGoalId = byKey.get(task.goalKey) || byKey.get(normalizeKey(task.project));
@@ -212,23 +205,19 @@ function attachGoalsToTasks(tasks, goals) {
 }
 
 function buildPlanning(tasks) {
-  return tasks.reduce(
-    (acc, task) => {
-      const status = String(task.status || '').toLowerCase();
-      if (status.includes('done') || status.includes('готово')) acc.done += 1;
-      else if (status.includes('overdue') || status.includes('просроч')) acc.overdue += 1;
-      else if (status.includes('waiting') || status.includes('ожид')) acc.waiting += 1;
-      else if (status.includes('next') || status.includes('след')) acc.next += 1;
-      else acc.onTrack += 1;
-      return acc;
-    },
-    { onTrack: 0, next: 0, waiting: 0, overdue: 0, done: 0 },
-  );
+  return tasks.reduce((acc, task) => {
+    const status = String(task.status || '').toLowerCase();
+    if (status.includes('done') || status.includes('готово')) acc.done += 1;
+    else if (status.includes('overdue') || status.includes('просроч')) acc.overdue += 1;
+    else if (status.includes('waiting') || status.includes('ожид')) acc.waiting += 1;
+    else if (status.includes('next') || status.includes('след')) acc.next += 1;
+    else acc.onTrack += 1;
+    return acc;
+  }, { onTrack: 0, next: 0, waiting: 0, overdue: 0, done: 0 });
 }
 
 async function queryDatabase(notion, databaseId, mapper, label, warnings) {
   if (!databaseId) return [];
-
   try {
     const response = await notion.databases.query({ database_id: databaseId, page_size: 50 });
     return response.results.map(mapper);
@@ -241,64 +230,60 @@ async function queryDatabase(notion, databaseId, mapper, label, warnings) {
 }
 
 function chooseCurrentFocus(tasks) {
-  return (
-    tasks.find((task) => String(task.status).toLowerCase().includes('now')) ||
+  return tasks.find((task) => String(task.status).toLowerCase().includes('now')) ||
     tasks.find((task) => String(task.status).toLowerCase().includes('сейчас')) ||
     tasks.find((task) => String(task.status).toLowerCase().includes('in progress')) ||
     tasks.find((task) => String(task.status).toLowerCase().includes('в работе')) ||
-    tasks[0]
-  );
+    tasks[0];
 }
 
-export async function getNotionSnapshot({ notionToken, tasksDbId, goalsDbId, sessionsDbId }) {
+export async function getNotionSnapshot({ notionToken, tasksDbId, goalsDbId, sessionsDbId, projectsDbId, dreamsDbId, signalsDbId }) {
   if (!notionToken || !tasksDbId) return null;
-
   const notion = new Client({ auth: notionToken });
   const warnings = [];
-  const rawTasks = (await queryDatabase(notion, tasksDbId, mapNotionTask, 'Tasks DB', warnings))
-    .sort((a, b) => (a.priority || 999) - (b.priority || 999));
-  const goals = (await queryDatabase(notion, goalsDbId, mapNotionGoal, 'Goals DB', warnings))
-    .sort((a, b) => (b.progress || 0) - (a.progress || 0));
+  const rawTasks = (await queryDatabase(notion, tasksDbId, mapNotionTask, 'Tasks DB', warnings)).sort((a, b) => (a.priority || 999) - (b.priority || 999));
+  const goals = (await queryDatabase(notion, goalsDbId, mapNotionGoal, 'Goals DB', warnings)).sort((a, b) => (b.progress || 0) - (a.progress || 0));
   const tasks = attachGoalsToTasks(rawTasks, goals);
-  const sessions = (await queryDatabase(notion, sessionsDbId, mapNotionSession, 'Work Sessions DB', warnings))
-    .sort((a, b) => String(b.startedAt || '').localeCompare(String(a.startedAt || '')));
-
+  const sessions = (await queryDatabase(notion, sessionsDbId, mapNotionSession, 'Work Sessions DB', warnings)).sort((a, b) => String(b.startedAt || '').localeCompare(String(a.startedAt || '')));
+  const projectAreas = await queryDatabase(notion, projectsDbId, mapNotionProjectArea, 'Projects & Life Areas DB', warnings);
+  const dreams = await queryDatabase(notion, dreamsDbId, mapNotionDream, 'Goals, Dreams & Desires DB', warnings);
+  const signals = await queryDatabase(notion, signalsDbId, mapNotionSignal, 'AI Signals Inbox DB', warnings);
   const currentFocus = chooseCurrentFocus(tasks);
-
   return {
     meta: {
-      source: goalsDbId || sessionsDbId ? 'notion-live-workspace' : 'notion-live-tasks-db',
-      version: '0.6.0',
+      source: 'notion-live-workspace',
+      version: '0.7.0',
       updatedAt: new Date().toISOString(),
       warnings,
       connected: {
-        tasks: Boolean(tasksDbId),
+        tasks: Boolean(tasksDbId) && tasks.length > 0,
         goals: Boolean(goalsDbId) && goals.length > 0,
         sessions: Boolean(sessionsDbId) && sessions.length > 0,
+        projectAreas: Boolean(projectsDbId) && projectAreas.length > 0,
+        dreams: Boolean(dreamsDbId) && dreams.length > 0,
+        signals: Boolean(signalsDbId) && signals.length > 0,
       },
     },
-    currentFocus: currentFocus
-      ? {
-          id: currentFocus.id,
-          title: currentFocus.title,
-          project: currentFocus.project,
-          status: currentFocus.status,
-          progress: currentFocus.progress,
-          nextAction: currentFocus.nextAction || 'Следующий шаг не указан.',
-        }
-      : mockSnapshot.currentFocus,
+    currentFocus: currentFocus ? {
+      id: currentFocus.id,
+      title: currentFocus.title,
+      project: currentFocus.project,
+      status: currentFocus.status,
+      progress: currentFocus.progress,
+      nextAction: currentFocus.nextAction || 'Следующий шаг не указан.',
+    } : mockSnapshot.currentFocus,
     goals,
     tasks,
     sessions,
+    projectAreas,
+    dreams,
+    signals,
     planning: buildPlanning(tasks),
   };
 }
 
 export async function createWorkSession({ notionToken, sessionsDbId, payload }) {
-  if (!notionToken || !sessionsDbId) {
-    throw new Error('NOTION_TOKEN and NOTION_SESSIONS_DB_ID are required');
-  }
-
+  if (!notionToken || !sessionsDbId) throw new Error('NOTION_TOKEN and NOTION_SESSIONS_DB_ID are required');
   const notion = new Client({ auth: notionToken });
   const title = payload.title || payload.session || `Work session · ${new Date().toLocaleString('ru-RU')}`;
   const properties = cleanProperties({
@@ -312,16 +297,12 @@ export async function createWorkSession({ notionToken, sessionsDbId, payload }) 
     Result: textProperty(payload.result || ''),
     'Next Step': textProperty(payload.nextStep || payload.nextAction || ''),
   });
-
   const response = await notion.pages.create({ parent: { database_id: sessionsDbId }, properties });
   return { id: response.id, url: response.url };
 }
 
 export async function updateTaskEvent({ notionToken, taskId, event }) {
-  if (!notionToken || !taskId) {
-    throw new Error('NOTION_TOKEN and taskId are required');
-  }
-
+  if (!notionToken || !taskId) throw new Error('NOTION_TOKEN and taskId are required');
   const notion = new Client({ auth: notionToken });
   const now = new Date().toISOString();
   const properties = cleanProperties({
@@ -334,7 +315,6 @@ export async function updateTaskEvent({ notionToken, taskId, event }) {
     'Time Debt': numberProperty(event.timeDebt),
     'Reschedule Count': numberProperty(event.rescheduleCount),
   });
-
   const response = await notion.pages.update({ page_id: taskId, properties });
   return { id: response.id, url: response.url };
 }
