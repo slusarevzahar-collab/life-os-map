@@ -43,7 +43,8 @@
 }
 .coreNode.rootCore span,
 .coreNode.rootCore small,
-.coreNode.rootCore i {
+.coreNode.rootCore i,
+.coreNode i {
   display: none !important;
 }
 
@@ -78,6 +79,10 @@
 .branchView .sideList {
   width: min(610px, calc(100vw - 610px));
   min-width: 480px;
+}
+
+.missionButtons {
+  grid-template-columns: repeat(3, 1fr);
 }
 
 .sideTabs {
@@ -229,6 +234,15 @@
 }
 .errorList b { color: #fde68a; }
 .panelList span { overflow-wrap: anywhere; }
+.donePanelRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+.donePanelRow .restoreMini {
+  white-space: nowrap;
+}
 
 @media (max-width: 1180px) {
   .mapNode.orbitNode { --orbit-shift: clamp(-190px, -23vw, -150px); }
@@ -260,6 +274,7 @@
     min-width: 0;
     max-height: 34vh;
   }
+  .missionButtons { grid-template-columns: 1fr; }
   .topTitle em { display: none; }
   .contextMenu { max-width: calc(100vw - 24px); }
 }
