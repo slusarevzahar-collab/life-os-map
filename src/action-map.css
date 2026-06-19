@@ -139,11 +139,14 @@ button { font: inherit; }
 .sideListHead strong { display: block; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px; }
 .sideListHead b { display: grid; place-items: center; min-width: 34px; height: 34px; border-radius: 999px; color: #061018; background: #67e8f9; font-size: 14px; }
 .sideItems { display: grid; gap: 8px; overflow: auto; padding-right: 2px; }
-.sideItems button { display: grid; grid-template-columns: 38px minmax(0,1fr); align-items: center; gap: 10px; width: 100%; border: 1px solid rgba(255,255,255,.08); border-radius: 16px; padding: 9px; background: rgba(255,255,255,.045); color: #fff; text-align: left; cursor: pointer; }
-.sideItems button:hover { border-color: rgba(103,232,249,.24); background: rgba(103,232,249,.08); }
+.sideItemRow { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 8px; border: 1px solid rgba(255,255,255,.08); border-radius: 16px; padding: 6px; background: rgba(255,255,255,.045); }
+.sideItemMain { display: grid; grid-template-columns: 38px minmax(0,1fr); align-items: center; gap: 10px; width: 100%; border: 0; border-radius: 12px; padding: 3px; background: transparent; color: #fff; text-align: left; cursor: pointer; }
+.sideItemRow:hover { border-color: rgba(103,232,249,.24); background: rgba(103,232,249,.08); }
 .sideItems span { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 13px; background: rgba(103,232,249,.1); color: #67e8f9; font-size: 12px; font-weight: 900; }
 .sideItems b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
 .sideItems small { display: block; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgba(255,255,255,.5); font-size: 11px; }
+.doneMini { border: 1px solid rgba(134,239,172,.25); border-radius: 999px; padding: 7px 9px; color: #bbf7d0; background: rgba(34,197,94,.1); font-size: 10px; font-weight: 900; cursor: pointer; }
+.doneMini:disabled, .doneButton:disabled { opacity: .55; cursor: wait; }
 .emptySide { border: 1px dashed rgba(255,255,255,.12); border-radius: 18px; padding: 14px; background: rgba(255,255,255,.035); color: rgba(255,255,255,.68); }
 .emptySide b { display: block; margin-bottom: 6px; color: #fff; }
 .emptySide p { margin: 0; font-size: 13px; line-height: 1.42; }
@@ -157,6 +160,8 @@ button { font: inherit; }
 .detailHead small { display: block; color: rgba(125,211,252,.7); font-size: 11px; font-weight: 900; letter-spacing: .18em; text-transform: uppercase; }
 .detailHead h2 { margin: 4px 0 0; font-size: clamp(23px,3vw,34px); line-height: 1.05; overflow-wrap: anywhere; }
 .detailCard p, .utilityPanel p { color: rgba(255,255,255,.65); font-size: 15px; line-height: 1.45; }
+.detailActions { margin-top: 14px; }
+.doneButton { border: 0; border-radius: 16px; padding: 12px 16px; color: #061018; background: linear-gradient(90deg,#86efac,#67e8f9); font-weight: 900; cursor: pointer; }
 .detailList { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin-top: 16px; }
 .detailList div, .panelList div, .statGrid div { min-width: 0; border: 1px solid rgba(255,255,255,.11); border-radius: 17px; background: rgba(255,255,255,.045); padding: 13px 15px; color: rgba(255,255,255,.72); }
 .detailList b { margin-right: 10px; color: #67e8f9; }
@@ -168,6 +173,7 @@ button { font: inherit; }
 .statGrid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
 .statGrid span { display: block; color: rgba(125,211,252,.72); font-size: 11px; text-transform: uppercase; letter-spacing: .14em; }
 .statGrid b { display: block; margin-top: 6px; font-size: 28px; }
+.toast { position: fixed; z-index: 70; left: 50%; bottom: 18px; translate: -50% 0; max-width: min(620px, calc(100vw - 28px)); border: 1px solid rgba(103,232,249,.25); border-radius: 999px; padding: 11px 16px; color: #dffaff; background: rgba(3,7,18,.86); backdrop-filter: blur(18px); box-shadow: 0 18px 54px rgba(0,0,0,.45); font-size: 13px; font-weight: 800; }
 
 @media (max-width: 1180px) {
   .hasSideList .mapStage, .mapStage.mapWithSide { transform: translateX(-120px); }
