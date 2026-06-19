@@ -120,11 +120,25 @@
   padding: 6px;
   background: rgba(255, 255, 255, .045);
 }
-.sideItemRow.dropTarget {
-  border-color: rgba(103, 232, 249, .8);
-  box-shadow: inset 0 2px 0 rgba(103, 232, 249, .95), 0 0 30px rgba(103, 232, 249, .14);
-  background: rgba(103, 232, 249, .1);
+.sideItemRow.drop-before,
+.sideItemRow.drop-after {
+  border-color: rgba(255, 255, 255, .08);
+  background: rgba(255, 255, 255, .045);
 }
+.sideItemRow.drop-before::before,
+.sideItemRow.drop-after::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  height: 3px;
+  border-radius: 999px;
+  background: #67e8f9;
+  box-shadow: 0 0 18px rgba(103, 232, 249, .8);
+  pointer-events: none;
+}
+.sideItemRow.drop-before::before { top: -6px; }
+.sideItemRow.drop-after::after { bottom: -6px; }
 .sideItemMain {
   display: grid;
   grid-template-columns: 38px minmax(0, 1fr);
@@ -152,21 +166,35 @@
   gap: 6px;
 }
 .dragHandle {
-  width: 34px;
-  height: 44px;
-  border: 1px solid rgba(255, 255, 255, .12);
-  border-radius: 13px;
-  background: rgba(255, 255, 255, .055);
-  color: rgba(255, 255, 255, .72);
-  font-size: 18px;
+  width: 24px;
+  height: 38px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: rgba(255, 255, 255, .7);
+  font-size: 22px;
   font-weight: 900;
-  line-height: .65;
+  line-height: .62;
   cursor: grab;
   writing-mode: vertical-rl;
 }
+.dragHandle:hover { color: #dffaff; background: rgba(103, 232, 249, .08); }
 .dragHandle:active { cursor: grabbing; }
 .dragHandle:disabled { opacity: .32; cursor: wait; }
 .orderControls { display: none; }
+
+.renameMini {
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 8px;
+  color: rgba(219, 234, 254, .86);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.renameMini:hover { background: rgba(147, 197, 253, .1); color: #fff; }
+.renameMini:disabled { opacity: .35; cursor: wait; }
 
 .doneMini, .restoreMini {
   border: 1px solid rgba(134, 239, 172, .25);
@@ -182,6 +210,7 @@
   color: #bfdbfe;
   background: rgba(59, 130, 246, .1);
 }
+.renameButton,
 .restoreButton {
   border: 0;
   border-radius: 16px;
@@ -189,6 +218,11 @@
   color: #061018;
   background: linear-gradient(90deg, #93c5fd, #67e8f9);
   font-weight: 900;
+}
+.renameButton {
+  color: #dffaff;
+  background: rgba(103, 232, 249, .1);
+  border: 1px solid rgba(103, 232, 249, .2);
 }
 
 .contextMenu {
