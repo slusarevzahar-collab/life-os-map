@@ -60,11 +60,24 @@ function makeMockResponse(reason) {
   };
 }
 
+function cleanUiWarnings(snapshot) {
+  const warnings = snapshot.meta?.warnings || [];
+  const criticalWarnings = warnings.filter((message) => /Tasks DB|NOTION_TOKEN|NOTION_TASKS_DB_ID/i.test(message));
+  return {
+    ...snapshot,
+    meta: {
+      ...(snapshot.meta || {}),
+      warnings: criticalWarnings,
+      notices: warnings.filter((message) => !criticalWarnings.includes(message)),
+    },
+  };
+}
+
 app.get('/api/life-os/snapshot', async (_req, res) => {
   try {
     const notionSnapshot = await getNotionSnapshot({ notionToken, tasksDbId, goalsDbId, sessionsDbId, projectsDbId, dreamsDbId, signalsDbId });
     if (notionSnapshot) {
-      res.json(notionSnapshot);
+      res.json(cleanUiWarnings(notionSnapshot));
       return;
     }
 
