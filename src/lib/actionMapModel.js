@@ -181,7 +181,7 @@ function countLeaves(node, mode = 'all') {
   return childLeaves || node.tasks || 0;
 }
 
-function makeGroupNode({ id, title, icon, items = [], summary, kind = 'group', children = [], status, details = [] }) {
+function makeGroupNode({ id, title, icon, items = [], summary, kind = 'group', children = [], status, details = [], sourceId = null, raw = null }) {
   const leafItems = items.map(taskToLeaf);
   const activeLeaves = leafItems.filter((item) => item.state !== 'done');
   const completedLeaves = leafItems.filter((item) => item.state === 'done');
@@ -190,6 +190,7 @@ function makeGroupNode({ id, title, icon, items = [], summary, kind = 'group', c
   const progress = activeLeaves.length ? avg(activeLeaves) : avg(childItems);
   return {
     id,
+    sourceId,
     title,
     icon,
     status: status || stateLabel(state),
@@ -203,6 +204,7 @@ function makeGroupNode({ id, title, icon, items = [], summary, kind = 'group', c
     children: childItems,
     taskList: leafItems,
     kind,
+    raw,
   };
 }
 
@@ -228,6 +230,7 @@ function areaToProjectNode(area, tasks = []) {
   const related = matchTasks(tasks, title);
   return makeGroupNode({
     id: `project-${slug(title)}`,
+    sourceId: area.id,
     title,
     icon: iconFor(title, 'PR'),
     items: related,
@@ -235,6 +238,7 @@ function areaToProjectNode(area, tasks = []) {
     status: area.status,
     details: [area.goal, area.currentState, area.nextAction, area.why].filter(Boolean),
     kind: LIFE_TYPES.has(typeKey(area.type)) ? 'lifeArea' : 'project',
+    raw: area,
   });
 }
 
@@ -253,6 +257,8 @@ function mergeProjectNodes(declaredNodes = [], fallbackNodes = []) {
     const doneList = taskList.filter((leaf) => leaf.state === 'done');
     map.set(id, {
       ...existing,
+      sourceId: existing.sourceId || node.sourceId || null,
+      raw: existing.raw || node.raw || null,
       summary: existing.summary || node.summary,
       details: uniqById([...activeList, ...doneList]).slice(0, 4).map((item) => item.title),
       children: childLeaves.length ? childLeaves : taskList,
@@ -272,6 +278,7 @@ function buildGoals(goals = [], tasks = []) {
     const related = tasks.filter((task) => task.goalIds?.includes(goal.id) || task.goalName === goal.title);
     return makeGroupNode({
       id: `goal-${goal.id}`,
+      sourceId: goal.id,
       title: goal.title || 'Цель',
       icon: 'GO',
       items: related,
@@ -279,6 +286,7 @@ function buildGoals(goals = [], tasks = []) {
       status: goal.status,
       details: [goal.horizon, goal.targetDate, goal.nextAction].filter(Boolean),
       kind: 'goal',
+      raw: goal,
     });
   });
 }
