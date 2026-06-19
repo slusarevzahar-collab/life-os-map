@@ -3,7 +3,6 @@ import { createRoot } from 'react-dom/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import './action-map.css';
 
-import { fallbackSnapshot } from './lib/lifeOsData.js';
 import { buildActionMap, findNode, isLeafNode, shortText } from './lib/actionMapModel.js';
 
 const mapVariants = {
@@ -11,6 +10,34 @@ const mapVariants = {
   animate: { opacity: 1, scale: 1, filter: 'blur(0px)' },
   exit: { opacity: 0, scale: 1.08, filter: 'blur(8px)' },
 };
+
+function emptySnapshot(source = 'loading', warning = '') {
+  const isOffline = source === 'api-offline';
+  return {
+    meta: {
+      source,
+      version: 'empty-ui-state',
+      updatedAt: new Date().toISOString(),
+      warnings: warning ? [warning] : [],
+      connected: { tasks: false, goals: false, sessions: false, projectAreas: false, dreams: false, signals: false },
+    },
+    currentFocus: {
+      id: isOffline ? 'api-offline' : 'loading',
+      title: isOffline ? 'API недоступен' : 'Загрузка данных',
+      project: 'Life OS Map',
+      status: isOffline ? 'offline' : 'loading',
+      progress: 0,
+      nextAction: isOffline ? 'Запусти backend: npm run api, затем обнови карту.' : 'Жду ответ backend API.',
+    },
+    goals: [],
+    tasks: [],
+    sessions: [],
+    projectAreas: [],
+    dreams: [],
+    signals: [],
+    planning: { onTrack: 0, next: 0, waiting: 0, overdue: 0, done: 0 },
+  };
+}
 
 function Stars() {
   const stars = useMemo(() => Array.from({ length: 88 }, (_, i) => ({ left: `${(i * 37) % 100}%`, top: `${(i * 61) % 100}%`, size: 1 + ((i * 13) % 3), delay: `${(i % 7) * 0.32}s` })), []);
@@ -66,7 +93,8 @@ async function fetchSnapshot() {
 }
 
 function dataState(snapshot, apiState) {
-  if (apiState === 'api offline') return 'api offline';
+  if (apiState === 'api offline' || snapshot.meta?.source === 'api-offline') return 'api offline';
+  if (apiState === 'loading') return 'loading';
   if (snapshot.meta?.source?.includes('mock')) return 'mock data';
   return apiState;
 }
@@ -78,15 +106,16 @@ function TopNav({ map, canBack, onBack, onCenter, apiState }) {
 function MissionPanel({ map, snapshot, apiState, onSteps, onStats }) {
   const [open, setOpen] = useState(false);
   const isMock = snapshot.meta?.source?.includes('mock');
-  const isOffline = apiState === 'api offline';
+  const isOffline = apiState === 'api offline' || snapshot.meta?.source === 'api-offline';
+  const isLoading = apiState === 'loading' || snapshot.meta?.source === 'loading';
   const warnings = snapshot.meta?.warnings || [];
 
   if (!open) {
-    const label = isOffline ? 'API OFFLINE' : isMock ? 'MOCK DATA' : 'MISSION CONTROL';
+    const label = isOffline ? 'API OFFLINE' : isMock ? 'MOCK DATA' : isLoading ? 'LOADING' : 'MISSION CONTROL';
     return <section className="mission missionCollapsed"><button onClick={() => setOpen(true)}><span>{map.icon}</span><div><small>{label}</small><b>{map.title}</b></div><Ring value={map.progress} /></button></section>;
   }
 
-  return <section className="mission"><button className="collapseMission" onClick={() => setOpen(false)}>Свернуть</button><div className="missionTop"><div><small><em /> {isOffline ? 'API OFFLINE · frontend не достучался до backend' : isMock ? 'MOCK DATA · проверь backend/.env' : 'MISSION CONTROL'}</small><h1><span>{map.icon}</span>{map.title}</h1></div><Ring value={map.progress} /></div>{isOffline ? <div className="warningLine">Frontend не смог получить /api/life-os/snapshot. Проверь, что backend запущен, а frontend был перезапущен после git pull.</div> : null}{isMock ? <div className="warningLine">Сейчас карта получает mock-данные. Нужно, чтобы backend видел NOTION_TOKEN и NOTION_TASKS_DB_ID.</div> : null}<div className="missionLine activeLine">Сейчас: {map.session?.current || map.summary}</div><div className="missionLine nextLine">Следующий шаг: {map.session?.next || 'Выбери планету, чтобы открыть следующий уровень.'}</div>{warnings.length ? <div className="warningLine">{warnings[0]}</div> : null}<div className="missionButtons"><button onClick={onSteps}>Следующие шаги</button><button onClick={onStats}>Статистика</button></div></section>;
+  return <section className="mission"><button className="collapseMission" onClick={() => setOpen(false)}>Свернуть</button><div className="missionTop"><div><small><em /> {isOffline ? 'API OFFLINE · нет данных для карты' : isMock ? 'MOCK DATA · проверь backend/.env' : isLoading ? 'LOADING · жду backend' : 'MISSION CONTROL'}</small><h1><span>{map.icon}</span>{map.title}</h1></div><Ring value={map.progress} /></div>{isOffline ? <div className="warningLine">Карта специально не показывает запасные данные: backend API недоступен. Запусти npm run api и обнови страницу.</div> : null}{isMock ? <div className="warningLine">Сейчас карта получает mock-данные. Нужно, чтобы backend видел NOTION_TOKEN и NOTION_TASKS_DB_ID.</div> : null}<div className="missionLine activeLine">Сейчас: {map.session?.current || map.summary}</div><div className="missionLine nextLine">Следующий шаг: {map.session?.next || 'Выбери планету, чтобы открыть следующий уровень.'}</div>{warnings.length ? <div className="warningLine">{warnings[0]}</div> : null}<div className="missionButtons"><button onClick={onSteps}>Следующие шаги</button><button onClick={onStats}>Статистика</button></div></section>;
 }
 
 function OrbitMap({ map, hasSide, onOpen, onSelect }) {
@@ -100,7 +129,7 @@ function SideList({ map, routeDepth, snapshot, onOpen, onSelect }) {
   if (!isBranch && !items.length) return null;
   const hasPlanetChildren = hasBranch(map);
   const connected = snapshot.meta?.connected || {};
-  const sourceLabel = snapshot.meta?.source?.includes('mock') ? 'mock' : 'notion';
+  const sourceLabel = snapshot.meta?.source?.includes('mock') ? 'mock' : snapshot.meta?.source === 'api-offline' ? 'api offline' : 'notion';
 
   return <aside className="sideList"><div className="sideListHead"><div><small>{hasPlanetChildren ? 'Содержимое ветки' : 'Задачи ветки'}</small><strong>{map.title}</strong></div><b>{items.length}</b></div>{items.length ? <div className="sideItems">{items.map((item) => { const nested = Boolean(item.children?.length || item.taskList?.length); return <button key={item.id} onClick={() => nested && !isLeafNode(item) ? onOpen(item.id) : onSelect(item)}><span>{item.icon}</span><div><b>{shortText(item.title, 46)}</b><small>{isLeafNode(item) ? item.status || item.summary : `${item.tasks || 0} задач · открыть ветку`}</small></div></button>; })}</div> : <div className="emptySide"><b>Список пуст</b><p>Backend подключён, но у этой ветки нет связанных задач или они не совпали по Project/Goal. Проверь названия проекта в Notion.</p></div>}<div className="sideMeta"><span>source: {sourceLabel}</span><span>tasks: {connected.tasks ? 'live' : 'no'}</span><span>goals: {connected.goals ? 'live' : 'no'}</span></div></aside>;
 }
@@ -114,11 +143,11 @@ function UtilityPanel({ type, map, snapshot, onClose }) {
   if (!type) return null;
   const items = [...topItems(map), ...listItems(map)];
   const connected = snapshot.meta?.connected || {};
-  return <motion.aside className="utilityPanel" initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 24, opacity: 0 }}><button className="closeDetail" onClick={onClose}>×</button><h2>{type === 'steps' ? 'Следующие шаги' : 'Статистика'}</h2>{type === 'steps' ? <div className="panelList">{items.slice(0, 7).map((node) => <div key={node.id}><b>{node.title}</b><span>{node.summary}</span></div>)}</div> : <div className="statGrid"><div><span>Планеты</span><b>{topItems(map).length}</b></div><div><span>Список</span><b>{listItems(map).length}</b></div><div><span>Notion</span><b>{connected.tasks ? 'live' : 'mock'}</b></div></div>}</motion.aside>;
+  return <motion.aside className="utilityPanel" initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 24, opacity: 0 }}><button className="closeDetail" onClick={onClose}>×</button><h2>{type === 'steps' ? 'Следующие шаги' : 'Статистика'}</h2>{type === 'steps' ? <div className="panelList">{items.slice(0, 7).map((node) => <div key={node.id}><b>{node.title}</b><span>{node.summary}</span></div>)}</div> : <div className="statGrid"><div><span>Планеты</span><b>{topItems(map).length}</b></div><div><span>Список</span><b>{listItems(map).length}</b></div><div><span>Notion</span><b>{connected.tasks ? 'live' : 'no data'}</b></div></div>}</motion.aside>;
 }
 
 function App() {
-  const [snapshot, setSnapshot] = useState(fallbackSnapshot);
+  const [snapshot, setSnapshot] = useState(() => emptySnapshot('loading'));
   const [apiState, setApiState] = useState('loading');
   const [route, setRoute] = useState(['root']);
   const [selected, setSelected] = useState(null);
@@ -132,7 +161,7 @@ function App() {
       setApiState(data.meta?.source?.includes('mock') ? 'mock data' : 'connected');
     }).catch((error) => {
       if (!active) return;
-      setSnapshot({ ...fallbackSnapshot, meta: { ...fallbackSnapshot.meta, source: 'frontend-fallback', warnings: [error.message] } });
+      setSnapshot(emptySnapshot('api-offline', error.message));
       setApiState('api offline');
     });
     return () => { active = false; };
