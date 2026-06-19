@@ -307,6 +307,7 @@ export async function updateTaskEvent({ notionToken, taskId, event }) {
   const notion = new Client({ auth: notionToken });
   const now = new Date().toISOString();
   const properties = cleanProperties({
+    Task: event.title ? titleProperty(event.title) : undefined,
     Status: selectProperty(event.status),
     Progress: numberProperty(event.progress),
     Priority: numberProperty(event.priority),
@@ -319,4 +320,24 @@ export async function updateTaskEvent({ notionToken, taskId, event }) {
   });
   const response = await notion.pages.update({ page_id: taskId, properties });
   return { id: response.id, url: response.url };
+}
+
+function titlePropertyNameForKind(kind = '') {
+  const normalized = String(kind || '').toLowerCase();
+  if (normalized === 'task') return 'Task';
+  if (normalized === 'goal') return 'Goal';
+  if (normalized === 'project' || normalized === 'lifearea' || normalized === 'lifeArea'.toLowerCase()) return 'Name';
+  if (normalized === 'dream') return 'Goal / Dream';
+  if (normalized === 'signal') return 'Signal';
+  return 'Name';
+}
+
+export async function updateItemTitle({ notionToken, itemId, kind, title }) {
+  if (!notionToken || !itemId) throw new Error('NOTION_TOKEN and itemId are required');
+  const cleanTitle = String(title || '').trim();
+  if (!cleanTitle) throw new Error('Title is required');
+  const notion = new Client({ auth: notionToken });
+  const propertyName = titlePropertyNameForKind(kind);
+  const response = await notion.pages.update({ page_id: itemId, properties: { [propertyName]: titleProperty(cleanTitle) } });
+  return { id: response.id, url: response.url, propertyName };
 }
