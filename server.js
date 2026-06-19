@@ -5,6 +5,7 @@ import {
   createWorkSession,
   getNotionSnapshot,
   mockSnapshot,
+  updateItemTitle,
   updateTaskEvent,
 } from './server/notionAdapter.js';
 
@@ -112,6 +113,16 @@ app.patch('/api/life-os/tasks/:id', async (req, res) => {
   }
 });
 
+app.patch('/api/life-os/items/:id/title', async (req, res) => {
+  try {
+    const result = await updateItemTitle({ notionToken, itemId: req.params.id, kind: req.body?.kind, title: req.body?.title });
+    res.json({ ok: true, item: result });
+  } catch (error) {
+    console.error('Life OS update title error:', error.message);
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
 app.get('/api/life-os/health', (_req, res) => {
   res.json({
     ok: true,
@@ -122,6 +133,7 @@ app.get('/api/life-os/health', (_req, res) => {
       'GET /api/life-os/snapshot',
       'POST /api/life-os/sessions',
       'PATCH /api/life-os/tasks/:id',
+      'PATCH /api/life-os/items/:id/title',
       'GET /api/life-os/health',
     ],
     notion: {
