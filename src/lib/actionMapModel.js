@@ -48,6 +48,8 @@ function statusState(status = '') {
   return 'queue';
 }
 
+function isDoneTask(task) { return statusState(task?.status) === 'done'; }
+
 function stateFromTasks(tasks = []) {
   if (tasks.some((task) => statusState(task.status) === 'active')) return 'active';
   if (tasks.some((task) => statusState(task.status) === 'next')) return 'next';
@@ -162,19 +164,30 @@ function uniqById(items = []) {
   });
 }
 
-function countLeaves(node) {
+function countLeaves(node, mode = 'all') {
   if (!node) return 0;
-  if (LEAF_KINDS.has(node.kind)) return 1;
-  const direct = node.taskList?.length || 0;
-  const childLeaves = (node.children || []).reduce((sum, child) => sum + countLeaves(child), 0);
-  return direct || childLeaves || node.tasks || 0;
+  if (LEAF_KINDS.has(node.kind)) {
+    if (mode === 'active') return node.state === 'done' ? 0 : 1;
+    if (mode === 'done') return node.state === 'done' ? 1 : 0;
+    return 1;
+  }
+  const list = node.taskList || [];
+  if (list.length) {
+    if (mode === 'active') return list.filter((item) => item.state !== 'done').length;
+    if (mode === 'done') return list.filter((item) => item.state === 'done').length;
+    return list.length;
+  }
+  const childLeaves = (node.children || []).reduce((sum, child) => sum + countLeaves(child, mode), 0);
+  return childLeaves || node.tasks || 0;
 }
 
 function makeGroupNode({ id, title, icon, items = [], summary, kind = 'group', children = [], status, details = [] }) {
   const leafItems = items.map(taskToLeaf);
+  const activeLeaves = leafItems.filter((item) => item.state !== 'done');
+  const completedLeaves = leafItems.filter((item) => item.state === 'done');
   const childItems = children.length ? children : leafItems;
-  const state = items.length ? stateFromTasks(items) : statusState(status);
-  const progress = items.length ? avg(items) : avg(childItems);
+  const state = activeLeaves.length ? stateFromTasks(activeLeaves.map((leaf) => leaf.raw || leaf)) : (completedLeaves.length ? 'done' : statusState(status));
+  const progress = activeLeaves.length ? avg(activeLeaves) : avg(childItems);
   return {
     id,
     title,
@@ -182,9 +195,11 @@ function makeGroupNode({ id, title, icon, items = [], summary, kind = 'group', c
     status: status || stateLabel(state),
     state,
     progress,
-    tasks: items.length || childItems.reduce((sum, child) => sum + countLeaves(child), 0),
-    summary: summary || topTask(items)?.nextAction || `${title}: ${items.length || childItems.length} элементов.`,
-    details: details.length ? details : items.slice(0, 4).map((task) => task.title),
+    tasks: activeLeaves.length || childItems.reduce((sum, child) => sum + countLeaves(child, 'active'), 0),
+    completedTasks: completedLeaves.length || childItems.reduce((sum, child) => sum + countLeaves(child, 'done'), 0),
+    totalTasks: leafItems.length || childItems.reduce((sum, child) => sum + countLeaves(child, 'all'), 0),
+    summary: summary || topTask(activeLeaves.map((leaf) => leaf.raw || leaf))?.nextAction || `${title}: ${leafItems.length || childItems.length} элементов.`,
+    details: details.length ? details : activeLeaves.slice(0, 4).map((task) => task.title),
     children: childItems,
     taskList: leafItems,
     kind,
@@ -203,7 +218,7 @@ function groupByProject(tasks = []) {
     title,
     icon: iconFor(title, 'PR'),
     items,
-    summary: topTask(items)?.nextAction || `Проект: ${title}`,
+    summary: topTask(items.filter((task) => !isDoneTask(task)))?.nextAction || `Проект: ${title}`,
     kind: 'project',
   }));
 }
@@ -234,15 +249,19 @@ function mergeProjectNodes(declaredNodes = [], fallbackNodes = []) {
     }
     const taskList = uniqById([...(existing.taskList || []), ...(node.taskList || [])]);
     const childLeaves = uniqById([...(existing.children || []), ...(node.children || [])]);
+    const activeList = taskList.filter((leaf) => leaf.state !== 'done');
+    const doneList = taskList.filter((leaf) => leaf.state === 'done');
     map.set(id, {
       ...existing,
       summary: existing.summary || node.summary,
-      details: uniqById([...childLeaves, ...taskList]).slice(0, 4).map((item) => item.title),
+      details: uniqById([...activeList, ...doneList]).slice(0, 4).map((item) => item.title),
       children: childLeaves.length ? childLeaves : taskList,
       taskList,
-      tasks: taskList.length || childLeaves.length || existing.tasks || node.tasks || 0,
-      progress: taskList.length ? avg(taskList) : existing.progress || node.progress || 0,
-      state: taskList.length ? stateFromTasks(taskList.map((leaf) => leaf.raw || leaf)) : existing.state,
+      tasks: activeList.length || childLeaves.reduce((sum, child) => sum + countLeaves(child, 'active'), 0),
+      completedTasks: doneList.length || childLeaves.reduce((sum, child) => sum + countLeaves(child, 'done'), 0),
+      totalTasks: taskList.length || childLeaves.reduce((sum, child) => sum + countLeaves(child, 'all'), 0),
+      progress: activeList.length ? avg(activeList) : existing.progress || node.progress || 0,
+      state: activeList.length ? stateFromTasks(activeList.map((leaf) => leaf.raw || leaf)) : (doneList.length ? 'done' : existing.state),
     });
   });
   return [...map.values()].sort((a, b) => (b.tasks || 0) - (a.tasks || 0));
@@ -273,7 +292,9 @@ function makeLeafSphere({ id, title, icon, leaves, summary, kind = 'sphere' }) {
 }
 
 function classifySnapshot(snapshot) {
-  const activeTasks = (snapshot.tasks || []).filter((task) => statusState(task.status) !== 'done');
+  const allTasks = snapshot.tasks || [];
+  const activeTasks = allTasks.filter((task) => !isDoneTask(task));
+  const completedTasks = allTasks.filter(isDoneTask);
   const goals = snapshot.goals || [];
   const projectAreas = snapshot.projectAreas || [];
   const dreams = snapshot.dreams || [];
@@ -281,19 +302,20 @@ function classifySnapshot(snapshot) {
 
   const declaredProjects = projectAreas
     .filter((item) => PROJECT_TYPES.has(typeKey(item.type)))
-    .map((area) => areaToProjectNode(area, activeTasks));
-  const fallbackProjectTasks = activeTasks.filter(isProjectTask);
-  const fallbackProjects = groupByProject(fallbackProjectTasks.length ? fallbackProjectTasks : activeTasks);
+    .map((area) => areaToProjectNode(area, allTasks));
+  const fallbackProjectTasks = allTasks.filter(isProjectTask);
+  const fallbackProjects = groupByProject(fallbackProjectTasks.length ? fallbackProjectTasks : allTasks);
   const projectNodes = mergeProjectNodes(declaredProjects, fallbackProjects);
 
   const lifeAreaNodes = projectAreas
     .filter((item) => LIFE_TYPES.has(typeKey(item.type)))
-    .map((area) => areaToProjectNode(area, activeTasks));
+    .map((area) => areaToProjectNode(area, allTasks));
   const lifeDreams = dreams.filter((dream) => !dream.linkedProject).map(dreamToLeaf);
-  const goalNodes = buildGoals(goals, activeTasks).filter((goal) => goal.tasks > 0 || goal.progress > 0).slice(0, 10);
+  const goalNodes = buildGoals(goals, allTasks).filter((goal) => goal.tasks > 0 || goal.completedTasks > 0 || goal.progress > 0).slice(0, 10);
   const signalNodes = signals.slice(0, 12).map(signalToLeaf);
   const incomeTasks = byText(activeTasks, ['доход', 'клиент', 'деньги', 'money', 'sales', 'продаж', '4life', 'парсер']).map(taskToLeaf);
   const backlogTasks = activeTasks.filter((task) => ['queue', 'paused'].includes(statusState(task.status))).slice(0, 24).map(taskToLeaf);
+  const completedLeaves = completedTasks.slice(0, 50).map(taskToLeaf);
 
   const topNodes = [];
   if (projectNodes.length) topNodes.push(makeGroupNode({ id: 'sphere-projects', title: 'Проекты', icon: 'PR', children: projectNodes, summary: 'Сфера проектов: здесь лежат Навигатор, Sleda.net и другие рабочие направления.', kind: 'sphere' }));
@@ -302,6 +324,7 @@ function classifySnapshot(snapshot) {
   if (lifeAreaNodes.length || lifeDreams.length) topNodes.push(makeGroupNode({ id: 'sphere-life', title: 'Жизнь', icon: 'LF', children: [...lifeAreaNodes, ...lifeDreams], summary: 'Личные сферы, мечты, навыки, тело, творчество и баланс.', kind: 'sphere' }));
   if (incomeTasks.length) topNodes.push(makeLeafSphere({ id: 'sphere-income', title: 'Доход', icon: '₽', leaves: incomeTasks, summary: 'Задачи и направления, связанные с клиентами, деньгами и монетизацией.' }));
   if (backlogTasks.length) topNodes.push(makeLeafSphere({ id: 'sphere-backlog', title: 'Идеи / потом', icon: 'BK', leaves: backlogTasks, summary: 'Сохранённые задачи и идеи, которые не должны сбивать фокус.' }));
+  if (completedLeaves.length) topNodes.push(makeLeafSphere({ id: 'sphere-done', title: 'Выполнено', icon: 'OK', leaves: completedLeaves, summary: 'Архив выполненных задач. Их можно вернуть обратно в работу.' }));
   return topNodes.slice(0, 8);
 }
 
@@ -309,7 +332,7 @@ export function buildActionMap(snapshot) {
   const tasks = snapshot.tasks || [];
   const current = snapshot.currentFocus || {};
   const children = classifySnapshot(snapshot);
-  const activeCount = tasks.filter((task) => statusState(task.status) !== 'done').length;
+  const activeCount = tasks.filter((task) => !isDoneTask(task)).length;
   const progress = Number(current.progress) || avg(tasks) || 0;
   return {
     id: 'root',
@@ -320,6 +343,7 @@ export function buildActionMap(snapshot) {
     state: 'active',
     progress,
     tasks: activeCount,
+    completedTasks: tasks.filter(isDoneTask).length,
     summary: 'Главная орбита. Здесь крупные сферы: проекты, цели, входящие сигналы, жизнь, доход и идеи на потом.',
     details: ['Клик по сфере открывает её как новый центр.', 'Задачи выбранной ветки показываются списком справа.', 'Данные приходят из Notion через backend snapshot.'],
     session: {
@@ -344,6 +368,7 @@ function findRecursive(node, nodeId) {
 
 export function findNode(root, nodeId) { return findRecursive(root, nodeId) || root; }
 export function isLeafNode(node) { return LEAF_KINDS.has(node?.kind); }
+export function isDoneNode(node) { return node?.state === 'done'; }
 
 export function shortText(value = '', limit = 52) {
   const text = clean(value);
