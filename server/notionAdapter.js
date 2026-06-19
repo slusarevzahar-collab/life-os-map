@@ -252,7 +252,7 @@ export async function getNotionSnapshot({ notionToken, tasksDbId, goalsDbId, ses
   return {
     meta: {
       source: 'notion-live-workspace',
-      version: '0.7.0',
+      version: '0.8.0',
       updatedAt: new Date().toISOString(),
       warnings,
       connected: {
@@ -270,6 +270,7 @@ export async function getNotionSnapshot({ notionToken, tasksDbId, goalsDbId, ses
       project: currentFocus.project,
       status: currentFocus.status,
       progress: currentFocus.progress,
+      priority: currentFocus.priority,
       nextAction: currentFocus.nextAction || 'Следующий шаг не указан.',
     } : mockSnapshot.currentFocus,
     goals,
@@ -308,6 +309,7 @@ export async function updateTaskEvent({ notionToken, taskId, event }) {
   const properties = cleanProperties({
     Status: selectProperty(event.status),
     Progress: numberProperty(event.progress),
+    Priority: numberProperty(event.priority),
     'Due Date': dateProperty(event.dueDate),
     'Planned Date': dateProperty(event.plannedDate),
     'Last Touched': dateProperty(now),
