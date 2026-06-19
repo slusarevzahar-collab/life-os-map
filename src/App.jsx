@@ -7,7 +7,8 @@ import './action-map-overrides.css';
 import { buildActionMap, findNode, isDoneNode, isLeafNode, shortText } from './lib/actionMapModel.js';
 
 const FOCUS_STORAGE_KEY = 'lifeMapFocusQueueV2';
-const RENAMABLE_KINDS = new Set(['task', 'goal', 'project', 'lifeArea', 'signal', 'dream']);
+const TITLE_ALIASES_KEY = 'lifeMapTitleAliasesV1';
+const RENAMABLE_KINDS = new Set(['task', 'goal', 'project', 'lifeArea', 'signal', 'dream', 'sphere']);
 
 const mapVariants = {
   initial: { opacity: 0, scale: 0.88, filter: 'blur(8px)' },
@@ -51,7 +52,7 @@ function Ring({ value }) {
 function hasBranch(node) { return Boolean((node?.children || []).some((item) => !isLeafNode(item) && item.id !== 'sphere-done')); }
 function topItems(node) { return (node.children || []).filter((item) => !isLeafNode(item) && item.id !== 'sphere-done'); }
 function canPatchTask(node) { return node?.kind === 'task' && Boolean(node.sourceId); }
-function canRenameNode(node) { return Boolean(node?.sourceId && RENAMABLE_KINDS.has(node.kind)); }
+function canRenameNode(node) { return Boolean(node?.id && node.id !== 'root' && (node.sourceId || RENAMABLE_KINDS.has(node.kind) || node.id.startsWith('sphere-'))); }
 
 function listItems(node) {
   const directLeaves = (node.children || []).filter((item) => isLeafNode(item));
@@ -79,6 +80,15 @@ function uniqueBySource(items = []) {
   });
 }
 
+function applyTitleAliases(node, aliases = {}) {
+  if (!node) return node;
+  const alias = aliases[node.id];
+  const next = alias ? { ...node, title: alias } : { ...node };
+  next.children = (node.children || []).map((child) => applyTitleAliases(child, aliases));
+  next.taskList = (node.taskList || []).map((child) => applyTitleAliases(child, aliases));
+  return next;
+}
+
 function focusCandidateFromNode(node) {
   if (!node) return null;
   if (isLeafNode(node)) return node;
@@ -98,6 +108,16 @@ function toFocusItem(node) {
     nextAction: node.summary || node.raw?.nextAction || 'Следующий шаг не указан.',
     kind: node.kind || 'node',
   };
+}
+
+function dedupeFocusItems(items = []) {
+  const seen = new Set();
+  return items.filter((item) => {
+    const key = item?.sourceId || item?.id;
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function resolveFocus(rootMap, snapshot, focusQueue = []) {
@@ -129,6 +149,28 @@ function resolveFocus(rootMap, snapshot, focusQueue = []) {
     nextAction: snapshot.currentFocus?.nextAction || 'Следующий шаг не указан.',
     kind: 'snapshotFocus',
   };
+}
+
+function buildFocusSequence(rootMap, activeFocus, focusQueue = []) {
+  const nodes = flattenNodes(rootMap);
+  const queued = focusQueue.map((queuedItem) => {
+    const match = nodes.find((node) => !isDoneNode(node) && ((queuedItem.sourceId && node.sourceId === queuedItem.sourceId) || node.id === queuedItem.id));
+    return match ? toFocusItem(match) : queuedItem;
+  });
+  const focusText = `${activeFocus?.title || ''} ${activeFocus?.project || ''}`.toLowerCase();
+  const projectNeedles = ['life os', 'live os', 'life os map', 'liveos map', 'навигатор', 'notion', 'canvas', 'map'];
+  const relatedTasks = nodes
+    .filter((node) => node.kind === 'task' && !isDoneNode(node))
+    .filter((node) => {
+      const text = `${node.title} ${node.summary} ${node.raw?.project || ''} ${node.raw?.goalName || ''}`.toLowerCase();
+      if (activeFocus?.sourceId && node.sourceId === activeFocus.sourceId) return true;
+      if (activeFocus?.id && node.id === activeFocus.id) return true;
+      if (focusText.includes('sleda') || focusText.includes('след')) return text.includes('sleda') || text.includes('след');
+      if (focusText.includes('inbox')) return text.includes('inbox') || text.includes('telegram') || text.includes('бот');
+      return projectNeedles.some((needle) => text.includes(needle));
+    })
+    .map(toFocusItem);
+  return dedupeFocusItems([activeFocus, ...queued, ...relatedTasks].filter(Boolean)).slice(0, 16);
 }
 
 function apiCandidates(path) {
@@ -198,19 +240,21 @@ function TopNav({ canBack, onBack, onCenter, apiState, errorCount, onErrors }) {
   return <header className="topNav" onClick={(event) => event.stopPropagation()}><button className="backButton" onClick={onBack} disabled={!canBack}>← Назад</button><div className="topTitle"><span className="brand"><b>Live</b><strong>Map</strong></span><em>· {apiState}</em></div><div className="topActions"><button className="centerButton" onClick={onCenter}>Главная</button>{errorCount ? <button className="errorButton hasErrors" onClick={onErrors}>Ошибки {errorCount}</button> : null}</div></header>;
 }
 
-function MissionPanel({ focus, snapshot, apiState, onSteps, onStats, onDone }) {
+function MissionPanel({ focus, focusQueueItems, snapshot, apiState, onDone }) {
   const [open, setOpen] = useState(false);
+  const [queueOpen, setQueueOpen] = useState(false);
   const isMock = snapshot.meta?.source?.includes('mock');
   const isOffline = apiState === 'api offline' || snapshot.meta?.source === 'api-offline';
   const isLoading = apiState === 'loading' || snapshot.meta?.source === 'loading';
   const currentTitle = focus?.title || 'Фокус не выбран';
-  const nextAction = focus?.nextAction || 'Следующий шаг не указан.';
+  const nextItem = focusQueueItems?.[1];
+  const nextAction = nextItem?.title || focus?.nextAction || 'Следующий шаг не указан.';
   const progress = Number(focus?.progress || 0);
   if (!open) {
     const label = isOffline ? 'API OFFLINE' : isMock ? 'MOCK DATA' : isLoading ? 'LOADING' : 'ФОКУС СЕЙЧАС';
     return <section className="mission missionCollapsed" onClick={(event) => event.stopPropagation()}><button onClick={() => setOpen(true)}><span>FO</span><div><small>{label}</small><b>{currentTitle}</b></div><Ring value={progress} /></button></section>;
   }
-  return <section className="mission" onClick={(event) => event.stopPropagation()}><button className="collapseMission" onClick={() => setOpen(false)}>Свернуть</button><div className="missionTop"><div><small><em /> {isOffline ? 'API OFFLINE · нет данных для карты' : isMock ? 'MOCK DATA · проверь backend/.env' : isLoading ? 'LOADING · жду backend' : 'MISSION CONTROL'}</small><h1><span>FO</span>Текущий фокус</h1></div><Ring value={progress} /></div>{isOffline ? <div className="warningLine">Карта специально не показывает запасные данные: backend API недоступен. Запусти npm run api и обнови страницу.</div> : null}{isMock ? <div className="warningLine">Сейчас карта получает mock-данные. Нужно, чтобы backend видел NOTION_TOKEN и NOTION_TASKS_DB_ID.</div> : null}<div className="missionLine activeLine">Сейчас: {currentTitle}</div><div className="missionLine nextLine">Следующий шаг: {nextAction}</div><div className="missionButtons"><button onClick={onSteps}>Следующие шаги</button><button onClick={onStats}>Статистика</button><button onClick={onDone}>Выполнено</button></div></section>;
+  return <section className="mission" onClick={(event) => event.stopPropagation()}><button className="collapseMission" onClick={() => setOpen(false)}>Свернуть</button><div className="missionTop"><div><small><em /> {isOffline ? 'API OFFLINE · нет данных для карты' : isMock ? 'MOCK DATA · проверь backend/.env' : isLoading ? 'LOADING · жду backend' : 'MISSION CONTROL'}</small><h1><span>FO</span>Текущий фокус</h1></div><Ring value={progress} /></div>{isOffline ? <div className="warningLine">Карта специально не показывает запасные данные: backend API недоступен. Запусти npm run api и обнови страницу.</div> : null}{isMock ? <div className="warningLine">Сейчас карта получает mock-данные. Нужно, чтобы backend видел NOTION_TOKEN и NOTION_TASKS_DB_ID.</div> : null}<div className="missionLine activeLine">Сейчас: {currentTitle}</div><div className="missionLine nextLine">Далее: {nextAction}</div><div className="focusControls"><button className="queueToggle" onClick={() => setQueueOpen((value) => !value)}>{queueOpen ? 'Скрыть очередь' : `Очередь ${Math.max((focusQueueItems?.length || 1) - 1, 0)}`} <span>{queueOpen ? '↑' : '↓'}</span></button><button className="doneArchiveButton" onClick={onDone}>Выполнено</button></div>{queueOpen ? <div className="focusQueueList">{focusQueueItems?.slice(0, 10).map((item, index) => <div key={`${item.sourceId || item.id}-${index}`} className={index === 0 ? 'current' : ''}><b>{index === 0 ? 'Сейчас' : index}</b><span>{item.title}</span></div>)}</div> : null}</section>;
 }
 
 function planetSize(title = '') {
@@ -244,14 +288,13 @@ function OrbitMap({ map, hasSide, onOpen, onSelect, onOpenMenu }) {
   return <motion.section key={map.id} className={`mapStage ${hasSide ? 'mapWithSide' : ''}`} variants={mapVariants} initial="initial" animate="animate" exit="exit" transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}><div className="mapGlow" /><div className="orbit orbit1" /><div className="orbit orbit2" /><div className="orbit orbit3" /><motion.button className={`coreNode ${isRoot ? 'rootCore' : ''}`} onClick={(event) => event.preventDefault()} initial={{ scale: 0.9 }} animate={{ scale: 1 }} transition={{ duration: 0.26, ease: 'easeOut' }}>{isRoot ? <b>Life Map</b> : <><span>{map.icon}</span><b>{map.title}</b><small>{map.subtitle || map.status}</small></>}</motion.button>{children.map((node, index) => { const angle = (360 / Math.max(children.length, 1)) * index; const nested = Boolean((node.children || []).length || (node.taskList || []).length); const count = node.tasks || node.children?.length || node.taskList?.length || 0; const size = planetSize(node.title); const fontSize = planetFontSize(node.title); return <button key={node.id} className={`mapNode orbitNode state-${node.state}`} style={{ '--angle': `${angle}deg`, '--angle-back': `${-angle}deg`, '--orbit-shift': orbitShift, '--node-size': `${size}px`, '--node-font': `${fontSize}px` }} title={node.title} onContextMenu={(event) => onOpenMenu(node, event)} onPointerDown={(event) => startPress(node, event)} onPointerUp={clearPress} onPointerLeave={clearPress} onClick={() => nested ? onOpen(node.id) : onSelect(node)}><span className="nodeOrb"><em>{node.title}</em>{nested ? <strong>{count}</strong> : null}</span></button>; })}</motion.section>;
 }
 
-function SideList({ map, snapshot, viewMode, setViewMode, onOpen, onSelect, onComplete, onRestore, onReorderList, onOpenMenu, onRename, busyTaskId }) {
+function SideList({ map, snapshot, viewMode, setViewMode, onOpen, onComplete, onRestore, onReorderList, onOpenMenu, busyTaskId }) {
   const items = listItems(map);
   const hasPlanetChildren = hasBranch(map);
   const [dragId, setDragId] = useState(null);
   const [dropTarget, setDropTarget] = useState(null);
+  const [expandedId, setExpandedId] = useState(null);
   if (hasPlanetChildren || !items.length) return null;
-  const connected = snapshot.meta?.connected || {};
-  const sourceLabel = snapshot.meta?.source?.includes('mock') ? 'mock' : snapshot.meta?.source === 'api-offline' ? 'api offline' : 'notion';
   const activeItems = items.filter((item) => !isDoneNode(item));
   const doneItems = items.filter((item) => isDoneNode(item));
   const visibleItems = viewMode === 'done' ? doneItems : activeItems;
@@ -276,23 +319,20 @@ function SideList({ map, snapshot, viewMode, setViewMode, onOpen, onSelect, onCo
     setDragId(null); setDropTarget(null);
     onReorderList(reordered);
   };
-  return <aside className="sideList" onClick={(event) => event.stopPropagation()}><div className="sideListHead"><div><small>{viewMode === 'done' ? 'Выполненные задачи' : 'Задачи ветки'}</small><strong>{map.title}</strong></div><b>{visibleItems.length}</b></div><div className="sideTabs"><button className={viewMode === 'active' ? 'active' : ''} onClick={() => setViewMode('active')}>Активные <span>{activeItems.length}</span></button><button className={viewMode === 'done' ? 'active' : ''} onClick={() => setViewMode('done')}>Сделано <span>{doneItems.length}</span></button></div>{visibleItems.length ? <div className="sideItems">{visibleItems.map((item) => { const nested = Boolean((item.children || []).length || (item.taskList || []).length); const patchable = canPatchTask(item); const renamable = canRenameNode(item); const done = isDoneNode(item); const dropClass = dropTarget?.id === item.id ? `drop-${dropTarget.position}` : ''; return <div className={`sideItemRow ${done ? 'doneRow' : ''} ${dropClass}`} key={item.id} onDragOver={(event) => updateDropTarget(event, item)} onDrop={(event) => { event.preventDefault(); dropTask(item); }} onDragLeave={() => {}} onContextMenu={(event) => onOpenMenu(item, event)}><button className="sideItemMain" onClick={() => nested && !isLeafNode(item) ? onOpen(item.id) : onSelect(item)}><span>{item.icon}</span><div><b>{item.title}</b><small>{isLeafNode(item) ? item.status || item.summary : `${item.tasks || 0} задач · открыть ветку`}</small></div></button>{(patchable || renamable) ? <div className="rowActions">{renamable ? <button className="renameMini" title="Переименовать" disabled={busyTaskId === item.sourceId} onClick={(event) => { event.stopPropagation(); onRename(item); }}>✎</button> : null}{patchable && !done ? <button className="dragHandle" title="Перетащить задачу" draggable disabled={busyTaskId === item.sourceId} onDragStart={(event) => { setDragId(item.id); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', item.id); }} onDragEnd={() => { setDragId(null); setDropTarget(null); }}>⋮⋮</button> : null}{patchable ? <button className={done ? 'restoreMini' : 'doneMini'} disabled={busyTaskId === item.sourceId} onClick={(event) => { event.stopPropagation(); done ? onRestore(item) : onComplete(item); }}>{busyTaskId === item.sourceId ? '…' : done ? 'Вернуть' : 'Done'}</button> : null}</div> : null}</div>; })}</div> : <div className="emptySide"><b>{viewMode === 'done' ? 'Выполненных задач нет' : 'Список пуст'}</b><p>{viewMode === 'done' ? 'Когда задачи будут помечены Done, они появятся здесь и их можно будет вернуть обратно.' : 'Backend подключён, но у этой ветки нет активных задач или они не совпали по Project/Goal.'}</p></div>}<div className="sideMeta"><span>source: {sourceLabel}</span><span>tasks: {connected.tasks ? 'live' : 'no'}</span><span>goals: {connected.goals ? 'live' : 'no'}</span></div></aside>;
+  return <aside className="sideList" onClick={(event) => event.stopPropagation()}><div className="sideListHead"><div><small>{viewMode === 'done' ? 'Выполненные задачи' : 'Задачи ветки'}</small><strong>{map.title}</strong></div><b>{visibleItems.length}</b></div><div className="sideTabs"><button className={viewMode === 'active' ? 'active' : ''} onClick={() => setViewMode('active')}>Активные <span>{activeItems.length}</span></button><button className={viewMode === 'done' ? 'active' : ''} onClick={() => setViewMode('done')}>Сделано <span>{doneItems.length}</span></button></div>{visibleItems.length ? <div className="sideItems">{visibleItems.map((item) => { const nested = Boolean((item.children || []).length || (item.taskList || []).length); const patchable = canPatchTask(item); const done = isDoneNode(item); const dropClass = dropTarget?.id === item.id ? `drop-${dropTarget.position}` : ''; const expanded = expandedId === item.id; return <div className={`sideItemRow ${done ? 'doneRow' : ''} ${expanded ? 'expandedRow' : ''} ${dropClass}`} key={item.id} onDragOver={(event) => updateDropTarget(event, item)} onDrop={(event) => { event.preventDefault(); dropTask(item); }} onContextMenu={(event) => onOpenMenu(item, event)}><button className="sideItemMain" onClick={() => nested && !isLeafNode(item) ? onOpen(item.id) : setExpandedId((current) => current === item.id ? null : item.id)}><span>{item.icon}</span><div><b>{item.title}</b><small>{isLeafNode(item) ? item.status || item.summary : `${item.tasks || 0} задач · открыть ветку`}</small></div></button><div className="rowActions">{isLeafNode(item) ? <button className="expandMini" title="Развернуть" onClick={(event) => { event.stopPropagation(); setExpandedId((current) => current === item.id ? null : item.id); }}>{expanded ? '⌃' : '⌄'}</button> : null}{patchable && !done ? <button className="dragHandle" title="Перетащить задачу" draggable disabled={busyTaskId === item.sourceId} onDragStart={(event) => { setDragId(item.id); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', item.id); }} onDragEnd={() => { setDragId(null); setDropTarget(null); }}>⋮⋮</button> : null}{patchable ? <button className={done ? 'restoreMini' : 'doneMini'} disabled={busyTaskId === item.sourceId} onClick={(event) => { event.stopPropagation(); done ? onRestore(item) : onComplete(item); }}>{busyTaskId === item.sourceId ? '…' : done ? 'Вернуть' : 'Done'}</button> : null}</div>{expanded ? <div className="inlineTaskDetails"><p>{item.summary || 'Заметок по задаче пока нет.'}</p>{item.details?.length ? <div>{item.details.slice(0, 4).map((detail, index) => <span key={index}>{detail}</span>)}</div> : null}</div> : null}</div>; })}</div> : <div className="emptySide"><b>{viewMode === 'done' ? 'Выполненных задач нет' : 'Список пуст'}</b><p>{viewMode === 'done' ? 'Когда задачи будут помечены Done, они появятся здесь и их можно будет вернуть обратно.' : 'Backend подключён, но у этой ветки нет активных задач или они не совпали по Project/Goal.'}</p></div>}</aside>;
 }
 
-function DetailCard({ node, onClose, onComplete, onRestore, onOpenMenu, onRename, busyTaskId }) {
+function DetailCard({ node, onClose, onComplete, onRestore, onOpenMenu, busyTaskId }) {
   if (!node) return null;
   const patchable = canPatchTask(node);
-  const renamable = canRenameNode(node);
   const done = isDoneNode(node);
-  return <motion.aside className="detailCard" onContextMenu={(event) => onOpenMenu(node, event)} onClick={(event) => event.stopPropagation()} initial={{ y: 28, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 28, opacity: 0 }}><button className="closeDetail" onClick={onClose}>×</button><div className="detailHead"><span>{node.icon}</span><div><small>{node.status || node.subtitle}</small><h2>{node.title}</h2></div><Ring value={node.progress} /></div><p>{node.summary || 'Описание пока не заполнено.'}</p>{(patchable || renamable) ? <div className="detailActions">{renamable ? <button className="renameButton" disabled={busyTaskId === node.sourceId} onClick={() => onRename(node)}>Переименовать</button> : null}{patchable ? <button className={done ? 'restoreButton' : 'doneButton'} disabled={busyTaskId === node.sourceId} onClick={() => done ? onRestore(node) : onComplete(node)}>{busyTaskId === node.sourceId ? 'Сохраняю…' : done ? 'Вернуть в работу' : 'Пометить выполненной'}</button> : null}</div> : null}{node.details?.length ? <div className="detailList">{node.details.slice(0, 4).map((item, index) => <div key={index}><b>{index + 1}.</b>{item}</div>)}</div> : null}</motion.aside>;
+  return <motion.aside className="detailCard compactDetail" onContextMenu={(event) => onOpenMenu(node, event)} onClick={(event) => event.stopPropagation()} initial={{ y: 18, opacity: 0, scale: .98 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: 18, opacity: 0, scale: .98 }}><button className="closeDetail" onClick={onClose}>×</button><div className="detailHead"><span>{node.icon}</span><div><small>{node.status || node.subtitle}</small><h2>{node.title}</h2></div><Ring value={node.progress} /></div><p>{node.summary || 'Описание пока не заполнено.'}</p>{patchable ? <div className="detailActions"><button className={done ? 'restoreButton' : 'doneButton'} disabled={busyTaskId === node.sourceId} onClick={() => done ? onRestore(node) : onComplete(node)}>{busyTaskId === node.sourceId ? 'Сохраняю…' : done ? 'Вернуть в работу' : 'Пометить выполненной'}</button></div> : null}{node.details?.length ? <div className="detailList compactDetailList">{node.details.slice(0, 4).map((item, index) => <div key={index}><b>{index + 1}.</b>{item}</div>)}</div> : null}</motion.aside>;
 }
 
-function UtilityPanel({ type, map, rootMap, snapshot, errors, onClose, onRestore, busyTaskId }) {
+function UtilityPanel({ type, rootMap, errors, onClose, onRestore, busyTaskId }) {
   if (!type) return null;
-  const items = [...topItems(map), ...listItems(map)];
-  const connected = snapshot.meta?.connected || {};
   const doneItems = uniqueBySource(flattenNodes(rootMap).filter((node) => node.kind === 'task' && isDoneNode(node)));
-  return <motion.aside className="utilityPanel" onClick={(event) => event.stopPropagation()} initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 24, opacity: 0 }}><button className="closeDetail" onClick={onClose}>×</button><h2>{type === 'steps' ? 'Следующие шаги' : type === 'errors' ? 'Ошибки навигатора' : type === 'done' ? 'Выполненные задачи' : 'Статистика'}</h2>{type === 'errors' ? <div className="panelList errorList">{errors.length ? errors.map((error, index) => <div key={index}><b>Ошибка {index + 1}</b><span>{error}</span></div>) : <div><b>Ошибок нет</b><span>Backend и frontend сейчас не сообщают о проблемах.</span></div>}</div> : type === 'done' ? <div className="panelList donePanelList">{doneItems.length ? doneItems.map((node) => <div className="donePanelRow" key={node.id}><div><b>{node.title}</b><span>{node.raw?.project || node.status || 'Done'}</span></div><button className="restoreMini" disabled={busyTaskId === node.sourceId} onClick={() => onRestore(node)}>{busyTaskId === node.sourceId ? '…' : 'Вернуть'}</button></div>) : <div><b>Выполненных задач нет</b><span>Когда задача будет закрыта, она появится здесь.</span></div>}</div> : type === 'steps' ? <div className="panelList">{items.slice(0, 7).map((node) => <div key={node.id}><b>{node.title}</b><span>{node.summary}</span></div>)}</div> : <div className="statGrid"><div><span>Планеты</span><b>{topItems(map).length}</b></div><div><span>Список</span><b>{listItems(map).length}</b></div><div><span>Notion</span><b>{connected.tasks ? 'live' : 'no data'}</b></div></div>}</motion.aside>;
+  return <motion.aside className="utilityPanel" onClick={(event) => event.stopPropagation()} initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 24, opacity: 0 }}><button className="closeDetail" onClick={onClose}>×</button><h2>{type === 'errors' ? 'Ошибки навигатора' : 'Выполненные задачи'}</h2>{type === 'errors' ? <div className="panelList errorList">{errors.length ? errors.map((error, index) => <div key={index}><b>Ошибка {index + 1}</b><span>{error}</span></div>) : <div><b>Ошибок нет</b><span>Backend и frontend сейчас не сообщают о проблемах.</span></div>}</div> : <div className="panelList donePanelList">{doneItems.length ? doneItems.map((node) => <div className="donePanelRow" key={node.id}><div><b>{node.title}</b><span>{node.raw?.project || node.status || 'Done'}</span></div><button className="restoreMini" disabled={busyTaskId === node.sourceId} onClick={() => onRestore(node)}>{busyTaskId === node.sourceId ? '…' : 'Вернуть'}</button></div>) : <div><b>Выполненных задач нет</b><span>Когда задача будет закрыта, она появится здесь.</span></div>}</div>}</motion.aside>;
 }
 
 function ContextMenu({ menu, onClose, onFocusNow, onFocusNext, onRename }) {
@@ -315,6 +355,9 @@ function App() {
   const [focusQueue, setFocusQueue] = useState(() => {
     try { return JSON.parse(window.localStorage.getItem(FOCUS_STORAGE_KEY) || '[]'); } catch { return []; }
   });
+  const [titleAliases, setTitleAliases] = useState(() => {
+    try { return JSON.parse(window.localStorage.getItem(TITLE_ALIASES_KEY) || '{}'); } catch { return {}; }
+  });
 
   const loadSnapshot = useCallback(() => {
     setApiState((state) => state === 'api offline' ? 'loading' : state);
@@ -323,9 +366,12 @@ function App() {
 
   useEffect(() => { loadSnapshot().catch(() => {}); }, [loadSnapshot]);
   useEffect(() => { try { window.localStorage.setItem(FOCUS_STORAGE_KEY, JSON.stringify(focusQueue.slice(0, 12))); } catch {} }, [focusQueue]);
+  useEffect(() => { try { window.localStorage.setItem(TITLE_ALIASES_KEY, JSON.stringify(titleAliases)); } catch {} }, [titleAliases]);
 
-  const rootMap = useMemo(() => buildActionMap(snapshot), [snapshot]);
+  const baseRootMap = useMemo(() => buildActionMap(snapshot), [snapshot]);
+  const rootMap = useMemo(() => applyTitleAliases(baseRootMap, titleAliases), [baseRootMap, titleAliases]);
   const activeFocus = useMemo(() => resolveFocus(rootMap, snapshot, focusQueue), [rootMap, snapshot, focusQueue]);
+  const focusQueueItems = useMemo(() => buildFocusSequence(rootMap, activeFocus, focusQueue), [rootMap, activeFocus, focusQueue]);
   const currentId = route[route.length - 1];
   const currentMap = useMemo(() => findNode(rootMap, currentId), [rootMap, currentId]);
   const itemsOnSide = listItems(currentMap);
@@ -368,18 +414,19 @@ function App() {
   };
 
   const renameNode = async (node) => {
-    if (!canRenameNode(node)) {
-      setToast('У этой планеты пока нет прямой записи Notion для переименования.');
-      setTimeout(() => setToast(''), 2600);
-      setContextMenu(null);
-      return;
-    }
+    if (!canRenameNode(node)) return;
     const nextTitle = window.prompt('Новое название', node.title || '');
     const title = String(nextTitle || '').trim();
     if (!title || title === node.title) { setContextMenu(null); return; }
+    setContextMenu(null);
+    if (!node.sourceId) {
+      setTitleAliases((aliases) => ({ ...aliases, [node.id]: title }));
+      setToast('Название раздела обновлено локально.');
+      setTimeout(() => setToast(''), 2400);
+      return;
+    }
     setBusyTaskId(node.sourceId);
     setToast('Переименовываю в Notion…');
-    setContextMenu(null);
     try {
       await patchItemTitle(node, title);
       setFocusQueue((queue) => queue.map((item) => item.sourceId === node.sourceId ? { ...item, title } : item));
@@ -443,7 +490,7 @@ function App() {
     else { setToast('Задача поставлена следующей локально.'); setTimeout(() => setToast(''), 2000); }
   };
 
-  return <main className={`app actionApp ${showSideList ? 'hasSideList branchView' : ''}`} onClick={() => { setPanel(null); setContextMenu(null); }}><Stars /><TopNav canBack={canBack} onBack={goBack} onCenter={goCenter} apiState={dataState(snapshot, apiState)} errorCount={errors.length} onErrors={() => setPanel('errors')} /><MissionPanel focus={activeFocus} snapshot={snapshot} apiState={apiState} onSteps={() => setPanel('steps')} onStats={() => setPanel('stats')} onDone={() => setPanel('done')} /><AnimatePresence mode="wait"><OrbitMap key={currentMap.id} map={currentMap} hasSide={showSideList} onOpen={openNode} onSelect={(node) => { setSelected(node); setPanel(null); setContextMenu(null); }} onOpenMenu={openMenu} /></AnimatePresence>{showSideList ? <SideList map={currentMap} snapshot={snapshot} viewMode={viewMode} setViewMode={setViewMode} onOpen={openNode} onSelect={(node) => { setSelected(node); setPanel(null); setContextMenu(null); }} onComplete={completeTask} onRestore={restoreTask} onReorderList={reorderList} onOpenMenu={openMenu} onRename={renameNode} busyTaskId={busyTaskId} /> : null}<AnimatePresence>{selected ? <DetailCard key={selected.id} node={selected} onClose={() => setSelected(null)} onComplete={completeTask} onRestore={restoreTask} onOpenMenu={openMenu} onRename={renameNode} busyTaskId={busyTaskId} /> : null}{panel ? <UtilityPanel key={panel} type={panel} map={currentMap} rootMap={rootMap} snapshot={snapshot} errors={errors} onClose={() => setPanel(null)} onRestore={restoreTask} busyTaskId={busyTaskId} /> : null}</AnimatePresence><ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} onFocusNow={setFocusNow} onFocusNext={setFocusNext} onRename={renameNode} />{toast ? <div className="toast">{toast}</div> : null}</main>;
+  return <main className={`app actionApp ${showSideList ? 'hasSideList branchView' : ''}`} onClick={() => { setPanel(null); setContextMenu(null); }}><Stars /><TopNav canBack={canBack} onBack={goBack} onCenter={goCenter} apiState={dataState(snapshot, apiState)} errorCount={errors.length} onErrors={() => setPanel('errors')} /><MissionPanel focus={activeFocus} focusQueueItems={focusQueueItems} snapshot={snapshot} apiState={apiState} onDone={() => setPanel('done')} /><AnimatePresence mode="wait"><OrbitMap key={currentMap.id} map={currentMap} hasSide={showSideList} onOpen={openNode} onSelect={(node) => { setSelected(node); setPanel(null); setContextMenu(null); }} onOpenMenu={openMenu} /></AnimatePresence>{showSideList ? <SideList map={currentMap} snapshot={snapshot} viewMode={viewMode} setViewMode={setViewMode} onOpen={openNode} onComplete={completeTask} onRestore={restoreTask} onReorderList={reorderList} onOpenMenu={openMenu} busyTaskId={busyTaskId} /> : null}<AnimatePresence>{selected ? <DetailCard key={selected.id} node={selected} onClose={() => setSelected(null)} onComplete={completeTask} onRestore={restoreTask} onOpenMenu={openMenu} busyTaskId={busyTaskId} /> : null}{panel ? <UtilityPanel key={panel} type={panel} rootMap={rootMap} errors={errors} onClose={() => setPanel(null)} onRestore={restoreTask} busyTaskId={busyTaskId} /> : null}</AnimatePresence><ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} onFocusNow={setFocusNow} onFocusNext={setFocusNext} onRename={renameNode} />{toast ? <div className="toast">{toast}</div> : null}</main>;
 }
 
 createRoot(document.getElementById('root')).render(<App />);
