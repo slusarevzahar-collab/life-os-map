@@ -75,15 +75,74 @@
 }
 .nodeLabel { display: none !important; }
 
-.branchView .mapStage { transform: translateX(-330px) !important; }
+.branchView .mapStage { transform: translateX(-350px) !important; }
 .branchView .sideList {
-  width: min(610px, calc(100vw - 610px));
-  min-width: 480px;
+  width: min(690px, calc(100vw - 560px));
+  min-width: 520px;
+  max-height: calc(100vh - 88px);
 }
 
-.missionButtons {
-  grid-template-columns: repeat(3, 1fr);
+.focusControls {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  margin-top: 12px;
 }
+.focusControls button {
+  border: 1px solid rgba(255, 255, 255, .1);
+  border-radius: 15px;
+  padding: 10px 12px;
+  color: rgba(255, 255, 255, .88);
+  background: rgba(255, 255, 255, .075);
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.focusControls button:hover { background: rgba(103, 232, 249, .11); color: #dffaff; }
+.queueToggle {
+  text-align: left;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.doneArchiveButton {
+  min-width: 118px;
+}
+.focusQueueList {
+  display: grid;
+  gap: 7px;
+  margin-top: 10px;
+  max-height: 210px;
+  overflow: auto;
+  padding-right: 2px;
+}
+.focusQueueList div {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 14px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, .04);
+}
+.focusQueueList div.current {
+  border-color: rgba(110, 231, 183, .23);
+  background: rgba(16, 185, 129, .08);
+}
+.focusQueueList b {
+  color: #67e8f9;
+  font-size: 10px;
+  font-weight: 1000;
+  text-transform: uppercase;
+}
+.focusQueueList span {
+  min-width: 0;
+  color: rgba(255, 255, 255, .84);
+  font-size: 12px;
+  line-height: 1.25;
+}
+.missionButtons { display: none !important; }
 
 .sideTabs {
   display: grid;
@@ -117,8 +176,13 @@
   gap: 8px;
   border: 1px solid rgba(255, 255, 255, .08);
   border-radius: 16px;
-  padding: 6px;
+  padding: 7px;
   background: rgba(255, 255, 255, .045);
+}
+.sideItemRow.expandedRow {
+  align-items: start;
+  border-color: rgba(103, 232, 249, .22);
+  background: rgba(103, 232, 249, .065);
 }
 .sideItemRow.drop-before,
 .sideItemRow.drop-after {
@@ -151,6 +215,7 @@
   background: transparent;
   color: #fff;
   text-align: left;
+  cursor: pointer;
 }
 .branchView .sideItems b,
 .branchView .sideItems small {
@@ -183,18 +248,48 @@
 .dragHandle:disabled { opacity: .32; cursor: wait; }
 .orderControls { display: none; }
 
-.renameMini {
-  border: 0;
+.expandMini {
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(255, 255, 255, .1);
   border-radius: 999px;
-  padding: 7px 8px;
-  color: rgba(219, 234, 254, .86);
-  background: transparent;
-  font-size: 12px;
+  background: rgba(255, 255, 255, .045);
+  color: rgba(255, 255, 255, .72);
+  font-size: 14px;
   font-weight: 900;
   cursor: pointer;
 }
-.renameMini:hover { background: rgba(147, 197, 253, .1); color: #fff; }
-.renameMini:disabled { opacity: .35; cursor: wait; }
+.expandMini:hover { color: #dffaff; background: rgba(103, 232, 249, .09); }
+.inlineTaskDetails {
+  grid-column: 1 / -1;
+  margin: 0 4px 3px 48px;
+  border: 1px solid rgba(103, 232, 249, .12);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, .18);
+}
+.inlineTaskDetails p {
+  margin: 0;
+  color: rgba(255, 255, 255, .76);
+  font-size: 12px;
+  line-height: 1.42;
+}
+.inlineTaskDetails div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+.inlineTaskDetails span {
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 999px;
+  padding: 5px 8px;
+  color: rgba(255, 255, 255, .56);
+  background: rgba(255, 255, 255, .035);
+  font-size: 10px;
+}
+
+.renameMini { display: none !important; }
 
 .doneMini, .restoreMini {
   border: 1px solid rgba(134, 239, 172, .25);
@@ -219,10 +314,36 @@
   background: linear-gradient(90deg, #93c5fd, #67e8f9);
   font-weight: 900;
 }
-.renameButton {
-  color: #dffaff;
-  background: rgba(103, 232, 249, .1);
-  border: 1px solid rgba(103, 232, 249, .2);
+.renameButton { display: none !important; }
+
+.detailCard.compactDetail {
+  left: 50%;
+  right: auto;
+  top: 50%;
+  bottom: auto;
+  translate: -50% -50%;
+  width: min(740px, calc(100vw - 56px));
+  max-height: min(66vh, 620px);
+  padding: 20px 24px;
+}
+.compactDetail .detailHead {
+  grid-template-columns: 48px minmax(0, 1fr) 48px;
+  gap: 12px;
+}
+.compactDetail .detailHead > span {
+  width: 48px;
+  height: 48px;
+}
+.compactDetail .detailHead h2 {
+  font-size: clamp(22px, 3vw, 32px);
+  line-height: 1.04;
+}
+.compactDetail p {
+  font-size: 13px;
+  line-height: 1.42;
+}
+.compactDetailList {
+  grid-template-columns: 1fr;
 }
 
 .contextMenu {
@@ -283,8 +404,8 @@
   .nodeOrb { padding: 10px; }
   .branchView .mapStage { transform: translateX(-250px) !important; }
   .branchView .sideList {
-    width: min(560px, calc(100vw - 520px));
-    min-width: 430px;
+    width: min(580px, calc(100vw - 500px));
+    min-width: 420px;
   }
 }
 
@@ -306,9 +427,13 @@
     bottom: 12px;
     width: auto;
     min-width: 0;
-    max-height: 34vh;
+    max-height: 44vh;
   }
-  .missionButtons { grid-template-columns: 1fr; }
+  .focusControls { grid-template-columns: 1fr; }
   .topTitle em { display: none; }
   .contextMenu { max-width: calc(100vw - 24px); }
+  .detailCard.compactDetail {
+    width: calc(100vw - 28px);
+    max-height: 74vh;
+  }
 }
