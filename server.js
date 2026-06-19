@@ -34,9 +34,9 @@ const notionToken = process.env.NOTION_TOKEN;
 const tasksDbId = process.env.NOTION_TASKS_DB_ID;
 const goalsDbId = process.env.NOTION_GOALS_DB_ID;
 const sessionsDbId = process.env.NOTION_SESSIONS_DB_ID;
-const projectsDbId = process.env.NOTION_PROJECTS_DB_ID || '9a210761ffc04000bf80657525fca6a1';
-const dreamsDbId = process.env.NOTION_DREAMS_DB_ID || '5745b6741c7d43de8c4418d530d8f9f1';
-const signalsDbId = process.env.NOTION_SIGNALS_DB_ID || '30ba34adf8e54957886f5741e975e6ad';
+const projectsDbId = process.env.NOTION_PROJECTS_DB_ID;
+const dreamsDbId = process.env.NOTION_DREAMS_DB_ID;
+const signalsDbId = process.env.NOTION_SIGNALS_DB_ID;
 
 app.use(express.json());
 
@@ -130,7 +130,7 @@ app.listen(port, () => {
   console.log(tasksDbId ? 'NOTION_TASKS_DB_ID is set' : 'NOTION_TASKS_DB_ID is not set; using mock snapshot');
   console.log(goalsDbId ? 'NOTION_GOALS_DB_ID is set' : 'NOTION_GOALS_DB_ID is not set; goals disabled');
   console.log(sessionsDbId ? 'NOTION_SESSIONS_DB_ID is set' : 'NOTION_SESSIONS_DB_ID is not set; sessions disabled');
-  console.log(projectsDbId ? 'NOTION_PROJECTS_DB_ID is available' : 'NOTION_PROJECTS_DB_ID is not set; projects disabled');
-  console.log(dreamsDbId ? 'NOTION_DREAMS_DB_ID is available' : 'NOTION_DREAMS_DB_ID is not set; dreams disabled');
-  console.log(signalsDbId ? 'NOTION_SIGNALS_DB_ID is available' : 'NOTION_SIGNALS_DB_ID is not set; signals disabled');
+  console.log(projectsDbId ? 'NOTION_PROJECTS_DB_ID is set' : 'NOTION_PROJECTS_DB_ID is not set; projects disabled');
+  console.log(dreamsDbId ? 'NOTION_DREAMS_DB_ID is set' : 'NOTION_DREAMS_DB_ID is not set; dreams disabled');
+  console.log(signalsDbId ? 'NOTION_SIGNALS_DB_ID is set' : 'NOTION_SIGNALS_DB_ID is not set; signals disabled');
 });
