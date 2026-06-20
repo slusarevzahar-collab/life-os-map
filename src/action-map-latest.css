@@ -1,0 +1,111 @@
+.coreNode.titleCore {
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+
+.coreNode.titleCore b,
+.coreNode.rootCore b {
+  display: block;
+  max-width: 150px;
+  color: #f8fdff;
+  font-size: clamp(19px, 2.6vw, 25px);
+  line-height: 1.08;
+  letter-spacing: -0.045em;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.coreNode.titleCore span,
+.coreNode.titleCore small,
+.coreNode.titleCore i,
+.coreNode small {
+  display: none !important;
+}
+
+.sideItemMain small:empty {
+  display: none !important;
+}
+
+.sideItemMain > div {
+  display: grid;
+  gap: 2px;
+}
+
+.sideItemMain b {
+  color: rgba(255, 255, 255, 0.94);
+}
+
+.doneMini,
+.restoreMini {
+  min-width: 72px;
+  height: 32px;
+  display: inline-grid;
+  place-items: center;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.sideItemRow.draggingRow {
+  opacity: 0.34;
+  filter: saturate(0.65);
+}
+
+.dragPreviewTask {
+  position: fixed;
+  z-index: 140;
+  width: min(420px, calc(100vw - 36px));
+  transform: translate(-50%, -50%) scale(1.015);
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgba(103, 232, 249, 0.48);
+  border-radius: 18px;
+  padding: 11px 13px;
+  color: #fff;
+  background: rgba(10, 18, 30, 0.94);
+  box-shadow: 0 26px 90px rgba(0, 0, 0, 0.48), 0 0 34px rgba(103, 232, 249, 0.24);
+  backdrop-filter: blur(18px);
+  pointer-events: none;
+}
+
+.dragPreviewTask span {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  color: #67e8f9;
+  background: rgba(103, 232, 249, 0.12);
+  font-size: 12px;
+  font-weight: 1000;
+}
+
+.dragPreviewTask b {
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.dragHandle {
+  min-width: 26px;
+}
+
+.dragHandle:hover,
+.dragHandle:focus-visible {
+  background: transparent !important;
+}
+
+@media (max-width: 900px) {
+  .coreNode.titleCore b,
+  .coreNode.rootCore b {
+    max-width: 128px;
+    font-size: 19px;
+  }
+
+  .dragPreviewTask {
+    width: min(360px, calc(100vw - 30px));
+  }
+}
