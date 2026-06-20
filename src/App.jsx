@@ -49,6 +49,10 @@ function Ring({ value }) {
   return <div className="ring" style={{ '--pct': `${pct * 3.6}deg` }}><span>{pct}%</span></div>;
 }
 
+function ChevronDown({ open = false }) {
+  return <svg className="chevronIcon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d={open ? 'M5.5 12.25 10 7.75l4.5 4.5' : 'M5.5 7.75 10 12.25l4.5-4.5'} /></svg>;
+}
+
 function hasBranch(node) { return Boolean((node?.children || []).some((item) => !isLeafNode(item) && item.id !== 'sphere-done')); }
 function topItems(node) { return (node.children || []).filter((item) => !isLeafNode(item) && item.id !== 'sphere-done'); }
 function canPatchTask(node) { return node?.kind === 'task' && Boolean(node.sourceId); }
@@ -294,6 +298,8 @@ function SideList({ map, snapshot, viewMode, setViewMode, onOpen, onComplete, on
   const [dragId, setDragId] = useState(null);
   const [dropTarget, setDropTarget] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
+  const sideItemsRef = useRef(null);
+  const pointerDragRef = useRef(null);
   if (hasPlanetChildren || !items.length) return null;
   const activeItems = items.filter((item) => !isDoneNode(item));
   const doneItems = items.filter((item) => isDoneNode(item));
@@ -304,22 +310,78 @@ function SideList({ map, snapshot, viewMode, setViewMode, onOpen, onComplete, on
     event.preventDefault();
     const rect = event.currentTarget.getBoundingClientRect();
     const position = event.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
-    setDropTarget({ id: item.id, position });
+    const nextTarget = { id: item.id, position };
+    pointerDragRef.current = pointerDragRef.current ? { ...pointerDragRef.current, dropTarget: nextTarget } : pointerDragRef.current;
+    setDropTarget(nextTarget);
   };
-  const dropTask = (targetItem) => {
-    if (!dragId || !targetItem?.id || dragId === targetItem.id || !dropTarget) { setDragId(null); setDropTarget(null); return; }
-    const from = reorderableItems.findIndex((item) => item.id === dragId);
-    if (from < 0) { setDragId(null); setDropTarget(null); return; }
+  const makeReorderedList = (fromId, target) => {
+    if (!fromId || !target?.id || fromId === target.id) return null;
+    const from = reorderableItems.findIndex((item) => item.id === fromId);
+    if (from < 0) return null;
     const reordered = [...reorderableItems];
     const [moved] = reordered.splice(from, 1);
-    let insertAt = reordered.findIndex((item) => item.id === targetItem.id);
+    let insertAt = reordered.findIndex((item) => item.id === target.id);
     if (insertAt < 0) insertAt = reordered.length;
-    if (dropTarget.position === 'after') insertAt += 1;
+    if (target.position === 'after') insertAt += 1;
     reordered.splice(insertAt, 0, moved);
-    setDragId(null); setDropTarget(null);
-    onReorderList(reordered);
+    return reordered;
   };
-  return <aside className="sideList" onClick={(event) => event.stopPropagation()}><div className="sideListHead"><div><small>{viewMode === 'done' ? 'Выполненные задачи' : 'Задачи ветки'}</small><strong>{map.title}</strong></div><b>{visibleItems.length}</b></div><div className="sideTabs"><button className={viewMode === 'active' ? 'active' : ''} onClick={() => setViewMode('active')}>Активные <span>{activeItems.length}</span></button><button className={viewMode === 'done' ? 'active' : ''} onClick={() => setViewMode('done')}>Сделано <span>{doneItems.length}</span></button></div>{visibleItems.length ? <div className="sideItems">{visibleItems.map((item) => { const nested = Boolean((item.children || []).length || (item.taskList || []).length); const patchable = canPatchTask(item); const done = isDoneNode(item); const dropClass = dropTarget?.id === item.id ? `drop-${dropTarget.position}` : ''; const expanded = expandedId === item.id; return <div className={`sideItemRow ${done ? 'doneRow' : ''} ${expanded ? 'expandedRow' : ''} ${dropClass}`} key={item.id} onDragOver={(event) => updateDropTarget(event, item)} onDrop={(event) => { event.preventDefault(); dropTask(item); }} onContextMenu={(event) => onOpenMenu(item, event)}><button className="sideItemMain" onClick={() => nested && !isLeafNode(item) ? onOpen(item.id) : setExpandedId((current) => current === item.id ? null : item.id)}><span>{item.icon}</span><div><b>{item.title}</b><small>{isLeafNode(item) ? item.status || item.summary : `${item.tasks || 0} задач · открыть ветку`}</small></div></button><div className="rowActions">{isLeafNode(item) ? <button className="expandMini" title="Развернуть" onClick={(event) => { event.stopPropagation(); setExpandedId((current) => current === item.id ? null : item.id); }}>{expanded ? '⌃' : '⌄'}</button> : null}{patchable && !done ? <button className="dragHandle" title="Перетащить задачу" draggable disabled={busyTaskId === item.sourceId} onDragStart={(event) => { setDragId(item.id); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', item.id); }} onDragEnd={() => { setDragId(null); setDropTarget(null); }}>⋮⋮</button> : null}{patchable ? <button className={done ? 'restoreMini' : 'doneMini'} disabled={busyTaskId === item.sourceId} onClick={(event) => { event.stopPropagation(); done ? onRestore(item) : onComplete(item); }}>{busyTaskId === item.sourceId ? '…' : done ? 'Вернуть' : 'Done'}</button> : null}</div>{expanded ? <div className="inlineTaskDetails"><p>{item.summary || 'Заметок по задаче пока нет.'}</p>{item.details?.length ? <div>{item.details.slice(0, 4).map((detail, index) => <span key={index}>{detail}</span>)}</div> : null}</div> : null}</div>; })}</div> : <div className="emptySide"><b>{viewMode === 'done' ? 'Выполненных задач нет' : 'Список пуст'}</b><p>{viewMode === 'done' ? 'Когда задачи будут помечены Done, они появятся здесь и их можно будет вернуть обратно.' : 'Backend подключён, но у этой ветки нет активных задач или они не совпали по Project/Goal.'}</p></div>}</aside>;
+  const dropTask = (targetItem) => {
+    const target = targetItem ? { id: targetItem.id, position: dropTarget?.position || 'before' } : dropTarget;
+    const reordered = makeReorderedList(dragId, target);
+    setDragId(null); setDropTarget(null); pointerDragRef.current = null;
+    if (reordered) onReorderList(reordered);
+  };
+  const updatePointerDropTarget = (clientY) => {
+    const dragState = pointerDragRef.current;
+    if (!dragState || !sideItemsRef.current) return;
+    const rows = Array.from(sideItemsRef.current.querySelectorAll('[data-reorder-id]'));
+    let best = null;
+    rows.forEach((row) => {
+      const id = row.getAttribute('data-reorder-id');
+      if (!id || id === dragState.id) return;
+      const rect = row.getBoundingClientRect();
+      const distance = clientY >= rect.top && clientY <= rect.bottom ? 0 : Math.min(Math.abs(clientY - rect.top), Math.abs(clientY - rect.bottom));
+      if (!best || distance < best.distance) {
+        best = { id, rect, distance };
+      }
+    });
+    if (!best) return;
+    const position = clientY < best.rect.top + best.rect.height / 2 ? 'before' : 'after';
+    const nextTarget = { id: best.id, position };
+    pointerDragRef.current = { ...dragState, dropTarget: nextTarget };
+    setDropTarget(nextTarget);
+  };
+  const startPointerDrag = (event, item) => {
+    if (!canPatchTask(item) || isDoneNode(item) || busyTaskId === item.sourceId) return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const nextDrag = { id: item.id, dropTarget: null };
+    pointerDragRef.current = nextDrag;
+    setDragId(item.id);
+    setDropTarget(null);
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    updatePointerDropTarget(event.clientY);
+  };
+  const movePointerDrag = (event) => {
+    if (!pointerDragRef.current) return;
+    event.preventDefault();
+    event.stopPropagation();
+    updatePointerDropTarget(event.clientY);
+  };
+  const endPointerDrag = (event) => {
+    const dragState = pointerDragRef.current;
+    if (!dragState) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const reordered = makeReorderedList(dragState.id, dragState.dropTarget);
+    pointerDragRef.current = null;
+    setDragId(null);
+    setDropTarget(null);
+    if (reordered) onReorderList(reordered);
+  };
+  return <aside className="sideList" onClick={(event) => event.stopPropagation()}><div className="sideListHead"><div><small>{viewMode === 'done' ? 'Выполненные задачи' : 'Задачи ветки'}</small><strong>{map.title}</strong></div><b>{visibleItems.length}</b></div><div className="sideTabs"><button className={viewMode === 'active' ? 'active' : ''} onClick={() => setViewMode('active')}>Активные <span>{activeItems.length}</span></button><button className={viewMode === 'done' ? 'active' : ''} onClick={() => setViewMode('done')}>Сделано <span>{doneItems.length}</span></button></div>{visibleItems.length ? <div className="sideItems" ref={sideItemsRef}>{visibleItems.map((item) => { const nested = Boolean((item.children || []).length || (item.taskList || []).length); const patchable = canPatchTask(item); const done = isDoneNode(item); const dropClass = dropTarget?.id === item.id ? `drop-${dropTarget.position}` : ''; const expanded = expandedId === item.id; return <div className={`sideItemRow ${done ? 'doneRow' : ''} ${expanded ? 'expandedRow' : ''} ${dragId === item.id ? 'draggingRow' : ''} ${dropClass}`} key={item.id} data-reorder-id={patchable && !done ? item.id : undefined} onDragOver={(event) => updateDropTarget(event, item)} onDrop={(event) => { event.preventDefault(); dropTask(item); }} onContextMenu={(event) => onOpenMenu(item, event)}><button className="sideItemMain" onClick={() => nested && !isLeafNode(item) ? onOpen(item.id) : setExpandedId((current) => current === item.id ? null : item.id)}><span>{item.icon}</span><div><b>{item.title}</b><small>{isLeafNode(item) ? item.status || item.summary : `${item.tasks || 0} задач · открыть ветку`}</small></div></button><div className="rowActions">{isLeafNode(item) ? <button className="expandMini" title="Развернуть" onClick={(event) => { event.stopPropagation(); setExpandedId((current) => current === item.id ? null : item.id); }}><ChevronDown open={expanded} /></button> : null}{patchable && !done ? <button className="dragHandle" title="Перетащить задачу" disabled={busyTaskId === item.sourceId} onPointerDown={(event) => startPointerDrag(event, item)} onPointerMove={movePointerDrag} onPointerUp={endPointerDrag} onPointerCancel={endPointerDrag}>⋮⋮</button> : null}{patchable ? <button className={done ? 'restoreMini' : 'doneMini'} disabled={busyTaskId === item.sourceId} onClick={(event) => { event.stopPropagation(); done ? onRestore(item) : onComplete(item); }}>{busyTaskId === item.sourceId ? '…' : done ? 'Вернуть' : 'Done'}</button> : null}</div>{expanded ? <div className="inlineTaskDetails"><p>{item.summary || 'Заметок по задаче пока нет.'}</p>{item.details?.length ? <div>{item.details.slice(0, 4).map((detail, index) => <span key={index}>{detail}</span>)}</div> : null}</div> : null}</div>; })}</div> : <div className="emptySide"><b>{viewMode === 'done' ? 'Выполненных задач нет' : 'Список пуст'}</b><p>{viewMode === 'done' ? 'Когда задачи будут помечены Done, они появятся здесь и их можно будет вернуть обратно.' : 'Backend подключён, но у этой ветки нет активных задач или они не совпали по Project/Goal.'}</p></div>}</aside>;
 }
 
 function DetailCard({ node, onClose, onComplete, onRestore, onOpenMenu, busyTaskId }) {
