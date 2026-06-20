@@ -1,19 +1,33 @@
 .coreNode.titleCore {
   display: grid;
   place-items: center;
-  padding: 18px;
+  width: clamp(176px, 17vw, 226px) !important;
+  height: clamp(176px, 17vw, 226px) !important;
+  padding: 20px;
+}
+
+.coreNode.rootCore {
+  width: clamp(150px, 14vw, 178px) !important;
+  height: clamp(150px, 14vw, 178px) !important;
 }
 
 .coreNode.titleCore b,
 .coreNode.rootCore b {
   display: block;
-  max-width: 150px;
+  max-width: 86%;
   color: #f8fdff;
-  font-size: clamp(19px, 2.6vw, 25px);
+  font-size: clamp(18px, 2vw, 23px);
   line-height: 1.08;
   letter-spacing: -0.045em;
   text-align: center;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
+  text-wrap: balance;
+}
+
+.coreNode.rootCore b {
+  font-size: clamp(20px, 2.3vw, 26px);
 }
 
 .coreNode.titleCore span,
@@ -21,6 +35,84 @@
 .coreNode.titleCore i,
 .coreNode small {
   display: none !important;
+}
+
+.nodeOrb em {
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+  hyphens: none !important;
+  text-wrap: balance;
+}
+
+.sideList {
+  overflow: visible !important;
+  transition: width 180ms ease, transform 180ms ease, opacity 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.sideItems {
+  scrollbar-gutter: stable;
+  padding-right: 14px !important;
+  scroll-behavior: smooth;
+  transition: opacity 160ms ease;
+}
+
+.sideItems::-webkit-scrollbar,
+.detailCard::-webkit-scrollbar,
+.utilityPanel::-webkit-scrollbar,
+.focusQueueList::-webkit-scrollbar {
+  width: 10px;
+}
+
+.sideItems::-webkit-scrollbar-track,
+.detailCard::-webkit-scrollbar-track,
+.utilityPanel::-webkit-scrollbar-track,
+.focusQueueList::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgba(103, 232, 249, 0.06);
+}
+
+.sideItems::-webkit-scrollbar-thumb,
+.detailCard::-webkit-scrollbar-thumb,
+.utilityPanel::-webkit-scrollbar-thumb,
+.focusQueueList::-webkit-scrollbar-thumb {
+  border: 2px solid rgba(3, 7, 18, 0.92);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(103, 232, 249, 0.88), rgba(96, 165, 250, 0.62));
+}
+
+.sideItems::-webkit-scrollbar-thumb:hover,
+.detailCard::-webkit-scrollbar-thumb:hover,
+.utilityPanel::-webkit-scrollbar-thumb:hover,
+.focusQueueList::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(125, 249, 255, 0.95), rgba(96, 165, 250, 0.82));
+}
+
+.sideItemRow,
+.inlineTaskDetails,
+.mission,
+.missionCollapsed,
+.detailCard,
+.utilityPanel,
+.contextMenu,
+.sideTabs button,
+.expandMini,
+.doneMini,
+.restoreMini,
+.dragHandle {
+  transition: transform 160ms ease, opacity 160ms ease, background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, max-height 180ms ease;
+}
+
+.sideItemRow.expandedRow {
+  animation: quickReveal 170ms ease both;
+}
+
+.inlineTaskDetails {
+  animation: quickReveal 160ms ease both;
+}
+
+@keyframes quickReveal {
+  from { opacity: 0; transform: translateY(-4px) scale(0.992); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .sideItemMain small:empty {
@@ -47,46 +139,43 @@
 }
 
 .sideItemRow.draggingRow {
-  opacity: 0.34;
-  filter: saturate(0.65);
+  opacity: 0.42;
+  filter: saturate(0.7);
 }
 
 .dragPreviewTask {
+  display: none !important;
+}
+
+.lifeDragGhost {
   position: fixed;
-  z-index: 140;
-  width: min(420px, calc(100vw - 36px));
+  z-index: 1000;
+  width: min(560px, calc(100vw - 40px));
   transform: translate(-50%, -50%) scale(1.015);
-  display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
-  border: 1px solid rgba(103, 232, 249, 0.48);
+  gap: 8px;
+  border: 1px solid rgba(103, 232, 249, 0.55);
   border-radius: 18px;
-  padding: 11px 13px;
+  padding: 8px;
   color: #fff;
   background: rgba(10, 18, 30, 0.94);
-  box-shadow: 0 26px 90px rgba(0, 0, 0, 0.48), 0 0 34px rgba(103, 232, 249, 0.24);
-  backdrop-filter: blur(18px);
+  box-shadow: 0 26px 90px rgba(0, 0, 0, 0.5), 0 0 34px rgba(103, 232, 249, 0.26);
+  backdrop-filter: blur(20px);
   pointer-events: none;
 }
 
-.dragPreviewTask span {
-  display: grid;
-  place-items: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-  color: #67e8f9;
-  background: rgba(103, 232, 249, 0.12);
-  font-size: 12px;
-  font-weight: 1000;
+.lifeDragGhost .inlineTaskDetails,
+.lifeDragGhost .rowActions .expandMini,
+.lifeDragGhost .rowActions .doneMini,
+.lifeDragGhost .rowActions .restoreMini,
+.lifeDragGhost .rowActions .dragHandle {
+  display: none !important;
 }
 
-.dragPreviewTask b {
-  min-width: 0;
-  font-size: 14px;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
+.lifeDragGhost .sideItemMain {
+  pointer-events: none;
 }
 
 .dragHandle {
@@ -98,14 +187,88 @@
   background: transparent !important;
 }
 
+.inlineTaskDetails > div:not(.noteEditorActions) {
+  display: none !important;
+}
+
+.noteEditorLabel {
+  display: block;
+  margin-bottom: 7px;
+  color: rgba(125, 211, 252, 0.78);
+  font-size: 10px;
+  font-weight: 1000;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.noteEditor {
+  width: 100%;
+  min-height: 86px;
+  resize: vertical;
+  border: 1px solid rgba(103, 232, 249, 0.16);
+  border-radius: 14px;
+  padding: 10px 12px;
+  color: rgba(255, 255, 255, 0.88);
+  background: rgba(0, 0, 0, 0.2);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.42;
+  outline: none;
+}
+
+.noteEditor:focus {
+  border-color: rgba(103, 232, 249, 0.52);
+  box-shadow: 0 0 0 3px rgba(103, 232, 249, 0.1);
+}
+
+.noteEditorActions {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 9px;
+}
+
+.noteEditorActions span {
+  color: rgba(255, 255, 255, 0.5) !important;
+  background: transparent !important;
+  width: auto !important;
+  height: auto !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  text-align: left;
+}
+
+.noteEditorActions button {
+  border: 1px solid rgba(103, 232, 249, 0.2);
+  border-radius: 999px;
+  padding: 8px 11px;
+  color: #061018;
+  background: linear-gradient(90deg, #60a5fa, #67e8f9);
+  font-size: 11px;
+  font-weight: 1000;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.noteEditorActions button:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
 @media (max-width: 900px) {
-  .coreNode.titleCore b,
-  .coreNode.rootCore b {
-    max-width: 128px;
-    font-size: 19px;
+  .coreNode.titleCore {
+    width: clamp(150px, 38vw, 190px) !important;
+    height: clamp(150px, 38vw, 190px) !important;
   }
 
-  .dragPreviewTask {
+  .coreNode.titleCore b,
+  .coreNode.rootCore b {
+    max-width: 84%;
+    font-size: 18px;
+  }
+
+  .lifeDragGhost {
     width: min(360px, calc(100vw - 30px));
   }
 }
