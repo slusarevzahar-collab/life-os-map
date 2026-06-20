@@ -20,6 +20,8 @@
   top: 0;
   max-width: min(290px, calc(100vw - 36px)) !important;
   padding: 9px 14px !important;
+  align-items: center !important;
+  gap: 11px !important;
 }
 .backButton {
   position: absolute;
@@ -50,19 +52,32 @@
 
 .topTitle .brand {
   display: inline-flex;
+  align-items: center;
+  gap: 0;
   font-size: 11px;
   font-weight: 1000;
   letter-spacing: .18em;
+  line-height: 1;
   text-transform: uppercase;
 }
+.topTitle .brand b,
+.topTitle .brand strong {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+  font-size: inherit;
+  letter-spacing: inherit;
+}
 .topTitle .brand b { color: rgba(125, 211, 252, .9); }
-.topTitle .brand strong { color: #fff; }
+.topTitle .brand strong { color: #fff; position: relative; top: 0; }
 .topTitle em {
-  color: rgba(125, 211, 252, .62);
+  color: #86efac;
   font-size: 11px;
   font-style: normal;
   font-weight: 900;
+  line-height: 1;
   text-transform: uppercase;
+  text-shadow: 0 0 14px rgba(134, 239, 172, .22);
 }
 .topTitle > span:not(.brand), .topTitle > b, .topTitle i { display: none; }
 
@@ -227,6 +242,9 @@
   border-color: rgba(103, 232, 249, .22);
   background: rgba(103, 232, 249, .065);
 }
+.sideItemRow.draggingRow {
+  opacity: .58;
+}
 .sideItemRow.drop-before,
 .sideItemRow.drop-after {
   border-color: rgba(255, 255, 255, .08);
@@ -286,35 +304,60 @@
   gap: 6px;
 }
 .dragHandle {
-  width: 24px;
+  width: 26px;
   height: 38px;
+  display: grid;
+  place-items: center;
   border: 0;
   border-radius: 10px;
-  background: transparent;
-  color: rgba(255, 255, 255, .7);
+  background: transparent !important;
+  color: rgba(255, 255, 255, .72);
   font-size: 22px;
   font-weight: 900;
   line-height: .62;
   cursor: grab;
   writing-mode: vertical-rl;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
-.dragHandle:hover { color: #dffaff; background: rgba(103, 232, 249, .08); }
-.dragHandle:active { cursor: grabbing; }
+.dragHandle:hover {
+  color: #67e8f9;
+  background: transparent !important;
+  text-shadow: 0 0 14px rgba(103, 232, 249, .42);
+}
+.dragHandle:active { cursor: grabbing; color: #dffaff; }
 .dragHandle:disabled { opacity: .32; cursor: wait; }
 .orderControls { display: none; }
 
 .expandMini {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
   border: 1px solid rgba(255, 255, 255, .1);
   border-radius: 999px;
+  padding: 0;
   background: rgba(255, 255, 255, .045);
   color: rgba(255, 255, 255, .72);
-  font-size: 14px;
-  font-weight: 900;
   cursor: pointer;
+  line-height: 1;
 }
 .expandMini:hover { color: #dffaff; background: rgba(103, 232, 249, .09); }
+.chevronIcon {
+  width: 15px;
+  height: 15px;
+  display: block;
+  overflow: visible;
+}
+.chevronIcon path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .inlineTaskDetails {
   grid-column: 1 / -1;
   margin: 0 4px 3px 48px;
