@@ -4,6 +4,7 @@ import { AnimatePresence } from 'framer-motion';
 import './action-map.css';
 import './action-map-overrides.css';
 import './action-map-latest.css';
+import './lifemap-progress.css';
 
 import { buildActionMap, findNode } from './lib/actionMapModel.js';
 import { FOCUS_STORAGE_KEY, TITLE_ALIASES_KEY } from './constants/lifeMap.js';
