@@ -7,15 +7,15 @@ import './action-map-latest.css';
 
 import { buildActionMap, findNode, isDoneNode, isLeafNode, shortText } from './lib/actionMapModel.js';
 
-const FOCUS_STORAGE_KEY = 'lifeMapFocusQueueV2';
-const TITLE_ALIASES_KEY = 'lifeMapTitleAliasesV1';
+const FOCUS_STORAGE_KEY = 'lifeMapFocusQueueV3';
+const TITLE_ALIASES_KEY = 'lifeMapTitleAliasesV2';
 const RENAMABLE_KINDS = new Set(['task', 'goal', 'project', 'lifeArea', 'signal', 'dream', 'sphere']);
 const DRAG_THRESHOLD = 8;
 
 const mapVariants = {
-  initial: { opacity: 0, scale: 0.88, filter: 'blur(8px)' },
+  initial: { opacity: 0, scale: 0.9, filter: 'blur(8px)' },
   animate: { opacity: 1, scale: 1, filter: 'blur(0px)' },
-  exit: { opacity: 0, scale: 1.08, filter: 'blur(8px)' },
+  exit: { opacity: 0, scale: 1.06, filter: 'blur(8px)' },
 };
 
 function emptySnapshot(source = 'loading', warning = '') {
@@ -31,7 +31,7 @@ function emptySnapshot(source = 'loading', warning = '') {
     currentFocus: {
       id: isOffline ? 'api-offline' : 'loading',
       title: isOffline ? 'API недоступен' : 'Загрузка данных',
-      project: 'Life OS Map',
+      project: 'LifeMap',
       status: isOffline ? 'offline' : 'loading',
       progress: 0,
       nextAction: isOffline ? 'Запусти backend: npm run api, затем обнови карту.' : 'Жду ответ backend API.',
@@ -55,8 +55,8 @@ function ChevronDown({ open = false }) {
   return <svg className="chevronIcon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d={open ? 'M5.5 12.25 10 7.75l4.5 4.5' : 'M5.5 7.75 10 12.25l4.5-4.5'} /></svg>;
 }
 
-function hasBranch(node) { return Boolean((node?.children || []).some((item) => !isLeafNode(item) && item.id !== 'sphere-done')); }
-function topItems(node) { return (node.children || []).filter((item) => !isLeafNode(item) && item.id !== 'sphere-done'); }
+function hasBranch(node) { return Boolean((node?.children || []).some((item) => !isLeafNode(item))); }
+function topItems(node) { return (node.children || []).filter((item) => !isLeafNode(item)); }
 function canPatchTask(node) { return node?.kind === 'task' && Boolean(node.sourceId); }
 function canRenameNode(node) { return Boolean(node?.id && node.id !== 'root' && (node.sourceId || RENAMABLE_KINDS.has(node.kind) || node.id.startsWith('sphere-'))); }
 
@@ -111,7 +111,7 @@ function toFocusItem(node) {
     project: node.raw?.project || node.subtitle || node.status || '',
     status: node.status || '',
     progress: Number(node.progress) || 0,
-    nextAction: node.summary || node.raw?.nextAction || 'Следующий шаг не указан.',
+    nextAction: node.raw?.nextAction || node.summary || 'Следующий шаг не указан.',
     kind: node.kind || 'node',
   };
 }
@@ -133,18 +133,25 @@ function resolveFocus(rootMap, snapshot, focusQueue = []) {
     if (match) return toFocusItem(match);
     if (queued?.title) return queued;
   }
-  const workingLifeMapFocus = nodes.find((node) => {
-    if (isDoneNode(node)) return false;
+
+  const lifeMapFocus = nodes.find((node) => {
+    if (node.kind !== 'task' || isDoneNode(node)) return false;
     const text = `${node.title} ${node.summary} ${node.raw?.project || ''} ${node.raw?.goalName || ''}`.toLowerCase();
-    return text.includes('собрать рабочую life os map') || text.includes('life os map + ai inbox mvp') || text.includes('создать рабочую liveos map');
+    return text.includes('стабилизировать рабочий сценарий') ||
+      text.includes('собрать рабочую life os map') ||
+      text.includes('lifemap') ||
+      text.includes('life os map + ai inbox mvp') ||
+      text.includes('создать рабочую liveos map');
   });
-  if (workingLifeMapFocus) return toFocusItem(workingLifeMapFocus);
+  if (lifeMapFocus) return toFocusItem(lifeMapFocus);
+
   const lifeOsTask = nodes.find((node) => {
     if (node.kind !== 'task' || isDoneNode(node)) return false;
     const text = `${node.title} ${node.summary} ${node.raw?.project || ''} ${node.raw?.goalName || ''}`.toLowerCase();
-    return text.includes('life os') || text.includes('live os') || text.includes('навигатор') || text.includes('life os map') || text.includes('notion data adapter');
+    return text.includes('life os') || text.includes('live os') || text.includes('навигатор') || text.includes('notion data adapter');
   });
   if (lifeOsTask) return toFocusItem(lifeOsTask);
+
   return {
     id: snapshot.currentFocus?.id || 'snapshot-focus',
     sourceId: snapshot.currentFocus?.id || null,
@@ -164,7 +171,7 @@ function buildFocusSequence(rootMap, activeFocus, focusQueue = []) {
     return match ? toFocusItem(match) : queuedItem;
   });
   const focusText = `${activeFocus?.title || ''} ${activeFocus?.project || ''}`.toLowerCase();
-  const projectNeedles = ['life os', 'live os', 'life os map', 'liveos map', 'навигатор', 'notion', 'canvas', 'map'];
+  const projectNeedles = ['lifemap', 'life os', 'live os', 'life os map', 'liveos map', 'навигатор', 'notion', 'canvas', 'map'];
   const relatedTasks = nodes
     .filter((node) => node.kind === 'task' && !isDoneNode(node))
     .filter((node) => {
@@ -196,7 +203,9 @@ async function fetchSnapshot() {
       if (!response.ok) throw new Error(`API ${response.status}`);
       const data = await response.json();
       return { ...data, meta: { ...(data.meta || {}), apiUrl: url } };
-    } catch (error) { errors.push(`${url}: ${error.message}`); }
+    } catch (error) {
+      errors.push(`${url}: ${error.message}`);
+    }
   }
   throw new Error(errors.join(' | '));
 }
@@ -213,7 +222,9 @@ async function patchTask(taskId, payload) {
       const data = await response.json().catch(() => ({}));
       if (!response.ok || data.ok === false) throw new Error(data.error || `API ${response.status}`);
       return data;
-    } catch (error) { errors.push(`${url}: ${error.message}`); }
+    } catch (error) {
+      errors.push(`${url}: ${error.message}`);
+    }
   }
   throw new Error(errors.join(' | '));
 }
@@ -230,7 +241,9 @@ async function patchItemTitle(node, title) {
       const data = await response.json().catch(() => ({}));
       if (!response.ok || data.ok === false) throw new Error(data.error || `API ${response.status}`);
       return data;
-    } catch (error) { errors.push(`${url}: ${error.message}`); }
+    } catch (error) {
+      errors.push(`${url}: ${error.message}`);
+    }
   }
   throw new Error(errors.join(' | '));
 }
@@ -243,7 +256,19 @@ function dataState(snapshot, apiState) {
 }
 
 function TopNav({ canBack, onBack, onCenter, apiState, errorCount, onErrors }) {
-  return <header className="topNav" onClick={(event) => event.stopPropagation()}><button className="backButton" onClick={onBack} disabled={!canBack}>← Назад</button><div className="topTitle"><span className="brand"><b>Live</b><strong>Map</strong></span><em>· {apiState}</em></div><div className="topActions"><button className="centerButton" onClick={onCenter}>Главная</button>{errorCount ? <button className="errorButton hasErrors" onClick={onErrors}>Ошибки {errorCount}</button> : null}</div></header>;
+  return (
+    <header className="topNav" onClick={(event) => event.stopPropagation()}>
+      <div className="topTitle">
+        <span className="brand"><b>Life</b><strong>Map</strong></span>
+        <em>· {apiState}</em>
+      </div>
+      <button className="backButton" onClick={onBack} disabled={!canBack}>← Назад</button>
+      <div className="topActions">
+        <button className="centerButton" onClick={onCenter}>Главная</button>
+        {errorCount ? <button className="errorButton hasErrors" onClick={onErrors}>Ошибки {errorCount}</button> : null}
+      </div>
+    </header>
+  );
 }
 
 function MissionPanel({ focus, focusQueueItems, snapshot, apiState, onDone }) {
@@ -256,28 +281,69 @@ function MissionPanel({ focus, focusQueueItems, snapshot, apiState, onDone }) {
   const nextItem = focusQueueItems?.[1];
   const nextAction = nextItem?.title || focus?.nextAction || 'Следующий шаг не указан.';
   const progress = Number(focus?.progress || 0);
+
   if (!open) {
     const label = isOffline ? 'API OFFLINE' : isMock ? 'MOCK DATA' : isLoading ? 'LOADING' : 'ФОКУС СЕЙЧАС';
-    return <section className="mission missionCollapsed" onClick={(event) => event.stopPropagation()}><button onClick={() => setOpen(true)}><span>FO</span><div><small>{label}</small><b>{currentTitle}</b></div><Ring value={progress} /></button></section>;
+    return (
+      <section className="mission missionCollapsed" onClick={(event) => event.stopPropagation()}>
+        <button onClick={() => setOpen(true)}>
+          <span>FO</span>
+          <div><small>{label}</small><b>{currentTitle}</b></div>
+          <Ring value={progress} />
+        </button>
+      </section>
+    );
   }
-  return <section className="mission" onClick={(event) => event.stopPropagation()}><button className="collapseMission" onClick={() => setOpen(false)}>Свернуть</button><div className="missionTop"><div><small><em /> {isOffline ? 'API OFFLINE · нет данных для карты' : isMock ? 'MOCK DATA · проверь backend/.env' : isLoading ? 'LOADING · жду backend' : 'MISSION CONTROL'}</small><h1><span>FO</span>Текущий фокус</h1></div><Ring value={progress} /></div>{isOffline ? <div className="warningLine">Карта специально не показывает запасные данные: backend API недоступен. Запусти npm run api и обнови страницу.</div> : null}{isMock ? <div className="warningLine">Сейчас карта получает mock-данные. Нужно, чтобы backend видел NOTION_TOKEN и NOTION_TASKS_DB_ID.</div> : null}<div className="missionLine activeLine">Сейчас: {currentTitle}</div><div className="missionLine nextLine">Далее: {nextAction}</div><div className="focusControls"><button className="queueToggle" onClick={() => setQueueOpen((value) => !value)}>{queueOpen ? 'Скрыть очередь' : `Очередь ${Math.max((focusQueueItems?.length || 1) - 1, 0)}`} <span>{queueOpen ? '↑' : '↓'}</span></button><button className="doneArchiveButton" onClick={onDone}>Выполнено</button></div>{queueOpen ? <div className="focusQueueList">{focusQueueItems?.slice(0, 10).map((item, index) => <div key={`${item.sourceId || item.id}-${index}`} className={index === 0 ? 'current' : ''}><b>{index === 0 ? 'Сейчас' : index}</b><span>{item.title}</span></div>)}</div> : null}</section>;
+
+  return (
+    <section className="mission" onClick={(event) => event.stopPropagation()}>
+      <button className="collapseMission" onClick={() => setOpen(false)}>Свернуть</button>
+      <div className="missionTop">
+        <div>
+          <small><em /> {isOffline ? 'API OFFLINE · нет данных для карты' : isMock ? 'MOCK DATA · проверь backend/.env' : isLoading ? 'LOADING · жду backend' : 'MISSION CONTROL'}</small>
+          <h1><span>FO</span>Текущий фокус</h1>
+        </div>
+        <Ring value={progress} />
+      </div>
+      {isOffline ? <div className="warningLine">Карта специально не показывает запасные данные: backend API недоступен. Запусти npm run api и обнови страницу.</div> : null}
+      {isMock ? <div className="warningLine">Сейчас карта получает mock-данные. Нужно, чтобы backend видел NOTION_TOKEN и NOTION_TASKS_DB_ID.</div> : null}
+      <div className="missionLine activeLine">Сейчас: {currentTitle}</div>
+      <div className="missionLine nextLine">Далее: {nextAction}</div>
+      <div className="focusControls">
+        <button className="queueToggle" onClick={() => setQueueOpen((value) => !value)}>
+          {queueOpen ? 'Скрыть очередь' : `Очередь ${Math.max((focusQueueItems?.length || 1) - 1, 0)}`} <ChevronDown open={queueOpen} />
+        </button>
+        <button className="doneArchiveButton" onClick={onDone}>Выполнено</button>
+      </div>
+      {queueOpen ? (
+        <div className="focusQueueList">
+          {focusQueueItems?.slice(0, 10).map((item, index) => (
+            <div key={`${item.sourceId || item.id}-${index}`} className={index === 0 ? 'current' : ''}>
+              <b>{index === 0 ? 'Сейчас' : index}</b><span>{item.title}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
 }
 
 function planetSize(title = '') {
   const len = String(title).length;
-  if (len > 44) return 184;
-  if (len > 34) return 170;
-  if (len > 24) return 150;
-  if (len > 14) return 126;
-  return 104;
+  if (len > 54) return 226;
+  if (len > 42) return 206;
+  if (len > 30) return 184;
+  if (len > 18) return 150;
+  return 118;
 }
 
 function planetFontSize(title = '') {
   const len = String(title).length;
-  if (len > 44) return 11;
-  if (len > 32) return 12;
-  if (len > 20) return 13;
-  return 15;
+  if (len > 54) return 11;
+  if (len > 42) return 12;
+  if (len > 30) return 13;
+  if (len > 18) return 14;
+  return 16;
 }
 
 function OrbitMap({ map, hasSide, onOpen, onSelect, onOpenMenu }) {
@@ -291,24 +357,58 @@ function OrbitMap({ map, hasSide, onOpen, onSelect, onOpenMenu }) {
     pressTimer.current = window.setTimeout(() => onOpenMenu(node, point), 560);
   };
   const orbitShift = children.length <= 2 ? 'clamp(-215px, -20vw, -170px)' : 'clamp(-220px, -21vw, -190px)';
-  return <motion.section key={map.id} className={`mapStage ${hasSide ? 'mapWithSide' : ''}`} variants={mapVariants} initial="initial" animate="animate" exit="exit" transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}><div className="mapGlow" /><div className="orbit orbit1" /><div className="orbit orbit2" /><div className="orbit orbit3" /><motion.button className={`coreNode ${isRoot ? 'rootCore' : 'titleCore'}`} onClick={(event) => event.preventDefault()} initial={{ scale: 0.9 }} animate={{ scale: 1 }} transition={{ duration: 0.26, ease: 'easeOut' }}><b>{isRoot ? 'Life Map' : map.title}</b></motion.button>{children.map((node, index) => { const angle = (360 / Math.max(children.length, 1)) * index; const nested = Boolean((node.children || []).length || (node.taskList || []).length); const count = node.tasks || node.children?.length || node.taskList?.length || 0; const size = planetSize(node.title); const fontSize = planetFontSize(node.title); return <button key={node.id} className={`mapNode orbitNode state-${node.state}`} style={{ '--angle': `${angle}deg`, '--angle-back': `${-angle}deg`, '--orbit-shift': orbitShift, '--node-size': `${size}px`, '--node-font': `${fontSize}px` }} title={node.title} onContextMenu={(event) => onOpenMenu(node, event)} onPointerDown={(event) => startPress(node, event)} onPointerUp={clearPress} onPointerLeave={clearPress} onClick={() => nested ? onOpen(node.id) : onSelect(node)}><span className="nodeOrb"><em>{node.title}</em>{nested ? <strong>{count}</strong> : null}</span></button>; })}</motion.section>;
+  return (
+    <motion.section key={map.id} className={`mapStage ${hasSide ? 'mapWithSide' : ''}`} variants={mapVariants} initial="initial" animate="animate" exit="exit" transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}>
+      <div className="mapGlow" />
+      <div className="orbit orbit1" />
+      <div className="orbit orbit2" />
+      <div className="orbit orbit3" />
+      <motion.button className={`coreNode ${isRoot ? 'rootCore' : 'titleCore'}`} onClick={(event) => event.preventDefault()} initial={{ scale: 0.9 }} animate={{ scale: 1 }} transition={{ duration: 0.24, ease: 'easeOut' }}>
+        <b>{isRoot ? 'LifeMap' : map.title}</b>
+      </motion.button>
+      {children.map((node, index) => {
+        const angle = (360 / Math.max(children.length, 1)) * index;
+        const nested = Boolean((node.children || []).length || (node.taskList || []).length);
+        const count = node.tasks || node.children?.length || node.taskList?.length || 0;
+        const size = planetSize(node.title);
+        const fontSize = planetFontSize(node.title);
+        return (
+          <button
+            key={node.id}
+            className={`mapNode orbitNode state-${node.state}`}
+            style={{ '--angle': `${angle}deg`, '--angle-back': `${-angle}deg`, '--orbit-shift': orbitShift, '--node-size': `${size}px`, '--node-font': `${fontSize}px` }}
+            title={node.title}
+            onContextMenu={(event) => onOpenMenu(node, event)}
+            onPointerDown={(event) => startPress(node, event)}
+            onPointerUp={clearPress}
+            onPointerLeave={clearPress}
+            onClick={() => nested ? onOpen(node.id) : onSelect(node)}
+          >
+            <span className="nodeOrb"><em>{node.title}</em>{nested ? <strong>{count}</strong> : null}</span>
+          </button>
+        );
+      })}
+    </motion.section>
+  );
 }
 
-function SideList({ map, snapshot, viewMode, setViewMode, onOpen, onComplete, onRestore, onReorderList, onOpenMenu, busyTaskId }) {
+function SideList({ map, viewMode, setViewMode, onOpen, onComplete, onRestore, onReorderList, onOpenMenu, onSaveNote, busyTaskId }) {
   const items = listItems(map);
   const hasPlanetChildren = hasBranch(map);
   const [dragId, setDragId] = useState(null);
   const [dropTarget, setDropTarget] = useState(null);
   const [dragPreview, setDragPreview] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
+  const [notesDraft, setNotesDraft] = useState({});
   const sideItemsRef = useRef(null);
   const pointerDragRef = useRef(null);
-  if (hasPlanetChildren || !items.length) return null;
+
   const activeItems = items.filter((item) => !isDoneNode(item));
   const doneItems = items.filter((item) => isDoneNode(item));
   const visibleItems = viewMode === 'done' ? doneItems : activeItems;
   const reorderableItems = visibleItems.filter((item) => canPatchTask(item) && !isDoneNode(item));
-  const makeReorderedList = (fromId, target) => {
+
+  const makeReorderedList = useCallback((fromId, target) => {
     if (!fromId || !target?.id || fromId === target.id) return null;
     const from = reorderableItems.findIndex((item) => item.id === fromId);
     if (from < 0) return null;
@@ -321,8 +421,9 @@ function SideList({ map, snapshot, viewMode, setViewMode, onOpen, onComplete, on
     const before = reorderableItems.map((item) => item.id).join('|');
     const after = reordered.map((item) => item.id).join('|');
     return before === after ? null : reordered;
-  };
-  const updateDropTarget = (clientY) => {
+  }, [reorderableItems]);
+
+  const updateDropTarget = useCallback((clientY) => {
     const dragState = pointerDragRef.current;
     if (!dragState?.active || !sideItemsRef.current) return;
     const rows = Array.from(sideItemsRef.current.querySelectorAll('[data-reorder-id]'));
@@ -339,20 +440,12 @@ function SideList({ map, snapshot, viewMode, setViewMode, onOpen, onComplete, on
     const nextTarget = { id: best.id, position };
     pointerDragRef.current = { ...dragState, dropTarget: nextTarget };
     setDropTarget(nextTarget);
-  };
-  const startPointerDrag = (event, item) => {
-    if (!canPatchTask(item) || isDoneNode(item) || busyTaskId === item.sourceId) return;
-    if (event.pointerType === 'mouse' && event.button !== 0) return;
-    event.preventDefault();
-    event.stopPropagation();
-    pointerDragRef.current = { id: item.id, item, startX: event.clientX, startY: event.clientY, x: event.clientX, y: event.clientY, active: false, dropTarget: null };
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-  };
-  const movePointerDrag = (event) => {
+  }, []);
+
+  const movePointerDrag = useCallback((event) => {
     const dragState = pointerDragRef.current;
     if (!dragState) return;
-    event.preventDefault();
-    event.stopPropagation();
+    event.preventDefault?.();
     const dx = event.clientX - dragState.startX;
     const dy = event.clientY - dragState.startY;
     const distance = Math.hypot(dx, dy);
@@ -362,39 +455,138 @@ function SideList({ map, snapshot, viewMode, setViewMode, onOpen, onComplete, on
     if (!dragState.active) setDragId(dragState.id);
     setDragPreview({ id: dragState.id, icon: dragState.item.icon, title: dragState.item.title, x: event.clientX, y: event.clientY });
     updateDropTarget(event.clientY);
-  };
-  const endPointerDrag = (event) => {
+  }, [updateDropTarget]);
+
+  const endPointerDrag = useCallback((event) => {
     const dragState = pointerDragRef.current;
     if (!dragState) return;
-    event.preventDefault();
-    event.stopPropagation();
+    event?.preventDefault?.();
     const reordered = dragState.active ? makeReorderedList(dragState.id, dragState.dropTarget) : null;
     pointerDragRef.current = null;
     setDragId(null);
     setDropTarget(null);
     setDragPreview(null);
     if (reordered) onReorderList(reordered);
+  }, [makeReorderedList, onReorderList]);
+
+  useEffect(() => {
+    const move = (event) => movePointerDrag(event);
+    const up = (event) => endPointerDrag(event);
+    window.addEventListener('pointermove', move, { passive: false });
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+    };
+  }, [movePointerDrag, endPointerDrag]);
+
+  const startPointerDrag = (event, item) => {
+    if (!canPatchTask(item) || isDoneNode(item) || busyTaskId === item.sourceId) return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    pointerDragRef.current = { id: item.id, item, startX: event.clientX, startY: event.clientY, x: event.clientX, y: event.clientY, active: false, dropTarget: null };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
   };
-  return <aside className="sideList" onClick={(event) => event.stopPropagation()}><div className="sideListHead"><div><small>{viewMode === 'done' ? 'Выполненные задачи' : 'Задачи ветки'}</small><strong>{map.title}</strong></div><b>{visibleItems.length}</b></div><div className="sideTabs"><button className={viewMode === 'active' ? 'active' : ''} onClick={() => setViewMode('active')}>Активные <span>{activeItems.length}</span></button><button className={viewMode === 'done' ? 'active' : ''} onClick={() => setViewMode('done')}>Сделано <span>{doneItems.length}</span></button></div>{visibleItems.length ? <div className="sideItems" ref={sideItemsRef}>{visibleItems.map((item) => { const nested = Boolean((item.children || []).length || (item.taskList || []).length); const patchable = canPatchTask(item); const done = isDoneNode(item); const dropClass = dropTarget?.id === item.id ? `drop-${dropTarget.position}` : ''; const expanded = expandedId === item.id; return <div className={`sideItemRow ${done ? 'doneRow' : ''} ${expanded ? 'expandedRow' : ''} ${dragId === item.id ? 'draggingRow' : ''} ${dropClass}`} key={item.id} data-reorder-id={patchable && !done ? item.id : undefined} onContextMenu={(event) => onOpenMenu(item, event)}><button className="sideItemMain" onClick={() => nested && !isLeafNode(item) ? onOpen(item.id) : setExpandedId((current) => current === item.id ? null : item.id)}><span>{item.icon}</span><div><b>{item.title}</b>{nested ? <small>{`${item.tasks || 0} задач · открыть ветку`}</small> : null}</div></button><div className="rowActions">{isLeafNode(item) ? <button className="expandMini" title="Развернуть" onClick={(event) => { event.stopPropagation(); setExpandedId((current) => current === item.id ? null : item.id); }}><ChevronDown open={expanded} /></button> : null}{patchable && !done ? <button className="dragHandle" title="Перетащить задачу" disabled={busyTaskId === item.sourceId} onPointerDown={(event) => startPointerDrag(event, item)} onPointerMove={movePointerDrag} onPointerUp={endPointerDrag} onPointerCancel={endPointerDrag}>⋮⋮</button> : null}{patchable ? <button className={done ? 'restoreMini' : 'doneMini'} disabled={busyTaskId === item.sourceId} onClick={(event) => { event.stopPropagation(); done ? onRestore(item) : onComplete(item); }}>{busyTaskId === item.sourceId ? '…' : done ? 'Вернуть' : 'Done'}</button> : null}</div>{expanded ? <div className="inlineTaskDetails"><p>{item.summary || 'Заметок по задаче пока нет.'}</p>{item.details?.length ? <div>{item.details.slice(0, 4).map((detail, index) => <span key={index}>{detail}</span>)}</div> : null}</div> : null}</div>; })}</div> : <div className="emptySide"><b>{viewMode === 'done' ? 'Выполненных задач нет' : 'Список пуст'}</b><p>{viewMode === 'done' ? 'Когда задачи будут помечены Done, они появятся здесь и их можно будет вернуть обратно.' : 'Backend подключён, но у этой ветки нет активных задач или они не совпали по Project/Goal.'}</p></div>}{dragPreview ? <div className="dragPreviewTask" style={{ left: dragPreview.x, top: dragPreview.y }}><span>{dragPreview.icon}</span><b>{dragPreview.title}</b></div> : null}</aside>;
+
+  if (hasPlanetChildren) return null;
+
+  return (
+    <aside className="sideList" onClick={(event) => event.stopPropagation()}>
+      <div className="sideListHead"><div><small>{viewMode === 'done' ? 'Выполненные задачи' : 'Задачи ветки'}</small><strong>{map.title}</strong></div><b>{visibleItems.length}</b></div>
+      <div className="sideTabs">
+        <button className={viewMode === 'active' ? 'active' : ''} onClick={() => setViewMode('active')}>Активные <span>{activeItems.length}</span></button>
+        <button className={viewMode === 'done' ? 'active' : ''} onClick={() => setViewMode('done')}>Сделано <span>{doneItems.length}</span></button>
+      </div>
+      {visibleItems.length ? (
+        <div className="sideItems" ref={sideItemsRef}>
+          {visibleItems.map((item) => {
+            const nested = Boolean((item.children || []).length || (item.taskList || []).length);
+            const patchable = canPatchTask(item);
+            const done = isDoneNode(item);
+            const dropClass = dropTarget?.id === item.id ? `drop-${dropTarget.position}` : '';
+            const expanded = expandedId === item.id;
+            const noteValue = notesDraft[item.id] ?? item.raw?.sessionNotes ?? item.summary ?? '';
+            return (
+              <div className={`sideItemRow ${done ? 'doneRow' : ''} ${expanded ? 'expandedRow' : ''} ${dragId === item.id ? 'draggingRow' : ''} ${dropClass}`} key={item.id} data-reorder-id={patchable && !done ? item.id : undefined} onContextMenu={(event) => onOpenMenu(item, event)}>
+                <button className="sideItemMain" onClick={() => nested && !isLeafNode(item) ? onOpen(item.id) : setExpandedId((current) => current === item.id ? null : item.id)}>
+                  <span>{item.icon}</span><div><b>{item.title}</b>{nested ? <small>{`${item.tasks || 0} задач · открыть ветку`}</small> : null}</div>
+                </button>
+                <div className="rowActions">
+                  {isLeafNode(item) ? <button className="expandMini" title="Развернуть" onClick={(event) => { event.stopPropagation(); setExpandedId((current) => current === item.id ? null : item.id); }}><ChevronDown open={expanded} /></button> : null}
+                  {patchable && !done ? <button className="dragHandle" title="Перетащить задачу" disabled={busyTaskId === item.sourceId} onPointerDown={(event) => startPointerDrag(event, item)}>⋮⋮</button> : null}
+                  {patchable ? <button className={done ? 'restoreMini' : 'doneMini'} disabled={busyTaskId === item.sourceId} onClick={(event) => { event.stopPropagation(); done ? onRestore(item) : onComplete(item); }}>{busyTaskId === item.sourceId ? '…' : done ? 'Вернуть' : 'Done'}</button> : null}
+                </div>
+                {expanded ? (
+                  <div className="inlineTaskDetails">
+                    <label className="noteEditorLabel">Заметка к задаче</label>
+                    <textarea className="noteEditor" value={noteValue} onChange={(event) => setNotesDraft((drafts) => ({ ...drafts, [item.id]: event.target.value }))} placeholder="Короткая заметка, уточнение или контекст по задаче" />
+                    <div className="noteEditorActions">
+                      <span>Сохраняется в Notion в заметки задачи.</span>
+                      <button disabled={!patchable || busyTaskId === item.sourceId} onClick={() => onSaveNote(item, noteValue)}>{busyTaskId === item.sourceId ? 'Сохраняю…' : 'Сохранить'}</button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="emptySide"><b>{viewMode === 'done' ? 'Выполненных задач нет' : 'Список пуст'}</b><p>{viewMode === 'done' ? 'Когда задачи будут помечены Done, они появятся здесь и их можно будет вернуть обратно.' : 'Backend подключён, но у этой ветки пока нет элементов для списка.'}</p></div>
+      )}
+      {dragPreview ? (
+        <div className="lifeDragGhost" style={{ left: dragPreview.x, top: dragPreview.y }}>
+          <button className="sideItemMain"><span>{dragPreview.icon}</span><div><b>{dragPreview.title}</b></div></button>
+        </div>
+      ) : null}
+    </aside>
+  );
 }
 
 function DetailCard({ node, onClose, onComplete, onRestore, onOpenMenu, busyTaskId }) {
   if (!node) return null;
   const patchable = canPatchTask(node);
   const done = isDoneNode(node);
-  return <motion.aside className="detailCard compactDetail" onContextMenu={(event) => onOpenMenu(node, event)} onClick={(event) => event.stopPropagation()} initial={{ y: 18, opacity: 0, scale: .98 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: 18, opacity: 0, scale: .98 }}><button className="closeDetail" onClick={onClose}>×</button><div className="detailHead"><span>{node.icon}</span><div><small>{node.subtitle || 'Задача'}</small><h2>{node.title}</h2></div><Ring value={node.progress} /></div><p>{node.summary || 'Описание пока не заполнено.'}</p>{patchable ? <div className="detailActions"><button className={done ? 'restoreButton' : 'doneButton'} disabled={busyTaskId === node.sourceId} onClick={() => done ? onRestore(node) : onComplete(node)}>{busyTaskId === node.sourceId ? 'Сохраняю…' : done ? 'Вернуть в работу' : 'Пометить выполненной'}</button></div> : null}{node.details?.length ? <div className="detailList compactDetailList">{node.details.slice(0, 4).map((item, index) => <div key={index}><b>{index + 1}.</b>{item}</div>)}</div> : null}</motion.aside>;
+  return (
+    <motion.aside className="detailCard compactDetail" onContextMenu={(event) => onOpenMenu(node, event)} onClick={(event) => event.stopPropagation()} initial={{ y: 18, opacity: 0, scale: .98 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: 18, opacity: 0, scale: .98 }}>
+      <button className="closeDetail" onClick={onClose}>×</button>
+      <div className="detailHead"><span>{node.icon}</span><div><small>{node.subtitle || 'Задача'}</small><h2>{node.title}</h2></div><Ring value={node.progress} /></div>
+      <p>{node.summary || 'Описание пока не заполнено.'}</p>
+      {patchable ? <div className="detailActions"><button className={done ? 'restoreButton' : 'doneButton'} disabled={busyTaskId === node.sourceId} onClick={() => done ? onRestore(node) : onComplete(node)}>{busyTaskId === node.sourceId ? 'Сохраняю…' : done ? 'Вернуть в работу' : 'Пометить выполненной'}</button></div> : null}
+    </motion.aside>
+  );
 }
 
 function UtilityPanel({ type, rootMap, errors, onClose, onRestore, busyTaskId }) {
   if (!type) return null;
   const doneItems = uniqueBySource(flattenNodes(rootMap).filter((node) => node.kind === 'task' && isDoneNode(node)));
-  return <motion.aside className="utilityPanel" onClick={(event) => event.stopPropagation()} initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 24, opacity: 0 }}><button className="closeDetail" onClick={onClose}>×</button><h2>{type === 'errors' ? 'Ошибки навигатора' : 'Выполненные задачи'}</h2>{type === 'errors' ? <div className="panelList errorList">{errors.length ? errors.map((error, index) => <div key={index}><b>Ошибка {index + 1}</b><span>{error}</span></div>) : <div><b>Ошибок нет</b><span>Backend и frontend сейчас не сообщают о проблемах.</span></div>}</div> : <div className="panelList donePanelList">{doneItems.length ? doneItems.map((node) => <div className="donePanelRow" key={node.id}><div><b>{node.title}</b><span>{node.raw?.project || 'Done'}</span></div><button className="restoreMini" disabled={busyTaskId === node.sourceId} onClick={() => onRestore(node)}>{busyTaskId === node.sourceId ? '…' : 'Вернуть'}</button></div>) : <div><b>Выполненных задач нет</b><span>Когда задача будет закрыта, она появится здесь.</span></div>}</div>}</motion.aside>;
+  return (
+    <motion.aside className="utilityPanel" onClick={(event) => event.stopPropagation()} initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 24, opacity: 0 }}>
+      <button className="closeDetail" onClick={onClose}>×</button>
+      <h2>{type === 'errors' ? 'Ошибки LifeMap' : 'Выполненные задачи'}</h2>
+      {type === 'errors' ? (
+        <div className="panelList errorList">{errors.length ? errors.map((error, index) => <div key={index}><b>Ошибка {index + 1}</b><span>{error}</span></div>) : <div><b>Ошибок нет</b><span>Backend и frontend сейчас не сообщают о проблемах.</span></div>}</div>
+      ) : (
+        <div className="panelList donePanelList">{doneItems.length ? doneItems.map((node) => <div className="donePanelRow" key={node.id}><div><b>{node.title}</b><span>{node.raw?.project || 'Done'}</span></div><button className="restoreMini" disabled={busyTaskId === node.sourceId} onClick={() => onRestore(node)}>{busyTaskId === node.sourceId ? '…' : 'Вернуть'}</button></div>) : <div><b>Выполненных задач нет</b><span>Когда задача будет закрыта, она появится здесь.</span></div>}</div>
+      )}
+    </motion.aside>
+  );
 }
 
 function ContextMenu({ menu, onClose, onFocusNow, onFocusNext, onRename }) {
   if (!menu) return null;
   const renamable = canRenameNode(menu.node);
-  return <div className="contextMenu" style={{ left: menu.x, top: menu.y }} onClick={(event) => event.stopPropagation()}><b>{shortText(menu.node.title, 44)}</b>{renamable ? <button onClick={() => onRename(menu.node)}>Переименовать</button> : null}<button onClick={() => onFocusNow(menu.node)}>Сделать текущим фокусом</button><button onClick={() => onFocusNext(menu.node)}>Поставить следующим</button><button onClick={onClose}>Закрыть</button></div>;
+  return (
+    <div className="contextMenu" style={{ left: menu.x, top: menu.y }} onClick={(event) => event.stopPropagation()}>
+      <b>{shortText(menu.node.title, 44)}</b>
+      {renamable ? <button onClick={() => onRename(menu.node)}>Переименовать</button> : null}
+      <button onClick={() => onFocusNow(menu.node)}>Сделать текущим фокусом</button>
+      <button onClick={() => onFocusNext(menu.node)}>Поставить следующим</button>
+      <button onClick={onClose}>Закрыть</button>
+    </div>
+  );
 }
 
 function App() {
@@ -413,7 +605,9 @@ function App() {
 
   const loadSnapshot = useCallback(() => {
     setApiState((state) => state === 'api offline' ? 'loading' : state);
-    return fetchSnapshot().then((data) => { setSnapshot(data); setApiState(data.meta?.source?.includes('mock') ? 'mock data' : 'connected'); return data; }).catch((error) => { setSnapshot(emptySnapshot('api-offline', error.message)); setApiState('api offline'); setErrorLog((items) => [`Snapshot: ${error.message}`, ...items].slice(0, 8)); throw error; });
+    return fetchSnapshot()
+      .then((data) => { setSnapshot(data); setApiState(data.meta?.source?.includes('mock') ? 'mock data' : 'connected'); return data; })
+      .catch((error) => { setSnapshot(emptySnapshot('api-offline', error.message)); setApiState('api offline'); setErrorLog((items) => [`Snapshot: ${error.message}`, ...items].slice(0, 8)); throw error; });
   }, []);
 
   useEffect(() => { loadSnapshot().catch(() => {}); }, [loadSnapshot]);
@@ -426,10 +620,9 @@ function App() {
   const focusQueueItems = useMemo(() => buildFocusSequence(rootMap, activeFocus, focusQueue), [rootMap, activeFocus, focusQueue]);
   const currentId = route[route.length - 1];
   const currentMap = useMemo(() => findNode(rootMap, currentId), [rootMap, currentId]);
-  const itemsOnSide = listItems(currentMap);
   const canBack = route.length > 1;
   const currentHasBranch = hasBranch(currentMap);
-  const showSideList = canBack && !currentHasBranch && itemsOnSide.length > 0;
+  const showSideList = canBack && !currentHasBranch;
   const errors = useMemo(() => [...(snapshot.meta?.warnings || []), ...errorLog].filter(Boolean), [snapshot.meta?.warnings, errorLog]);
 
   useEffect(() => { setViewMode(currentId === 'sphere-done' ? 'done' : 'active'); }, [currentId]);
@@ -438,7 +631,8 @@ function App() {
   const goBack = () => { setRoute((prev) => prev.length > 1 ? prev.slice(0, -1) : prev); setSelected(null); setPanel(null); setContextMenu(null); };
   const goCenter = () => { setRoute(['root']); setSelected(null); setPanel(null); setContextMenu(null); };
   const openMenu = (node, eventOrPoint) => {
-    eventOrPoint?.preventDefault?.(); eventOrPoint?.stopPropagation?.();
+    eventOrPoint?.preventDefault?.();
+    eventOrPoint?.stopPropagation?.();
     const x = Math.min(eventOrPoint?.clientX ?? window.innerWidth / 2, window.innerWidth - 230);
     const y = Math.min(eventOrPoint?.clientY ?? window.innerHeight / 2, window.innerHeight - 180);
     setContextMenu({ node, x: Math.max(12, x), y: Math.max(12, y) });
@@ -496,8 +690,9 @@ function App() {
     }
   };
 
-  const completeTask = (node) => updateTask(node, { status: 'Done', progress: 100, nextAction: 'Done: выполнено через Life OS Map.' }, 'Готово: задача помечена Done в Notion.');
-  const restoreTask = (node) => updateTask(node, { status: 'Next', progress: 0, nextAction: 'Returned from Done via Life OS Map.' }, 'Готово: задача возвращена в активный список.');
+  const completeTask = (node) => updateTask(node, { status: 'Done', progress: 100, nextAction: 'Done: выполнено через LifeMap.' }, 'Готово: задача помечена Done в Notion.');
+  const restoreTask = (node) => updateTask(node, { status: 'Next', progress: 0, nextAction: 'Вернуть в работу через LifeMap.' }, 'Готово: задача возвращена в активный список.');
+  const saveNote = (node, note) => updateTask(node, { sessionNotes: note }, 'Заметка обновлена в Notion.');
 
   const reorderList = async (orderedItems) => {
     const patchableItems = orderedItems.filter((item) => canPatchTask(item) && !isDoneNode(item));
@@ -525,7 +720,7 @@ function App() {
     if (!item) return;
     setFocusQueue((queue) => [item, ...queue.filter((next) => (item.sourceId && next.sourceId !== item.sourceId) || (!item.sourceId && next.id !== item.id))].slice(0, 12));
     setContextMenu(null);
-    if (canPatchTask(target)) updateTask(target, { status: 'Now', nextAction: target.summary || target.raw?.nextAction || '' }, 'Текущий фокус обновлён.');
+    if (canPatchTask(target)) updateTask(target, { status: 'Now', nextAction: target.raw?.nextAction || target.summary || '' }, 'Текущий фокус обновлён.');
     else { setToast('Текущий фокус обновлён локально.'); setTimeout(() => setToast(''), 2000); }
   };
 
@@ -538,11 +733,27 @@ function App() {
       return clean.length ? [clean[0], item, ...clean.slice(1)].slice(0, 12) : [item];
     });
     setContextMenu(null);
-    if (canPatchTask(target)) updateTask(target, { status: 'Next', nextAction: target.summary || target.raw?.nextAction || '' }, 'Задача поставлена следующей.');
+    if (canPatchTask(target)) updateTask(target, { status: 'Next', nextAction: target.raw?.nextAction || target.summary || '' }, 'Задача поставлена следующей.');
     else { setToast('Задача поставлена следующей локально.'); setTimeout(() => setToast(''), 2000); }
   };
 
-  return <main className={`app actionApp ${showSideList ? 'hasSideList branchView' : ''}`} onClick={() => { setPanel(null); setContextMenu(null); }}><Stars /><TopNav canBack={canBack} onBack={goBack} onCenter={goCenter} apiState={dataState(snapshot, apiState)} errorCount={errors.length} onErrors={() => setPanel('errors')} /><MissionPanel focus={activeFocus} focusQueueItems={focusQueueItems} snapshot={snapshot} apiState={apiState} onDone={() => setPanel('done')} /><AnimatePresence mode="wait"><OrbitMap key={currentMap.id} map={currentMap} hasSide={showSideList} onOpen={openNode} onSelect={(node) => { setSelected(node); setPanel(null); setContextMenu(null); }} onOpenMenu={openMenu} /></AnimatePresence>{showSideList ? <SideList map={currentMap} snapshot={snapshot} viewMode={viewMode} setViewMode={setViewMode} onOpen={openNode} onComplete={completeTask} onRestore={restoreTask} onReorderList={reorderList} onOpenMenu={openMenu} busyTaskId={busyTaskId} /> : null}<AnimatePresence>{selected ? <DetailCard key={selected.id} node={selected} onClose={() => setSelected(null)} onComplete={completeTask} onRestore={restoreTask} onOpenMenu={openMenu} busyTaskId={busyTaskId} /> : null}{panel ? <UtilityPanel key={panel} type={panel} rootMap={rootMap} errors={errors} onClose={() => setPanel(null)} onRestore={restoreTask} busyTaskId={busyTaskId} /> : null}</AnimatePresence><ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} onFocusNow={setFocusNow} onFocusNext={setFocusNext} onRename={renameNode} />{toast ? <div className="toast">{toast}</div> : null}</main>;
+  return (
+    <main className={`app actionApp ${showSideList ? 'hasSideList branchView' : ''}`} onClick={() => { setPanel(null); setContextMenu(null); }}>
+      <Stars />
+      <TopNav canBack={canBack} onBack={goBack} onCenter={goCenter} apiState={dataState(snapshot, apiState)} errorCount={errors.length} onErrors={() => setPanel('errors')} />
+      <MissionPanel focus={activeFocus} focusQueueItems={focusQueueItems} snapshot={snapshot} apiState={apiState} onDone={() => setPanel('done')} />
+      <AnimatePresence mode="wait">
+        <OrbitMap key={currentMap.id} map={currentMap} hasSide={showSideList} onOpen={openNode} onSelect={(node) => { setSelected(node); setPanel(null); setContextMenu(null); }} onOpenMenu={openMenu} />
+      </AnimatePresence>
+      {showSideList ? <SideList map={currentMap} viewMode={viewMode} setViewMode={setViewMode} onOpen={openNode} onComplete={completeTask} onRestore={restoreTask} onReorderList={reorderList} onOpenMenu={openMenu} onSaveNote={saveNote} busyTaskId={busyTaskId} /> : null}
+      <AnimatePresence>
+        {selected ? <DetailCard key={selected.id} node={selected} onClose={() => setSelected(null)} onComplete={completeTask} onRestore={restoreTask} onOpenMenu={openMenu} busyTaskId={busyTaskId} /> : null}
+        {panel ? <UtilityPanel key={panel} type={panel} rootMap={rootMap} errors={errors} onClose={() => setPanel(null)} onRestore={restoreTask} busyTaskId={busyTaskId} /> : null}
+      </AnimatePresence>
+      <ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} onFocusNow={setFocusNow} onFocusNext={setFocusNext} onRename={renameNode} />
+      {toast ? <div className="toast">{toast}</div> : null}
+    </main>
+  );
 }
 
 createRoot(document.getElementById('root')).render(<App />);
