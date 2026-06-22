@@ -19,6 +19,17 @@ function taskCode(item) {
   return item.code || item.raw?.code || item.icon || 'LM';
 }
 
+const codeBadgeStyle = {
+  width: 'auto',
+  minWidth: 56,
+  padding: '0 8px',
+  fontSize: 10,
+  letterSpacing: '0.035em',
+  whiteSpace: 'nowrap',
+};
+
+const taskMainStyle = { gridTemplateColumns: 'minmax(56px, auto) minmax(0, 1fr)' };
+
 export function SideList({ map, viewMode, setViewMode, onOpen, onComplete, onRestore, onReorderList, onOpenMenu, onSaveNote, busyTaskId }) {
   const items = listItems(map).filter((item) => isLeafNode(item));
   const [dragId, setDragId] = useState(null);
@@ -141,8 +152,8 @@ export function SideList({ map, viewMode, setViewMode, onOpen, onComplete, onRes
             const code = taskCode(item);
             return (
               <div className={`sideItemRow ${done ? 'doneRow' : ''} ${expanded ? 'expandedRow' : ''} ${dragId === item.id ? 'draggingRow' : ''} ${dropClass}`} key={item.id} data-reorder-id={patchable && !done ? item.id : undefined} onContextMenu={(event) => onOpenMenu(item, event)}>
-                <button className="sideItemMain" onClick={() => nested && !isLeafNode(item) ? onOpen(item.id) : setExpandedId((current) => current === item.id ? null : item.id)}>
-                  <span className="taskCodeBadge" title={`Код задачи: ${code}`}>{code}</span><div><b>{item.title}</b>{nested ? <small>{`${item.tasks || 0} задач · открыть ветку`}</small> : null}</div>
+                <button className="sideItemMain" style={taskMainStyle} onClick={() => nested && !isLeafNode(item) ? onOpen(item.id) : setExpandedId((current) => current === item.id ? null : item.id)}>
+                  <span className="taskCodeBadge" style={codeBadgeStyle} title={`Код задачи: ${code}`}>{code}</span><div><b>{item.title}</b>{nested ? <small>{`${item.tasks || 0} задач · открыть ветку`}</small> : null}</div>
                 </button>
                 <div className="rowActions">
                   {isLeafNode(item) ? <button className="expandMini" title="Развернуть" onClick={(event) => { event.stopPropagation(); setExpandedId((current) => current === item.id ? null : item.id); }}><ChevronDown open={expanded} /></button> : null}
@@ -167,7 +178,7 @@ export function SideList({ map, viewMode, setViewMode, onOpen, onComplete, onRes
       )}
       {dragPreview ? (
         <div className="lifeDragGhost" style={{ left: dragPreview.x, top: dragPreview.y }}>
-          <button className="sideItemMain"><span className="taskCodeBadge">{dragPreview.code}</span><div><b>{dragPreview.title}</b></div></button>
+          <button className="sideItemMain" style={taskMainStyle}><span className="taskCodeBadge" style={codeBadgeStyle}>{dragPreview.code}</span><div><b>{dragPreview.title}</b></div></button>
         </div>
       ) : null}
     </aside>
