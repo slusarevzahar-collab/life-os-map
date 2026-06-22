@@ -6,7 +6,7 @@ import './action-map-overrides.css';
 import './action-map-latest.css';
 import './lifemap-progress.css';
 
-import { buildActionMap, findNode } from './lib/actionMapModel.js';
+import { buildActionMap, findNode, isLeafNode } from './lib/actionMapModel.js';
 import { CUSTOM_OBJECTS_KEY, FOCUS_STORAGE_KEY, TITLE_ALIASES_KEY } from './constants/lifeMap.js';
 import { dataState, emptySnapshot, fetchSnapshot, patchItemTitle, patchTask } from './lib/lifeMapRuntime.js';
 import {
@@ -15,7 +15,7 @@ import {
   canPatchTask,
   canRenameNode,
   focusCandidateFromNode,
-  hasBranch,
+  listItems,
   resolveFocus,
   toFocusItem,
 } from './lib/lifeMapSelectors.js';
@@ -74,6 +74,10 @@ function attachCustomObjects(node, customObjects = {}) {
   };
 }
 
+function hasTaskSideList(node) {
+  return listItems(node).some((item) => isLeafNode(item));
+}
+
 function App() {
   const [snapshot, setSnapshot] = useState(() => emptySnapshot('loading'));
   const [apiState, setApiState] = useState('loading');
@@ -117,8 +121,7 @@ function App() {
   const currentId = route[route.length - 1];
   const currentMap = useMemo(() => findNode(rootMap, currentId), [rootMap, currentId]);
   const canBack = route.length > 1;
-  const currentHasBranch = hasBranch(currentMap);
-  const showSideList = canBack && !currentHasBranch;
+  const showSideList = canBack && hasTaskSideList(currentMap);
   const errors = useMemo(() => [...(snapshot.meta?.warnings || []), ...errorLog].filter(Boolean), [snapshot.meta?.warnings, errorLog]);
 
   useEffect(() => { setViewMode(currentId === 'sphere-done' ? 'done' : 'active'); }, [currentId]);
@@ -148,7 +151,7 @@ function App() {
     eventOrPoint?.preventDefault?.();
     eventOrPoint?.stopPropagation?.();
     const x = Math.min(eventOrPoint?.clientX ?? window.innerWidth / 2, window.innerWidth - 230);
-    const y = Math.min(eventOrPoint?.clientY ?? window.innerHeight / 2, window.innerHeight - 180);
+    const y = Math.min(eventOrPoint?.clientY ?? window.innerHeight / 2, window.innerHeight - 220);
     setContextMenu({ node, x: Math.max(12, x), y: Math.max(12, y) });
   };
 
@@ -164,6 +167,29 @@ function App() {
     setContextMenu(null);
     setToast('Новая планета создана локально в этом уровне LifeMap.');
     setTimeout(() => setToast(''), 2400);
+  };
+
+  const deleteObject = (node) => {
+    if (!node?.raw?.local) return;
+    setCustomObjects((items) => {
+      const next = { ...items };
+      Object.keys(next).forEach((parentId) => {
+        next[parentId] = next[parentId].filter((item) => item.id !== node.id);
+        if (!next[parentId].length) delete next[parentId];
+      });
+      delete next[node.id];
+      return next;
+    });
+    setTitleAliases((aliases) => {
+      const next = { ...aliases };
+      delete next[node.id];
+      return next;
+    });
+    setRoute((prev) => prev.includes(node.id) ? prev.slice(0, Math.max(1, prev.indexOf(node.id))) : prev);
+    setSelected(null);
+    setContextMenu(null);
+    setToast('Локальный объект удалён из LifeMap.');
+    setTimeout(() => setToast(''), 2200);
   };
 
   const updateTask = async (node, payload, successText) => {
@@ -284,7 +310,7 @@ function App() {
         {selected ? <DetailCard key={selected.id} node={selected} onClose={() => setSelected(null)} onComplete={completeTask} onRestore={restoreTask} onOpenMenu={openMenu} busyTaskId={busyTaskId} /> : null}
         {panel ? <UtilityPanel key={panel} type={panel} rootMap={rootMap} errors={errors} onClose={() => setPanel(null)} onRestore={restoreTask} busyTaskId={busyTaskId} /> : null}
       </AnimatePresence>
-      <ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} onFocusNow={setFocusNow} onFocusNext={setFocusNext} onRename={renameNode} onCreateObject={createObject} />
+      <ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} onFocusNow={setFocusNow} onFocusNext={setFocusNext} onRename={renameNode} onCreateObject={createObject} onDeleteObject={deleteObject} />
       {toast ? <div className="toast">{toast}</div> : null}
     </main>
   );
