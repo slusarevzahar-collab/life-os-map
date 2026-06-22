@@ -4,6 +4,13 @@ import { canPatchTask, hasBranch, listItems } from '../lib/lifeMapSelectors.js';
 import { DRAG_THRESHOLD } from '../constants/lifeMap.js';
 import { ChevronDown } from './ChevronDown.jsx';
 
+function progressLabel(item) {
+  const progress = Math.max(0, Math.min(100, Math.round(Number(item.progress) || 0)));
+  const done = Number(item.completedTasks) || 0;
+  const total = Number(item.totalTasks) || 0;
+  return total > 0 ? `${progress}% · ${done}/${total}` : `${progress}%`;
+}
+
 export function SideList({ map, viewMode, setViewMode, onOpen, onComplete, onRestore, onReorderList, onOpenMenu, onSaveNote, busyTaskId }) {
   const items = listItems(map);
   const hasPlanetChildren = hasBranch(map);
@@ -107,7 +114,7 @@ export function SideList({ map, viewMode, setViewMode, onOpen, onComplete, onRes
 
   return (
     <aside className="sideList" onClick={(event) => event.stopPropagation()}>
-      <div className="sideListHead"><div><small>{viewMode === 'done' ? 'Выполненные задачи' : 'Задачи ветки'}</small><strong>{map.title}</strong></div><b>{visibleItems.length}</b></div>
+      <div className="sideListHead"><div><small>{viewMode === 'done' ? 'Выполненные задачи' : 'Задачи ветки'}</small><strong>{map.title}</strong></div><b>{progressLabel(map)}</b></div>
       <div className="sideTabs">
         <button className={viewMode === 'active' ? 'active' : ''} onClick={() => setViewMode('active')}>Активные <span>{activeItems.length}</span></button>
         <button className={viewMode === 'done' ? 'active' : ''} onClick={() => setViewMode('done')}>Сделано <span>{doneItems.length}</span></button>
@@ -124,7 +131,7 @@ export function SideList({ map, viewMode, setViewMode, onOpen, onComplete, onRes
             return (
               <div className={`sideItemRow ${done ? 'doneRow' : ''} ${expanded ? 'expandedRow' : ''} ${dragId === item.id ? 'draggingRow' : ''} ${dropClass}`} key={item.id} data-reorder-id={patchable && !done ? item.id : undefined} onContextMenu={(event) => onOpenMenu(item, event)}>
                 <button className="sideItemMain" onClick={() => nested && !isLeafNode(item) ? onOpen(item.id) : setExpandedId((current) => current === item.id ? null : item.id)}>
-                  <span>{item.icon}</span><div><b>{item.title}</b>{nested ? <small>{`${item.tasks || 0} задач · открыть ветку`}</small> : null}</div>
+                  <span>{item.icon}</span><div><b>{item.title}</b><small className="sideItemProgress">{progressLabel(item)}</small>{nested ? <small>{`${item.tasks || 0} задач · открыть ветку`}</small> : null}</div>
                 </button>
                 <div className="rowActions">
                   {isLeafNode(item) ? <button className="expandMini" title="Развернуть" onClick={(event) => { event.stopPropagation(); setExpandedId((current) => current === item.id ? null : item.id); }}><ChevronDown open={expanded} /></button> : null}
