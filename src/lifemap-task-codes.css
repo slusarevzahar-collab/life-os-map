@@ -1,0 +1,42 @@
+.noteEditorActions span,
+.noteEditorHint,
+.nextActionHint,
+.notionFieldHint {
+  display: none !important;
+}
+
+.noteEditorActions {
+  justify-content: flex-end !important;
+}
+
+.sideItemMain .taskCodeBadge,
+.sideItems .taskCodeBadge,
+.lifeDragGhost .taskCodeBadge {
+  display: inline-grid !important;
+  place-items: center !important;
+  width: auto !important;
+  min-width: 56px !important;
+  height: 38px !important;
+  padding: 0 8px !important;
+  border: 1px solid rgba(103, 232, 249, 0.12);
+  border-radius: 13px !important;
+  color: #67e8f9 !important;
+  background: rgba(103, 232, 249, 0.1) !important;
+  font-size: 10px !important;
+  font-weight: 1000 !important;
+  letter-spacing: 0.035em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.lifeDragGhost .taskCodeBadge {
+  min-width: 64px !important;
+}
+
+@media (max-width: 900px) {
+  .sideItemMain .taskCodeBadge,
+  .sideItems .taskCodeBadge {
+    min-width: 50px !important;
+    font-size: 9px !important;
+  }
+}
