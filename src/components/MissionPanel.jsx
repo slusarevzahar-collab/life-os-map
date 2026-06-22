@@ -10,6 +10,7 @@ export function MissionPanel({ focus, focusQueueItems, snapshot, apiState, onDon
   const currentTitle = focus?.title || 'Фокус не выбран';
   const nextItem = focusQueueItems?.[1];
   const nextAction = nextItem?.title || focus?.nextAction || 'Следующий шаг не указан.';
+  const queueItems = (focusQueueItems || []).slice(2, 12);
 
   if (!open) {
     const label = isOffline ? 'API OFFLINE' : isMock ? 'MOCK DATA' : isLoading ? 'LOADING' : 'ФОКУС СЕЙЧАС';
@@ -24,7 +25,7 @@ export function MissionPanel({ focus, focusQueueItems, snapshot, apiState, onDon
   }
 
   return (
-    <section className="mission" onClick={(event) => event.stopPropagation()}>
+    <section className={`mission ${queueOpen ? 'queueExpanded' : ''}`} onClick={(event) => event.stopPropagation()}>
       <button className="collapseMission" onClick={() => setOpen(false)}>Свернуть</button>
       <div className="missionTop">
         <div>
@@ -38,17 +39,17 @@ export function MissionPanel({ focus, focusQueueItems, snapshot, apiState, onDon
       <div className="missionLine nextLine">Далее: {nextAction}</div>
       <div className="focusControls">
         <button className="queueToggle" onClick={() => setQueueOpen((value) => !value)}>
-          {queueOpen ? 'Скрыть очередь' : `Очередь ${Math.max((focusQueueItems?.length || 1) - 1, 0)}`} <ChevronDown open={queueOpen} />
+          {queueOpen ? 'Скрыть очередь' : `Очередь ${queueItems.length}`} <ChevronDown open={queueOpen} />
         </button>
         <button className="doneArchiveButton" onClick={onDone}>Выполнено</button>
       </div>
       {queueOpen ? (
         <div className="focusQueueList">
-          {focusQueueItems?.slice(0, 10).map((item, index) => (
-            <div key={`${item.sourceId || item.id}-${index}`} className={index === 0 ? 'current' : ''}>
-              <b>{index === 0 ? 'Сейчас' : index}</b><span>{item.title}</span>
+          {queueItems.length ? queueItems.map((item, index) => (
+            <div key={`${item.sourceId || item.id}-${index}`}>
+              <b>{index + 1}</b><span>{item.title}</span>
             </div>
-          ))}
+          )) : <div className="emptyQueue"><b>—</b><span>Дополнительной очереди пока нет.</span></div>}
         </div>
       ) : null}
     </section>
