@@ -32,6 +32,21 @@ function iconFor(title = '', fallback = 'ND') {
   return `${words[0][0] || ''}${words[1][0] || ''}`.toUpperCase();
 }
 
+function stableThreeDigits(value = '') {
+  const source = clean(value) || 'task';
+  let hash = 0;
+  for (let index = 0; index < source.length; index += 1) {
+    hash = ((hash * 31) + source.charCodeAt(index)) >>> 0;
+  }
+  return String(100 + (hash % 900)).padStart(3, '0');
+}
+
+function stableTaskCode(task) {
+  if (task?.code) return task.code;
+  const prefix = iconFor(task?.project || task?.goalName || task?.title, 'TS').replace(/[^A-Z0-9А-Я₽]/g, '').slice(0, 3) || 'TS';
+  return `${prefix}-${stableThreeDigits(task?.id || task?.title)}`;
+}
+
 function statusState(status = '') {
   const normalized = normalizeStatus(status);
   if (normalized === 'now' || normalized === 'progress') return 'active';
@@ -74,6 +89,7 @@ function taskToLeaf(task) {
     sourceId: task.id,
     title: task.title || 'Задача',
     icon: iconFor(task.project || task.goalName || task.title, 'TS'),
+    code: stableTaskCode(task),
     status: task.status || 'задача',
     state: statusState(task.status),
     progress: done ? 100 : 0,
@@ -97,6 +113,7 @@ function signalToLeaf(signal) {
     sourceId: signal.id,
     title: signal.title || 'Сигнал',
     icon: 'IN',
+    code: `IN-${stableThreeDigits(signal.id || signal.title)}`,
     status: signal.status || signal.type || 'signal',
     state,
     progress: done ? 100 : 0,
@@ -120,6 +137,7 @@ function dreamToLeaf(dream) {
     sourceId: dream.id,
     title: dream.title || 'Желание',
     icon: iconFor(dream.lifeSphere || dream.title, 'DR'),
+    code: `DR-${stableThreeDigits(dream.id || dream.title)}`,
     status: dream.status || dream.type || 'dream',
     state: done ? 'done' : state,
     progress: done ? 100 : 0,
