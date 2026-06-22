@@ -30,9 +30,10 @@ export const mockSnapshot = {
   tasks: [
     {
       id: 'task_lifemap',
+      code: 'LM-100',
       title: 'Подготовить Notion data adapter для LifeMap',
-      project: 'Life OS',
-      goalName: 'Life OS',
+      project: 'LifeMap',
+      goalName: 'LifeMap',
       status: 'in_progress',
       progress: 55,
       priority: 1,
@@ -85,13 +86,49 @@ function normalizeKey(value = '') {
   return String(value).toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9]+/g, ' ').trim();
 }
 
+function stableThreeDigits(value = '') {
+  const source = String(value || 'task');
+  let hash = 0;
+  for (let index = 0; index < source.length; index += 1) {
+    hash = ((hash * 31) + source.charCodeAt(index)) >>> 0;
+  }
+  return String(100 + (hash % 900)).padStart(3, '0');
+}
+
+function codePrefix(project = '', title = '', goalName = '') {
+  const text = normalizeKey(`${project} ${goalName} ${title}`);
+  if (text.includes('lifemap') || text.includes('life os') || text.includes('navigator') || text.includes('навиг')) return 'LM';
+  if (text.includes('sleda') || text.includes('след')) return 'SD';
+  if (text.includes('inbox') || text.includes('telegram') || text.includes('бот')) return 'IN';
+  if (text.includes('content') || text.includes('контент')) return 'CT';
+  if (text.includes('github') || text.includes('codex')) return 'GH';
+  if (text.includes('4life') || text.includes('for life')) return '4L';
+  if (text.includes('yandex') || text.includes('яндекс')) return 'YA';
+  const words = String(project || goalName || title || 'task').trim().split(/\s+/).filter(Boolean);
+  if (words.length >= 2) return `${words[0][0] || 'T'}${words[1][0] || 'S'}`.toUpperCase();
+  return (words[0] || 'TS').slice(0, 2).toUpperCase();
+}
+
+function firstTaskCode(props) {
+  return firstRichText(props, ['Code', 'Task Code', 'Код', 'ID', 'Short ID']) || firstTitle(props, ['Code', 'Task Code', 'Код', 'ID', 'Short ID']);
+}
+
+function makeTaskCode(pageId, props, { project, title, goalName }) {
+  const explicit = firstTaskCode(props);
+  if (explicit) return explicit;
+  return `${codePrefix(project, title, goalName)}-${stableThreeDigits(pageId || title)}`;
+}
+
 function mapNotionTask(page) {
   const props = page.properties || {};
+  const title = firstTitle(props, ['Task', 'Name', 'Название', 'Задача']) || 'Untitled task';
+  const project = firstSelect(props, ['Project', 'Проект']) || 'LifeMap';
   const goalName = firstSelect(props, ['Goal', 'Цель']) || '';
   return {
     id: page.id,
-    title: firstTitle(props, ['Task', 'Name', 'Название', 'Задача']) || 'Untitled task',
-    project: firstSelect(props, ['Project', 'Проект']) || 'Life OS',
+    code: makeTaskCode(page.id, props, { project, title, goalName }),
+    title,
+    project,
     goalName,
     goalKey: normalizeKey(goalName),
     status: firstSelect(props, ['Status', 'Статус']) || 'unknown',
@@ -187,7 +224,7 @@ function mapNotionSession(page) {
     id: page.id,
     title: firstTitle(props, ['Session', 'Name', 'Название', 'Сессия']) || 'Work session',
     task: firstRichText(props, ['Task', 'Задача']) || '',
-    project: firstSelect(props, ['Project', 'Проект']) || 'Life OS',
+    project: firstSelect(props, ['Project', 'Проект']) || 'LifeMap',
     status: firstSelect(props, ['Status', 'Статус']) || 'unknown',
     startedAt: firstDate(props, ['Started At', 'Start', 'Начало']) || null,
     finishedAt: firstDate(props, ['Finished At', 'Finish', 'Конец', 'Завершено']) || null,
@@ -275,7 +312,7 @@ export async function getNotionSnapshot({ notionToken, tasksDbId, goalsDbId, ses
   return {
     meta: {
       source: 'notion-live-workspace',
-      version: '0.8.1',
+      version: '0.8.2',
       updatedAt: new Date().toISOString(),
       warnings,
       connected: {
@@ -289,6 +326,7 @@ export async function getNotionSnapshot({ notionToken, tasksDbId, goalsDbId, ses
     },
     currentFocus: currentFocus ? {
       id: currentFocus.id,
+      code: currentFocus.code,
       title: currentFocus.title,
       project: currentFocus.project,
       status: currentFocus.status,
