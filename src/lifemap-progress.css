@@ -1,3 +1,19 @@
+.mapStage {
+  cursor: grab;
+  touch-action: none;
+}
+
+.mapStage.draggingCanvas {
+  cursor: grabbing;
+}
+
+.mapCanvas {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+
 .mapGlow,
 .orbit,
 .coreNode,
@@ -5,11 +21,23 @@
   top: 50% !important;
 }
 
+.branchView .mapGlow,
+.branchView .orbit,
+.branchView .coreNode,
+.branchView .mapNode.orbitNode {
+  top: 58% !important;
+}
+
 .coreNode {
   cursor: pointer !important;
 }
 
-.coreNode .coreProgress {
+.coreNode .coreProgress,
+.detailList,
+.noteEditorActions span,
+.inlineTaskDetails .helperPill,
+.inlineTaskDetails .fieldHint,
+.inlineTaskDetails .notionHint {
   display: none !important;
 }
 
@@ -53,17 +81,18 @@
 }
 
 .sideItemProgress {
-  display: inline-flex;
-  width: fit-content;
-  margin-top: 2px;
-  padding: 3px 7px;
-  border: 1px solid rgba(103, 232, 249, 0.14);
-  border-radius: 999px;
-  color: rgba(165, 243, 252, 0.78) !important;
-  background: rgba(103, 232, 249, 0.06) !important;
-  font-size: 10px !important;
-  font-weight: 900 !important;
-  line-height: 1 !important;
+  display: none !important;
+}
+
+.contextMenu .dangerAction {
+  color: #fecaca;
+  border-color: rgba(248, 113, 113, 0.24);
+  background: rgba(127, 29, 29, 0.16);
+}
+
+.contextMenu .dangerAction:hover {
+  color: #fff;
+  background: rgba(248, 113, 113, 0.22);
 }
 
 .mission:not(.missionCollapsed) {
@@ -111,6 +140,13 @@
   .coreNode,
   .mapNode.orbitNode {
     top: 52% !important;
+  }
+
+  .branchView .mapGlow,
+  .branchView .orbit,
+  .branchView .coreNode,
+  .branchView .mapNode.orbitNode {
+    top: 60% !important;
   }
 
   .mission:not(.missionCollapsed) {
