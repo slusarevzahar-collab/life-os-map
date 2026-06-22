@@ -36,7 +36,7 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-export function OrbitMap({ map, hasSide, onOpen, onSelect, onOpenMenu }) {
+export function OrbitMap({ map, hasSide, onOpen, onOpenMenu }) {
   const children = topItems(map);
   const isRoot = map.id === 'root';
   const pressTimer = useRef(null);
@@ -111,7 +111,6 @@ export function OrbitMap({ map, hasSide, onOpen, onSelect, onOpenMenu }) {
         </motion.button>
         {children.map((node, index) => {
           const angle = (360 / Math.max(children.length, 1)) * index;
-          const nested = Boolean((node.children || []).length || (node.taskList || []).length);
           const size = planetSize(node.title);
           const fontSize = planetFontSize(node.title);
           const progress = progressValue(node);
@@ -125,7 +124,7 @@ export function OrbitMap({ map, hasSide, onOpen, onSelect, onOpenMenu }) {
               onPointerDown={(event) => startPress(node, event)}
               onPointerUp={clearPress}
               onPointerLeave={clearPress}
-              onClick={() => nested ? onOpen(node.id) : onSelect(node)}
+              onClick={() => onOpen(node.id)}
             >
               <span className="nodeOrb"><em>{node.title}</em><strong>{progress}%</strong></span>
             </button>
