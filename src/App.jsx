@@ -65,7 +65,7 @@ function localObjectNode(parentId, object) {
 
 function attachCustomObjects(node, customObjects = {}) {
   if (!node) return node;
-  const localChildren = (customObjects[node.id] || []).map((item) => localObjectNode(node.id, item));
+  const localChildren = (customObjects[node.id] || []).map((item) => attachCustomObjects(localObjectNode(node.id, item), customObjects));
   const children = [...(node.children || []).map((child) => attachCustomObjects(child, customObjects)), ...localChildren];
   return {
     ...node,
