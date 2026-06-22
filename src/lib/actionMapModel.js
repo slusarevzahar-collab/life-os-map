@@ -17,6 +17,8 @@ function key(value = '') { return clean(value).toLowerCase().replace(/ё/g, 'е'
 function slug(value = '') { return key(value).replace(/[^a-zа-я0-9]+/g, '-').replace(/^-|-$/g, '') || 'item'; }
 function typeKey(value = '') { return key(value); }
 function hasAny(text = '', tokens = []) { const source = key(text); return tokens.some((token) => source.includes(key(token))); }
+function clampPercent(value = 0) { return Math.max(0, Math.min(100, Math.round(Number(value) || 0))); }
+function completionPercent(completed = 0, total = 0, fallback = 0) { return total > 0 ? clampPercent((completed / total) * 100) : clampPercent(fallback); }
 
 function iconFor(title = '', fallback = 'ND') {
   const lower = key(title);
@@ -26,12 +28,6 @@ function iconFor(title = '', fallback = 'ND') {
   if (!words.length) return fallback;
   if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
   return `${words[0][0] || ''}${words[1][0] || ''}`.toUpperCase();
-}
-
-function avg(items = [], field = 'progress') {
-  const values = items.map((item) => Number(item?.[field]) || 0).filter((value) => value >= 0);
-  if (!values.length) return 0;
-  return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
 }
 
 function statusState(status = '') {
@@ -54,7 +50,8 @@ function stateFromItems(items = []) {
   if (items.some((item) => statusState(item.status) === 'active' || item.state === 'active')) return 'active';
   if (items.some((item) => statusState(item.status) === 'next' || item.state === 'next')) return 'next';
   if (items.some((item) => statusState(item.status) === 'paused' || item.state === 'paused')) return 'paused';
-  if (items.some((item) => statusState(item.status) === 'done' || item.state === 'done')) return 'done';
+  if (items.length && items.every((item) => statusState(item.status) === 'done' || item.state === 'done')) return 'done';
+  if (items.some((item) => statusState(item.status) === 'done' || item.state === 'done')) return 'queue';
   return 'queue';
 }
 
@@ -68,6 +65,7 @@ function topTask(tasks = []) {
 
 function taskToLeaf(task) {
   const note = task.sessionNotes || task.notes || '';
+  const done = isDoneTask(task);
   return {
     id: `task-${task.id}`,
     sourceId: task.id,
@@ -75,8 +73,10 @@ function taskToLeaf(task) {
     icon: iconFor(task.project || task.goalName || task.title, 'TS'),
     status: task.status || 'задача',
     state: statusState(task.status),
-    progress: Number(task.progress) || 0,
-    tasks: 1,
+    progress: done ? 100 : 0,
+    tasks: done ? 0 : 1,
+    completedTasks: done ? 1 : 0,
+    totalTasks: 1,
     summary: task.nextAction || note || task.title || 'Следующий шаг пока не указан.',
     details: [note, task.nextAction, task.goalName, task.project, task.dueDate].filter(Boolean),
     children: [],
@@ -87,15 +87,19 @@ function taskToLeaf(task) {
 }
 
 function signalToLeaf(signal) {
+  const state = statusState(signal.status);
+  const done = state === 'done';
   return {
     id: `signal-${signal.id}`,
     sourceId: signal.id,
     title: signal.title || 'Сигнал',
     icon: 'IN',
     status: signal.status || signal.type || 'signal',
-    state: statusState(signal.status),
-    progress: 0,
-    tasks: 1,
+    state,
+    progress: done ? 100 : 0,
+    tasks: done ? 0 : 1,
+    completedTasks: done ? 1 : 0,
+    totalTasks: 1,
     summary: signal.summary || signal.possibleUse || signal.nextAction || 'Сигнал сохранён в AI Inbox.',
     details: [signal.summary, signal.possibleUse, signal.nextAction, signal.sourceUrl, signal.capturedAt].filter(Boolean),
     children: [],
@@ -106,15 +110,19 @@ function signalToLeaf(signal) {
 }
 
 function dreamToLeaf(dream) {
+  const state = statusState(dream.status);
+  const done = state === 'done' || hasAny(dream.status, ['achieved', 'достиг']);
   return {
     id: `dream-${dream.id}`,
     sourceId: dream.id,
     title: dream.title || 'Желание',
     icon: iconFor(dream.lifeSphere || dream.title, 'DR'),
     status: dream.status || dream.type || 'dream',
-    state: statusState(dream.status),
-    progress: hasAny(dream.status, ['achieved', 'достиг']) ? 100 : 0,
-    tasks: 1,
+    state: done ? 'done' : state,
+    progress: done ? 100 : 0,
+    tasks: done ? 0 : 1,
+    completedTasks: done ? 1 : 0,
+    totalTasks: 1,
     summary: dream.nextStep || dream.why || 'Цель, мечта или желание из Notion.',
     details: [dream.lifeSphere, dream.type, dream.why, dream.nextStep].filter(Boolean),
     children: [],
@@ -169,6 +177,9 @@ function countLeaves(node, mode = 'all') {
     if (mode === 'done') return node.state === 'done' ? 1 : 0;
     return 1;
   }
+  if (mode === 'active' && Number.isFinite(Number(node.tasks))) return Number(node.tasks) || 0;
+  if (mode === 'done' && Number.isFinite(Number(node.completedTasks))) return Number(node.completedTasks) || 0;
+  if (mode === 'all' && Number.isFinite(Number(node.totalTasks)) && Number(node.totalTasks) > 0) return Number(node.totalTasks) || 0;
   const list = node.taskList || [];
   if (list.length) {
     if (mode === 'active') return list.filter((item) => item.state !== 'done').length;
@@ -179,14 +190,26 @@ function countLeaves(node, mode = 'all') {
   return childLeaves || node.tasks || 0;
 }
 
+function completionStatsFor(nodes = []) {
+  const total = nodes.reduce((sum, node) => sum + countLeaves(node, 'all'), 0);
+  const completed = nodes.reduce((sum, node) => sum + countLeaves(node, 'done'), 0);
+  return { total, completed, active: Math.max(total - completed, 0), progress: completionPercent(completed, total) };
+}
+
 function makeGroupNode({ id, title, icon, items = [], summary, kind = 'group', children = [], status, details = [], sourceId = null, raw = null }) {
   const leafItems = items.map(taskToLeaf);
-  const activeLeaves = leafItems.filter((item) => item.state !== 'done');
-  const completedLeaves = leafItems.filter((item) => item.state === 'done');
   const childItems = children.length ? children : leafItems;
+  const activeLeaves = leafItems.filter((item) => item.state !== 'done');
+  const stats = leafItems.length ? completionStatsFor(leafItems) : completionStatsFor(childItems);
   const activeChildren = childItems.filter((item) => item.state !== 'done');
-  const state = activeLeaves.length ? stateFromItems(activeLeaves.map((leaf) => leaf.raw || leaf)) : (activeChildren.length ? stateFromItems(activeChildren) : (completedLeaves.length ? 'done' : statusState(status)));
-  const progress = activeLeaves.length ? avg(activeLeaves) : avg(childItems);
+  const state = stats.total && stats.completed === stats.total
+    ? 'done'
+    : activeLeaves.length
+      ? stateFromItems(activeLeaves.map((leaf) => leaf.raw || leaf))
+      : activeChildren.length
+        ? stateFromItems(activeChildren)
+        : statusState(status);
+
   return {
     id,
     sourceId,
@@ -194,11 +217,11 @@ function makeGroupNode({ id, title, icon, items = [], summary, kind = 'group', c
     icon,
     status: status || stateLabel(state),
     state,
-    progress,
-    tasks: activeLeaves.length || childItems.reduce((sum, child) => sum + countLeaves(child, 'active'), 0),
-    completedTasks: completedLeaves.length || childItems.reduce((sum, child) => sum + countLeaves(child, 'done'), 0),
-    totalTasks: leafItems.length || childItems.reduce((sum, child) => sum + countLeaves(child, 'all'), 0),
-    summary: summary || topTask(activeLeaves.map((leaf) => leaf.raw || leaf))?.nextAction || `${title}: ${leafItems.length || childItems.length} элементов.`,
+    progress: completionPercent(stats.completed, stats.total, raw?.progress || 0),
+    tasks: stats.active,
+    completedTasks: stats.completed,
+    totalTasks: stats.total,
+    summary: summary || topTask(activeLeaves.map((leaf) => leaf.raw || leaf))?.nextAction || `${title}: ${stats.completed}/${stats.total} выполнено.`,
     details: details.length ? details : activeLeaves.slice(0, 4).map((task) => task.title),
     children: childItems,
     taskList: leafItems,
@@ -252,21 +275,21 @@ function mergeProjectNodes(declaredNodes = [], fallbackNodes = []) {
     }
     const taskList = uniqById([...(existing.taskList || []), ...(node.taskList || [])]);
     const childLeaves = uniqById([...(existing.children || []), ...(node.children || [])]);
+    const stats = taskList.length ? completionStatsFor(taskList) : completionStatsFor(childLeaves);
     const activeList = taskList.filter((leaf) => leaf.state !== 'done');
-    const doneList = taskList.filter((leaf) => leaf.state === 'done');
     map.set(id, {
       ...existing,
       sourceId: existing.sourceId || node.sourceId || null,
       raw: existing.raw || node.raw || null,
       summary: existing.summary || node.summary,
-      details: uniqById([...activeList, ...doneList]).slice(0, 4).map((item) => item.title),
+      details: uniqById(taskList).slice(0, 4).map((item) => item.title),
       children: childLeaves.length ? childLeaves : taskList,
       taskList,
-      tasks: activeList.length || childLeaves.reduce((sum, child) => sum + countLeaves(child, 'active'), 0),
-      completedTasks: doneList.length || childLeaves.reduce((sum, child) => sum + countLeaves(child, 'done'), 0),
-      totalTasks: taskList.length || childLeaves.reduce((sum, child) => sum + countLeaves(child, 'all'), 0),
-      progress: activeList.length ? avg(activeList) : existing.progress || node.progress || 0,
-      state: activeList.length ? stateFromItems(activeList.map((leaf) => leaf.raw || leaf)) : (doneList.length ? 'done' : existing.state),
+      tasks: stats.active,
+      completedTasks: stats.completed,
+      totalTasks: stats.total,
+      progress: completionPercent(stats.completed, stats.total, existing.progress || node.progress || 0),
+      state: stats.total && stats.completed === stats.total ? 'done' : (activeList.length ? stateFromItems(activeList.map((leaf) => leaf.raw || leaf)) : existing.state),
     });
   });
   return [...map.values()].sort((a, b) => (b.tasks || 0) - (a.tasks || 0));
@@ -317,7 +340,7 @@ function classifySnapshot(snapshot) {
     .filter((item) => LIFE_TYPES.has(typeKey(item.type)))
     .map((area) => areaToProjectNode(area, allTasks));
   const lifeDreams = dreams.filter((dream) => !dream.linkedProject).map(dreamToLeaf);
-  const goalNodes = buildGoals(goals, allTasks).filter((goal) => goal.tasks > 0 || goal.completedTasks > 0 || goal.progress > 0).slice(0, 10);
+  const goalNodes = buildGoals(goals, allTasks).filter((goal) => goal.totalTasks > 0 || goal.progress > 0).slice(0, 10);
   const signalNodes = signals.slice(0, 24).map(signalToLeaf);
   const incomeTasks = byText(activeTasks, ['доход', 'клиент', 'деньги', 'money', 'sales', 'продаж', '4life', 'парсер']).map(taskToLeaf);
   const backlogTasks = activeTasks.filter((task) => ['queue', 'paused'].includes(statusState(task.status))).slice(0, 24).map(taskToLeaf);
@@ -336,20 +359,23 @@ export function buildActionMap(snapshot) {
   const tasks = snapshot.tasks || [];
   const current = snapshot.currentFocus || {};
   const children = classifySnapshot(snapshot);
-  const activeCount = tasks.filter((task) => !isDoneTask(task)).length;
-  const progress = Number(current.progress) || avg(tasks) || 0;
+  const completedTasks = tasks.filter(isDoneTask).length;
+  const totalTasks = tasks.length;
+  const activeCount = Math.max(totalTasks - completedTasks, 0);
+  const progress = completionPercent(completedTasks, totalTasks, current.progress || 0);
   return {
     id: 'root',
     title: 'LifeMap',
     subtitle: 'Центр системы',
     icon: 'LM',
     status: 'центр',
-    state: 'active',
+    state: activeCount ? 'active' : 'done',
     progress,
     tasks: activeCount,
-    completedTasks: tasks.filter(isDoneTask).length,
+    completedTasks,
+    totalTasks,
     summary: 'Главная орбита LifeMap: проекты, цели, AI Inbox, жизнь, доход и идеи на потом.',
-    details: ['Клик по сфере открывает её как новый центр.', 'Задачи выбранной ветки показываются списком справа.', 'Данные приходят из Notion через backend snapshot.'],
+    details: ['Клик по сфере открывает её как новый центр.', 'Задачи выбранной ветки показываются списком справа.', 'Прогресс считается как выполненные задачи / все задачи ветки.'],
     session: {
       current: current.title || 'LifeMap: сделать карту рабочим навигатором',
       next: current.nextAction || 'Выбрать сферу и перейти к ближайшему практическому шагу.',
