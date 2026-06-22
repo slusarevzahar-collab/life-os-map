@@ -84,9 +84,9 @@ app.get('/api/life-os/snapshot', async (_req, res) => {
 
     res.json(makeMockResponse('NOTION_TOKEN or NOTION_TASKS_DB_ID is missing. API is returning mock data.'));
   } catch (error) {
-    console.error('Life OS Notion API error:', error.message);
+    console.error('LifeMap Notion API error:', error.message);
     res.status(500).json({
-      error: 'Failed to build Life OS snapshot',
+      error: 'Failed to build LifeMap snapshot',
       details: error.message,
       fallback: makeMockResponse(error.message),
     });
@@ -98,7 +98,7 @@ app.post('/api/life-os/sessions', async (req, res) => {
     const result = await createWorkSession({ notionToken, sessionsDbId, payload: req.body || {} });
     res.status(201).json({ ok: true, session: result });
   } catch (error) {
-    console.error('Life OS create session error:', error.message);
+    console.error('LifeMap create session error:', error.message);
     res.status(500).json({ ok: false, error: error.message });
   }
 });
@@ -108,7 +108,7 @@ app.patch('/api/life-os/tasks/:id', async (req, res) => {
     const result = await updateTaskEvent({ notionToken, taskId: req.params.id, event: req.body || {} });
     res.json({ ok: true, task: result });
   } catch (error) {
-    console.error('Life OS update task error:', error.message);
+    console.error('LifeMap update task error:', error.message);
     res.status(500).json({ ok: false, error: error.message });
   }
 });
@@ -118,7 +118,7 @@ app.patch('/api/life-os/items/:id/title', async (req, res) => {
     const result = await updateItemTitle({ notionToken, itemId: req.params.id, kind: req.body?.kind, title: req.body?.title });
     res.json({ ok: true, item: result });
   } catch (error) {
-    console.error('Life OS update title error:', error.message);
+    console.error('LifeMap update title error:', error.message);
     res.status(500).json({ ok: false, error: error.message });
   }
 });
@@ -126,7 +126,7 @@ app.patch('/api/life-os/items/:id/title', async (req, res) => {
 app.get('/api/life-os/health', (_req, res) => {
   res.json({
     ok: true,
-    service: 'life-os-api',
+    service: 'lifemap-api',
     port,
     envLoaded,
     endpoints: [
@@ -149,7 +149,7 @@ app.get('/api/life-os/health', (_req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`Life OS API listening on http://localhost:${port}`);
+  console.log(`LifeMap API listening on http://localhost:${port}`);
   console.log(envLoaded ? '.env loaded' : '.env file not found; using shell environment only');
   console.log(notionToken ? 'NOTION_TOKEN is set' : 'NOTION_TOKEN is not set; using mock snapshot');
   console.log(tasksDbId ? 'NOTION_TASKS_DB_ID is set' : 'NOTION_TASKS_DB_ID is not set; using mock snapshot');
