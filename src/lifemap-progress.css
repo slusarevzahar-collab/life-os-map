@@ -55,9 +55,13 @@
 .coreNode .coreProgress,
 .detailList,
 .noteEditorActions span,
+.noteEditorActions > *:not(button),
 .inlineTaskDetails .helperPill,
 .inlineTaskDetails .fieldHint,
-.inlineTaskDetails .notionHint {
+.inlineTaskDetails .notionHint,
+.inlineTaskDetails .nextActionHint,
+.inlineTaskDetails .noteEditorHint,
+.inlineTaskDetails .notionFieldHint {
   display: none !important;
 }
 
@@ -163,6 +167,38 @@
 
 .noteEditorActions {
   justify-content: flex-end !important;
+}
+
+.inlineTitleInput {
+  width: min(100%, 360px);
+  border: 1px solid rgba(103, 232, 249, 0.42);
+  border-radius: 12px;
+  padding: 8px 10px;
+  color: #fff;
+  background: rgba(3, 7, 18, 0.68);
+  box-shadow: 0 0 0 3px rgba(103, 232, 249, 0.1), 0 0 24px rgba(103, 232, 249, 0.18);
+  font: inherit;
+  font-weight: 1000;
+  line-height: 1.08;
+  text-align: center;
+  outline: none;
+}
+
+.taskTitleInput {
+  width: 100%;
+  padding: 6px 8px;
+  text-align: left;
+  font-size: 13px;
+}
+
+.planetTitleInput {
+  max-width: calc(var(--node-size, 118px) - 26px);
+  font-size: var(--node-font, 13px);
+}
+
+.coreNode .planetTitleInput {
+  max-width: 120px;
+  font-size: 18px;
 }
 
 .lifeDialogBackdrop {
