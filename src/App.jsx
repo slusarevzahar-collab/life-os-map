@@ -78,6 +78,29 @@ function hasTaskSideList(node) {
   return listItems(node).some((item) => isLeafNode(item));
 }
 
+function TextInputDialog({ editor, busy, onSubmit, onClose }) {
+  const [value, setValue] = useState(editor?.initialValue || '');
+  if (!editor) return null;
+  const submit = (event) => {
+    event.preventDefault();
+    onSubmit(value);
+  };
+  return (
+    <div className="lifeDialogBackdrop" onClick={onClose}>
+      <form className="lifeDialog" onClick={(event) => event.stopPropagation()} onSubmit={submit}>
+        <small>{editor.mode === 'create' ? 'НОВЫЙ ОБЪЕКТ' : 'РЕДАКТИРОВАНИЕ'}</small>
+        <h2>{editor.title}</h2>
+        <label>{editor.label}</label>
+        <input autoFocus value={value} onChange={(event) => setValue(event.target.value)} placeholder={editor.placeholder} />
+        <div className="lifeDialogActions">
+          <button type="button" onClick={onClose}>Отмена</button>
+          <button type="submit" disabled={busy || !value.trim()}>{busy ? 'Сохраняю…' : editor.confirmText}</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 function App() {
   const [snapshot, setSnapshot] = useState(() => emptySnapshot('loading'));
   const [apiState, setApiState] = useState('loading');
@@ -89,6 +112,8 @@ function App() {
   const [errorLog, setErrorLog] = useState([]);
   const [viewMode, setViewMode] = useState('active');
   const [contextMenu, setContextMenu] = useState(null);
+  const [objectEditor, setObjectEditor] = useState(null);
+  const [editorBusy, setEditorBusy] = useState(false);
   const [focusQueue, setFocusQueue] = useState(() => readStorage(FOCUS_STORAGE_KEY, []));
   const [titleAliases, setTitleAliases] = useState(() => readStorage(TITLE_ALIASES_KEY, {}));
   const [customObjects, setCustomObjects] = useState(() => readStorage(CUSTOM_OBJECTS_KEY, {}));
@@ -155,18 +180,81 @@ function App() {
     setContextMenu({ node, x: Math.max(12, x), y: Math.max(12, y) });
   };
 
-  const createObject = (node) => {
-    const nextTitle = window.prompt('Название нового объекта', 'Новая планета');
-    const title = String(nextTitle || '').trim();
-    if (!title) { setContextMenu(null); return; }
-    const id = `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    setCustomObjects((items) => ({
-      ...items,
-      [node.id]: [...(items[node.id] || []), { id, title, icon: 'OB', createdAt: new Date().toISOString() }],
-    }));
+  const beginCreateObject = (node) => {
     setContextMenu(null);
-    setToast('Новая планета создана локально в этом уровне LifeMap.');
-    setTimeout(() => setToast(''), 2400);
+    setObjectEditor({
+      mode: 'create',
+      node,
+      title: node.title || 'LifeMap',
+      label: 'Название нового объекта',
+      placeholder: 'Например: AI Inbox',
+      initialValue: 'Новая планета',
+      confirmText: 'Создать',
+    });
+  };
+
+  const beginRenameNode = (node) => {
+    if (!canRenameNode(node)) return;
+    setContextMenu(null);
+    setObjectEditor({
+      mode: 'rename',
+      node,
+      title: node.title || 'Объект',
+      label: 'Новое название',
+      placeholder: 'Введите название',
+      initialValue: node.title || '',
+      confirmText: 'Сохранить',
+    });
+  };
+
+  const submitObjectEditor = async (value) => {
+    const title = String(value || '').trim();
+    const editor = objectEditor;
+    if (!editor || !title) return;
+    if (editor.mode === 'create') {
+      const node = editor.node;
+      const id = `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      setCustomObjects((items) => ({
+        ...items,
+        [node.id]: [...(items[node.id] || []), { id, title, icon: 'OB', createdAt: new Date().toISOString() }],
+      }));
+      setObjectEditor(null);
+      setToast('Новая планета создана локально в этом уровне LifeMap.');
+      setTimeout(() => setToast(''), 2400);
+      return;
+    }
+
+    if (editor.mode === 'rename') {
+      const node = editor.node;
+      if (title === node.title) { setObjectEditor(null); return; }
+      if (!node.sourceId) {
+        setTitleAliases((aliases) => ({ ...aliases, [node.id]: title }));
+        setObjectEditor(null);
+        setToast('Название обновлено локально.');
+        setTimeout(() => setToast(''), 2400);
+        return;
+      }
+      setEditorBusy(true);
+      setBusyTaskId(node.sourceId);
+      setToast('Переименовываю в Notion…');
+      try {
+        await patchItemTitle(node, title);
+        setFocusQueue((queue) => queue.map((item) => item.sourceId === node.sourceId ? { ...item, title } : item));
+        await loadSnapshot();
+        setSelected(null);
+        setObjectEditor(null);
+        setToast('Название обновлено в Notion.');
+        setTimeout(() => setToast(''), 2400);
+      } catch (error) {
+        const message = `Rename: ${error.message}`;
+        setToast(`Не переименовалось: ${error.message}`);
+        setErrorLog((items) => [message, ...items].slice(0, 8));
+        setPanel('errors');
+      } finally {
+        setEditorBusy(false);
+        setBusyTaskId(null);
+      }
+    }
   };
 
   const deleteObject = (node) => {
@@ -212,37 +300,6 @@ function App() {
     } catch (error) {
       const message = `Task update: ${error.message}`;
       setToast(`Не сохранилось: ${error.message}`);
-      setErrorLog((items) => [message, ...items].slice(0, 8));
-      setPanel('errors');
-    } finally {
-      setBusyTaskId(null);
-    }
-  };
-
-  const renameNode = async (node) => {
-    if (!canRenameNode(node)) return;
-    const nextTitle = window.prompt('Новое название', node.title || '');
-    const title = String(nextTitle || '').trim();
-    if (!title || title === node.title) { setContextMenu(null); return; }
-    setContextMenu(null);
-    if (!node.sourceId) {
-      setTitleAliases((aliases) => ({ ...aliases, [node.id]: title }));
-      setToast('Название раздела обновлено локально.');
-      setTimeout(() => setToast(''), 2400);
-      return;
-    }
-    setBusyTaskId(node.sourceId);
-    setToast('Переименовываю в Notion…');
-    try {
-      await patchItemTitle(node, title);
-      setFocusQueue((queue) => queue.map((item) => item.sourceId === node.sourceId ? { ...item, title } : item));
-      await loadSnapshot();
-      setSelected(null);
-      setToast('Название обновлено в Notion.');
-      setTimeout(() => setToast(''), 2400);
-    } catch (error) {
-      const message = `Rename: ${error.message}`;
-      setToast(`Не переименовалось: ${error.message}`);
       setErrorLog((items) => [message, ...items].slice(0, 8));
       setPanel('errors');
     } finally {
@@ -303,14 +360,15 @@ function App() {
       <TopNav canBack={canBack} onBack={goBack} onCenter={goCenter} apiState={dataState(snapshot, apiState)} errorCount={errors.length} onErrors={() => setPanel('errors')} />
       <MissionPanel focus={activeFocus} focusQueueItems={focusQueueItems} snapshot={snapshot} apiState={apiState} onDone={() => setPanel('done')} />
       <AnimatePresence mode="wait">
-        <OrbitMap key={currentMap.id} map={currentMap} hasSide={showSideList} onOpen={openNode} onSelect={(node) => { setSelected(node); setPanel(null); setContextMenu(null); }} onOpenMenu={openMenu} />
+        <OrbitMap key={currentMap.id} map={currentMap} hasSide={showSideList} onOpen={openNode} onOpenMenu={openMenu} />
       </AnimatePresence>
       {showSideList ? <SideList map={currentMap} viewMode={viewMode} setViewMode={setViewMode} onOpen={openNode} onComplete={completeTask} onRestore={restoreTask} onReorderList={reorderList} onOpenMenu={openMenu} onSaveNote={saveNote} busyTaskId={busyTaskId} /> : null}
       <AnimatePresence>
         {selected ? <DetailCard key={selected.id} node={selected} onClose={() => setSelected(null)} onComplete={completeTask} onRestore={restoreTask} onOpenMenu={openMenu} busyTaskId={busyTaskId} /> : null}
         {panel ? <UtilityPanel key={panel} type={panel} rootMap={rootMap} errors={errors} onClose={() => setPanel(null)} onRestore={restoreTask} busyTaskId={busyTaskId} /> : null}
       </AnimatePresence>
-      <ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} onFocusNow={setFocusNow} onFocusNext={setFocusNext} onRename={renameNode} onCreateObject={createObject} onDeleteObject={deleteObject} />
+      <ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} onFocusNow={setFocusNow} onFocusNext={setFocusNext} onRename={beginRenameNode} onCreateObject={beginCreateObject} onDeleteObject={deleteObject} />
+      <TextInputDialog editor={objectEditor} busy={editorBusy} onSubmit={submitObjectEditor} onClose={() => setObjectEditor(null)} />
       {toast ? <div className="toast">{toast}</div> : null}
     </main>
   );
