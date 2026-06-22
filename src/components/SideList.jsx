@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { isDoneNode, isLeafNode } from '../lib/actionMapModel.js';
-import { canPatchTask, hasBranch, listItems } from '../lib/lifeMapSelectors.js';
+import { canPatchTask, listItems } from '../lib/lifeMapSelectors.js';
 import { DRAG_THRESHOLD } from '../constants/lifeMap.js';
 import { ChevronDown } from './ChevronDown.jsx';
 
@@ -16,8 +16,7 @@ function progressLabel(item) {
 }
 
 export function SideList({ map, viewMode, setViewMode, onOpen, onComplete, onRestore, onReorderList, onOpenMenu, onSaveNote, busyTaskId }) {
-  const items = listItems(map);
-  const hasPlanetChildren = hasBranch(map);
+  const items = listItems(map).filter((item) => isLeafNode(item));
   const [dragId, setDragId] = useState(null);
   const [dropTarget, setDropTarget] = useState(null);
   const [dragPreview, setDragPreview] = useState(null);
@@ -114,8 +113,6 @@ export function SideList({ map, viewMode, setViewMode, onOpen, onComplete, onRes
     event.currentTarget.setPointerCapture?.(event.pointerId);
   };
 
-  if (hasPlanetChildren) return null;
-
   const mapProgress = progressValue(map);
 
   return (
@@ -137,11 +134,10 @@ export function SideList({ map, viewMode, setViewMode, onOpen, onComplete, onRes
             const dropClass = dropTarget?.id === item.id ? `drop-${dropTarget.position}` : '';
             const expanded = expandedId === item.id;
             const noteValue = notesDraft[item.id] ?? item.raw?.sessionNotes ?? item.summary ?? '';
-            const showProgress = !isLeafNode(item) && Number(item.totalTasks || 0) > 0;
             return (
               <div className={`sideItemRow ${done ? 'doneRow' : ''} ${expanded ? 'expandedRow' : ''} ${dragId === item.id ? 'draggingRow' : ''} ${dropClass}`} key={item.id} data-reorder-id={patchable && !done ? item.id : undefined} onContextMenu={(event) => onOpenMenu(item, event)}>
                 <button className="sideItemMain" onClick={() => nested && !isLeafNode(item) ? onOpen(item.id) : setExpandedId((current) => current === item.id ? null : item.id)}>
-                  <span>{item.icon}</span><div><b>{item.title}</b>{showProgress ? <small className="sideItemProgress">{progressLabel(item)}</small> : null}{nested ? <small>{`${item.tasks || 0} задач · открыть ветку`}</small> : null}</div>
+                  <span>{item.icon}</span><div><b>{item.title}</b>{nested ? <small>{`${item.tasks || 0} задач · открыть ветку`}</small> : null}</div>
                 </button>
                 <div className="rowActions">
                   {isLeafNode(item) ? <button className="expandMini" title="Развернуть" onClick={(event) => { event.stopPropagation(); setExpandedId((current) => current === item.id ? null : item.id); }}><ChevronDown open={expanded} /></button> : null}
@@ -162,7 +158,7 @@ export function SideList({ map, viewMode, setViewMode, onOpen, onComplete, onRes
           })}
         </div>
       ) : (
-        <div className="emptySide"><b>{viewMode === 'done' ? 'Выполненных задач нет' : 'Список пуст'}</b><p>{viewMode === 'done' ? 'Когда задачи будут помечены Done, они появятся здесь и их можно будет вернуть обратно.' : 'Backend подключён, но у этой ветки пока нет элементов для списка.'}</p></div>
+        <div className="emptySide"><b>{viewMode === 'done' ? 'Выполненных задач нет' : 'Список пуст'}</b><p>{viewMode === 'done' ? 'Когда задачи будут помечены Done, они появятся здесь и их можно будет вернуть обратно.' : 'Backend подключён, но у этой ветки пока нет задач для списка.'}</p></div>
       )}
       {dragPreview ? (
         <div className="lifeDragGhost" style={{ left: dragPreview.x, top: dragPreview.y }}>
