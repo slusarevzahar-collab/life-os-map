@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { ChevronDown } from './ChevronDown.jsx';
-import { Ring } from './Ring.jsx';
 
 export function MissionPanel({ focus, focusQueueItems, snapshot, apiState, onDone }) {
   const [open, setOpen] = useState(false);
@@ -11,7 +10,6 @@ export function MissionPanel({ focus, focusQueueItems, snapshot, apiState, onDon
   const currentTitle = focus?.title || 'Фокус не выбран';
   const nextItem = focusQueueItems?.[1];
   const nextAction = nextItem?.title || focus?.nextAction || 'Следующий шаг не указан.';
-  const progress = Number(focus?.progress || 0);
 
   if (!open) {
     const label = isOffline ? 'API OFFLINE' : isMock ? 'MOCK DATA' : isLoading ? 'LOADING' : 'ФОКУС СЕЙЧАС';
@@ -20,7 +18,6 @@ export function MissionPanel({ focus, focusQueueItems, snapshot, apiState, onDon
         <button onClick={() => setOpen(true)}>
           <span>FO</span>
           <div><small>{label}</small><b>{currentTitle}</b></div>
-          <Ring value={progress} />
         </button>
       </section>
     );
@@ -34,7 +31,6 @@ export function MissionPanel({ focus, focusQueueItems, snapshot, apiState, onDon
           <small><em /> {isOffline ? 'API OFFLINE · нет данных для карты' : isMock ? 'MOCK DATA · проверь backend/.env' : isLoading ? 'LOADING · жду backend' : 'MISSION CONTROL'}</small>
           <h1><span>FO</span>Текущий фокус</h1>
         </div>
-        <Ring value={progress} />
       </div>
       {isOffline ? <div className="warningLine">Карта специально не показывает запасные данные: backend API недоступен. Запусти npm run api и обнови страницу.</div> : null}
       {isMock ? <div className="warningLine">Сейчас карта получает mock-данные. Нужно, чтобы backend видел NOTION_TOKEN и NOTION_TASKS_DB_ID.</div> : null}
