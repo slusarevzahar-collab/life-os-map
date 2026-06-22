@@ -25,8 +25,28 @@
 .branchView .orbit,
 .branchView .coreNode,
 .branchView .mapNode.orbitNode {
-  top: 58% !important;
+  top: 66% !important;
 }
+
+.hasSideList .mapStage,
+.mapStage.mapWithSide {
+  transform: translateX(clamp(-430px, -26vw, -320px)) !important;
+}
+
+.branchView .coreNode.titleCore {
+  width: clamp(132px, 12vw, 164px) !important;
+  height: clamp(132px, 12vw, 164px) !important;
+  padding: 16px !important;
+}
+
+.branchView .coreNode.titleCore b {
+  font-size: clamp(16px, 1.55vw, 19px) !important;
+  line-height: 1.08 !important;
+}
+
+.branchView .orbit1 { width: min(19vw, 190px) !important; height: min(19vw, 190px) !important; }
+.branchView .orbit2 { width: min(34vw, 360px) !important; height: min(34vw, 360px) !important; }
+.branchView .orbit3 { width: min(50vw, 540px) !important; height: min(50vw, 540px) !important; }
 
 .coreNode {
   cursor: pointer !important;
@@ -96,10 +116,16 @@
 }
 
 .mission:not(.missionCollapsed) {
+  bottom: auto !important;
+  height: auto !important;
+  max-height: min(430px, calc(100vh - 96px)) !important;
+  display: block !important;
+}
+
+.mission.queueExpanded {
   bottom: 22px !important;
-  height: auto;
-  max-height: none;
-  display: flex;
+  max-height: calc(100vh - 90px) !important;
+  display: flex !important;
   flex-direction: column;
 }
 
@@ -123,7 +149,12 @@
 .focusQueueList {
   flex: 1 1 auto;
   min-height: 0;
-  max-height: none !important;
+  max-height: 38vh !important;
+  overflow: auto;
+}
+
+.focusQueueList .emptyQueue {
+  color: rgba(255, 255, 255, 0.58);
 }
 
 .detailHead:not(:has(.ring)) {
@@ -134,6 +165,94 @@
   justify-content: flex-end !important;
 }
 
+.lifeDialogBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgba(0, 0, 0, 0.56);
+  backdrop-filter: blur(10px);
+}
+
+.lifeDialog {
+  width: min(520px, calc(100vw - 34px));
+  border: 1px solid rgba(103, 232, 249, 0.24);
+  border-radius: 26px;
+  padding: 22px;
+  color: #fff;
+  background: rgba(7, 12, 22, 0.96);
+  box-shadow: 0 30px 110px rgba(0, 0, 0, 0.62), 0 0 44px rgba(103, 232, 249, 0.18);
+}
+
+.lifeDialog small {
+  display: block;
+  color: rgba(125, 211, 252, 0.78);
+  font-size: 10px;
+  font-weight: 1000;
+  letter-spacing: 0.18em;
+}
+
+.lifeDialog h2 {
+  margin: 8px 0 18px;
+  font-size: 26px;
+  line-height: 1.05;
+}
+
+.lifeDialog label {
+  display: block;
+  margin-bottom: 8px;
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.lifeDialog input {
+  width: 100%;
+  border: 1px solid rgba(103, 232, 249, 0.28);
+  border-radius: 16px;
+  padding: 13px 14px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.055);
+  font: inherit;
+  font-size: 16px;
+  outline: none;
+}
+
+.lifeDialog input:focus {
+  border-color: rgba(103, 232, 249, 0.72);
+  box-shadow: 0 0 0 4px rgba(103, 232, 249, 0.12);
+}
+
+.lifeDialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.lifeDialogActions button {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 11px 16px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+  font-weight: 1000;
+  cursor: pointer;
+}
+
+.lifeDialogActions button[type="submit"] {
+  border-color: transparent;
+  color: #061018;
+  background: linear-gradient(90deg, #60a5fa, #67e8f9);
+}
+
+.lifeDialogActions button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 @media (max-width: 900px) {
   .mapGlow,
   .orbit,
@@ -142,16 +261,26 @@
     top: 52% !important;
   }
 
+  .hasSideList .mapStage,
+  .mapStage.mapWithSide {
+    transform: none !important;
+  }
+
   .branchView .mapGlow,
   .branchView .orbit,
   .branchView .coreNode,
   .branchView .mapNode.orbitNode {
-    top: 60% !important;
+    top: 38% !important;
   }
 
   .mission:not(.missionCollapsed) {
+    bottom: auto !important;
+    max-height: min(420px, calc(100vh - 74px)) !important;
+  }
+
+  .mission.queueExpanded {
     bottom: 12px !important;
-    max-height: calc(100vh - 74px);
+    max-height: calc(100vh - 74px) !important;
   }
 
   .detailHead:not(:has(.ring)) {
