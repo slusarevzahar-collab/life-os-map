@@ -36,7 +36,34 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-export function OrbitMap({ map, hasSide, onOpen, onOpenMenu }) {
+function PlanetTitleEditor({ value, onChange, onSubmit, onCancel }) {
+  return (
+    <input
+      className="inlineTitleInput planetTitleInput"
+      autoFocus
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      onBlur={onSubmit}
+      onClick={(event) => event.stopPropagation()}
+      onPointerDown={(event) => event.stopPropagation()}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') onSubmit(event);
+        if (event.key === 'Escape') onCancel(event);
+      }}
+    />
+  );
+}
+
+export function OrbitMap({
+  map,
+  hasSide,
+  onOpen,
+  onOpenMenu,
+  inlineEditor,
+  onInlineRenameChange,
+  onSubmitInlineRename,
+  onCancelInlineRename,
+}) {
   const children = topItems(map);
   const isRoot = map.id === 'root';
   const pressTimer = useRef(null);
@@ -52,7 +79,7 @@ export function OrbitMap({ map, hasSide, onOpen, onOpenMenu }) {
   };
 
   const startCanvasDrag = (event) => {
-    if (event.target.closest('button')) return;
+    if (event.target.closest('button, input')) return;
     event.preventDefault();
     panRef.current = { startX: event.clientX, startY: event.clientY, baseX: viewport.x, baseY: viewport.y };
     setDraggingCanvas(true);
@@ -78,6 +105,7 @@ export function OrbitMap({ map, hasSide, onOpen, onOpenMenu }) {
   };
 
   const orbitShift = children.length <= 2 ? 'clamp(-215px, -20vw, -170px)' : 'clamp(-220px, -21vw, -190px)';
+  const coreEditing = inlineEditor?.nodeId === map.id;
 
   return (
     <motion.section
@@ -100,25 +128,52 @@ export function OrbitMap({ map, hasSide, onOpen, onOpenMenu }) {
         <div className="orbit orbit2" />
         <div className="orbit orbit3" />
         <motion.button
-          className={`coreNode ${isRoot ? 'rootCore' : 'titleCore'}`}
-          onClick={(event) => onOpenMenu(map, event)}
+          className={`coreNode ${isRoot ? 'rootCore' : 'titleCore'} ${coreEditing ? 'editingTitle' : ''}`}
+          onClick={(event) => coreEditing ? event.stopPropagation() : onOpenMenu(map, event)}
           onContextMenu={(event) => onOpenMenu(map, event)}
           initial={{ scale: 0.9 }}
           animate={{ scale: 1 }}
           transition={{ duration: 0.24, ease: 'easeOut' }}
         >
-          <b>{isRoot ? 'LifeMap' : map.title}</b>
+          {coreEditing ? (
+            <PlanetTitleEditor
+              value={inlineEditor.value}
+              onChange={onInlineRenameChange}
+              onSubmit={(event) => onSubmitInlineRename(map, event)}
+              onCancel={onCancelInlineRename}
+            />
+          ) : <b>{isRoot ? 'LifeMap' : map.title}</b>}
         </motion.button>
         {children.map((node, index) => {
           const angle = (360 / Math.max(children.length, 1)) * index;
           const size = planetSize(node.title);
           const fontSize = planetFontSize(node.title);
           const progress = progressValue(node);
+          const editing = inlineEditor?.nodeId === node.id;
+          const style = { '--angle': `${angle}deg`, '--angle-back': `${-angle}deg`, '--orbit-shift': orbitShift, '--node-size': `${size}px`, '--node-font': `${fontSize}px`, '--node-progress': `${progress}%` };
+          const content = (
+            <span className="nodeOrb">
+              {editing ? (
+                <PlanetTitleEditor
+                  value={inlineEditor.value}
+                  onChange={onInlineRenameChange}
+                  onSubmit={(event) => onSubmitInlineRename(node, event)}
+                  onCancel={onCancelInlineRename}
+                />
+              ) : <em>{node.title}</em>}
+              <strong>{progress}%</strong>
+            </span>
+          );
+
+          if (editing) {
+            return <div key={node.id} className={`mapNode orbitNode state-${node.state} editingTitle`} style={style}>{content}</div>;
+          }
+
           return (
             <button
               key={node.id}
               className={`mapNode orbitNode state-${node.state}`}
-              style={{ '--angle': `${angle}deg`, '--angle-back': `${-angle}deg`, '--orbit-shift': orbitShift, '--node-size': `${size}px`, '--node-font': `${fontSize}px`, '--node-progress': `${progress}%` }}
+              style={style}
               title={`${node.title} · ${progressTitle(node)}`}
               onContextMenu={(event) => onOpenMenu(node, event)}
               onPointerDown={(event) => startPress(node, event)}
@@ -126,7 +181,7 @@ export function OrbitMap({ map, hasSide, onOpen, onOpenMenu }) {
               onPointerLeave={clearPress}
               onClick={() => onOpen(node.id)}
             >
-              <span className="nodeOrb"><em>{node.title}</em><strong>{progress}%</strong></span>
+              {content}
             </button>
           );
         })}
