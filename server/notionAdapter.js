@@ -8,18 +8,18 @@ export const mockSnapshot = {
     warnings: [],
   },
   currentFocus: {
-    id: 'task_life_os_map',
-    title: 'Life OS Map',
-    project: 'Life OS',
+    id: 'task_lifemap',
+    title: 'LifeMap',
+    project: 'LifeMap',
     status: 'in_progress',
     progress: 55,
     nextAction: 'Подключить карту к данным через backend snapshot.',
   },
   goals: [
     {
-      id: 'goal_life_os_mvp',
-      title: 'Собрать рабочую Life OS Map + AI Inbox MVP',
-      area: 'Life OS',
+      id: 'goal_lifemap_mvp',
+      title: 'Собрать рабочую LifeMap + AI Inbox MVP',
+      area: 'LifeMap',
       horizon: '1 month',
       progress: 38,
       targetDate: '2026-06-30',
@@ -29,8 +29,8 @@ export const mockSnapshot = {
   ],
   tasks: [
     {
-      id: 'task_life_os_map',
-      title: 'Подготовить Notion data adapter для Life OS Map',
+      id: 'task_lifemap',
+      title: 'Подготовить Notion data adapter для LifeMap',
       project: 'Life OS',
       goalName: 'Life OS',
       status: 'in_progress',
@@ -38,6 +38,7 @@ export const mockSnapshot = {
       priority: 1,
       dueDate: '2026-06-04',
       nextAction: 'Заменить mock data на backend response.',
+      sessionNotes: '',
     },
   ],
   sessions: [],
@@ -69,12 +70,16 @@ function firstNumber(props, names) { return numberValue(findProp(props, names));
 function firstDate(props, names) { return dateStart(findProp(props, names)); }
 function firstUrl(props, names) { return urlValue(findProp(props, names)); }
 
-function textProperty(value = '') { return { rich_text: [{ text: { content: String(value || '') } }] }; }
+function textProperty(value = '') {
+  const content = String(value || '');
+  return content ? { rich_text: [{ text: { content } }] } : { rich_text: [] };
+}
 function titleProperty(value = '') { return { title: [{ text: { content: String(value || 'Untitled') } }] }; }
 function selectProperty(value) { return value ? { select: { name: String(value) } } : undefined; }
 function numberProperty(value) { const number = Number(value); return Number.isFinite(number) ? { number } : undefined; }
 function dateProperty(value) { return value ? { date: { start: value } } : undefined; }
 function cleanProperties(properties) { return Object.fromEntries(Object.entries(properties).filter(([, value]) => value !== undefined && value !== null)); }
+function hasOwn(obj, key) { return Object.prototype.hasOwnProperty.call(obj || {}, key); }
 
 function normalizeKey(value = '') {
   return String(value).toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9]+/g, ' ').trim();
@@ -101,6 +106,7 @@ function mapNotionTask(page) {
     timeDebt: firstNumber(props, ['Time Debt', 'Долг времени']) || 0,
     rescheduleCount: firstNumber(props, ['Reschedule Count', 'Переносы']) || 0,
     nextAction: firstRichText(props, ['Next Action', 'Следующее действие', 'Следующий шаг']) || '',
+    sessionNotes: firstRichText(props, ['Session Notes', 'Notes', 'Заметки', 'Заметка']) || '',
     goalIds: relationIds(findProp(props, ['Goal Link', 'Goals Relation', 'Goals', 'Цель-связь', 'Цели'])),
     tags: firstMultiSelect(props, ['Tags', 'Теги']),
   };
@@ -224,7 +230,7 @@ async function queryDatabase(notion, databaseId, mapper, label, warnings) {
   } catch (error) {
     const message = `${label}: ${error.message}`;
     warnings.push(message);
-    console.warn(`Life OS ${message}`);
+    console.warn(`LifeMap ${message}`);
     return [];
   }
 }
@@ -252,7 +258,7 @@ export async function getNotionSnapshot({ notionToken, tasksDbId, goalsDbId, ses
   return {
     meta: {
       source: 'notion-live-workspace',
-      version: '0.8.0',
+      version: '0.8.1',
       updatedAt: new Date().toISOString(),
       warnings,
       connected: {
@@ -314,7 +320,8 @@ export async function updateTaskEvent({ notionToken, taskId, event }) {
     'Due Date': dateProperty(event.dueDate),
     'Planned Date': dateProperty(event.plannedDate),
     'Last Touched': dateProperty(now),
-    'Next Action': event.nextAction ? textProperty(event.nextAction) : undefined,
+    'Next Action': hasOwn(event, 'nextAction') ? textProperty(event.nextAction) : undefined,
+    'Session Notes': hasOwn(event, 'sessionNotes') ? textProperty(event.sessionNotes) : undefined,
     'Time Debt': numberProperty(event.timeDebt),
     'Reschedule Count': numberProperty(event.rescheduleCount),
   });
@@ -326,7 +333,7 @@ function titlePropertyNameForKind(kind = '') {
   const normalized = String(kind || '').toLowerCase();
   if (normalized === 'task') return 'Task';
   if (normalized === 'goal') return 'Goal';
-  if (normalized === 'project' || normalized === 'lifearea' || normalized === 'lifeArea'.toLowerCase()) return 'Name';
+  if (normalized === 'project' || normalized === 'lifearea') return 'Name';
   if (normalized === 'dream') return 'Goal / Dream';
   if (normalized === 'signal') return 'Signal';
   return 'Name';
