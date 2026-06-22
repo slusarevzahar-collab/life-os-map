@@ -5,8 +5,8 @@ const LIFE_TYPES = new Set(['life area', 'сфера жизни', 'skill', 'на
 const LEAF_KINDS = new Set(['task', 'signal', 'dream']);
 
 const ICON_MAP = [
-  ['sleda', 'SD'], ['след', 'SD'], ['life os', 'OS'], ['navigator', 'OS'], ['навиг', 'OS'], ['map', 'OS'],
-  ['inbox', 'IN'], ['telegram', 'TG'], ['github', 'GH'], ['codex', 'CD'], ['canvas', 'CV'], ['notion', 'NO'],
+  ['lifemap', 'LM'], ['life map', 'LM'], ['life os', 'LM'], ['navigator', 'LM'], ['навиг', 'LM'], ['map', 'LM'],
+  ['sleda', 'SD'], ['след', 'SD'], ['inbox', 'IN'], ['telegram', 'TG'], ['github', 'GH'], ['codex', 'CD'], ['canvas', 'CV'], ['notion', 'NO'],
   ['content', 'CT'], ['контент', 'CT'], ['yandex', 'YA'], ['яндекс', 'YA'], ['4life', '4L'],
   ['oracle', 'OR'], ['body', 'BD'], ['english', 'EN'], ['англий', 'EN'], ['health', 'HL'],
   ['тело', 'BD'], ['деньги', '₽'], ['доход', '₽'], ['мечт', 'DR'], ['dream', 'DR'], ['иде', 'ID'],
@@ -49,17 +49,13 @@ function statusState(status = '') {
 }
 
 function isDoneTask(task) { return statusState(task?.status) === 'done'; }
-
-function stateFromTasks(tasks = []) {
-  if (tasks.some((task) => statusState(task.status) === 'active')) return 'active';
-  if (tasks.some((task) => statusState(task.status) === 'next')) return 'next';
-  if (tasks.some((task) => statusState(task.status) === 'paused')) return 'paused';
-  if (tasks.some((task) => statusState(task.status) === 'done')) return 'done';
+function stateLabel(state) { return ({ active: 'в работе', next: 'следующее', paused: 'пауза', done: 'сделано', queue: 'очередь' })[state] || 'ветка'; }
+function stateFromItems(items = []) {
+  if (items.some((item) => statusState(item.status) === 'active' || item.state === 'active')) return 'active';
+  if (items.some((item) => statusState(item.status) === 'next' || item.state === 'next')) return 'next';
+  if (items.some((item) => statusState(item.status) === 'paused' || item.state === 'paused')) return 'paused';
+  if (items.some((item) => statusState(item.status) === 'done' || item.state === 'done')) return 'done';
   return 'queue';
-}
-
-function stateLabel(state) {
-  return ({ active: 'в работе', next: 'следующее', paused: 'пауза', done: 'сделано', queue: 'очередь' })[state] || 'ветка';
 }
 
 function topTask(tasks = []) {
@@ -71,6 +67,7 @@ function topTask(tasks = []) {
 }
 
 function taskToLeaf(task) {
+  const note = task.sessionNotes || task.notes || '';
   return {
     id: `task-${task.id}`,
     sourceId: task.id,
@@ -80,8 +77,8 @@ function taskToLeaf(task) {
     state: statusState(task.status),
     progress: Number(task.progress) || 0,
     tasks: 1,
-    summary: task.nextAction || task.summary || task.title || 'Следующий шаг пока не указан.',
-    details: [task.nextAction, task.goalName, task.project, task.dueDate].filter(Boolean),
+    summary: task.nextAction || note || task.title || 'Следующий шаг пока не указан.',
+    details: [note, task.nextAction, task.goalName, task.project, task.dueDate].filter(Boolean),
     children: [],
     taskList: [],
     kind: 'task',
@@ -94,13 +91,13 @@ function signalToLeaf(signal) {
     id: `signal-${signal.id}`,
     sourceId: signal.id,
     title: signal.title || 'Сигнал',
-    icon: 'SG',
+    icon: 'IN',
     status: signal.status || signal.type || 'signal',
     state: statusState(signal.status),
     progress: 0,
     tasks: 1,
-    summary: signal.nextAction || signal.possibleUse || signal.summary || 'Сигнал сохранён в AI Inbox.',
-    details: [signal.summary, signal.possibleUse, signal.nextAction, signal.sourceUrl].filter(Boolean),
+    summary: signal.summary || signal.possibleUse || signal.nextAction || 'Сигнал сохранён в AI Inbox.',
+    details: [signal.summary, signal.possibleUse, signal.nextAction, signal.sourceUrl, signal.capturedAt].filter(Boolean),
     children: [],
     taskList: [],
     kind: 'signal',
@@ -130,7 +127,7 @@ function dreamToLeaf(dream) {
 function projectTitle(task) {
   const raw = clean(task.project) || clean(task.goalName) || 'Без проекта';
   const text = `${raw} ${task.title}`;
-  if (hasAny(text, ['life os', 'navigator', 'навигатор', 'notion', 'map'])) return 'Навигатор';
+  if (hasAny(text, ['lifemap', 'life os', 'navigator', 'навигатор', 'notion', 'map'])) return 'LifeMap';
   if (hasAny(text, ['sleda', 'след'])) return 'Sleda.net';
   if (hasAny(text, ['4life', 'for life'])) return '4Life';
   if (hasAny(text, ['telegram', 'inbox', 'бот', 'bot'])) return 'AI Inbox';
@@ -139,7 +136,7 @@ function projectTitle(task) {
 
 function isProjectTask(task) {
   const text = `${task.project} ${task.goalName} ${task.title}`;
-  return hasAny(text, ['life os', 'navigator', 'навигатор', 'sleda', 'след', 'inbox', 'telegram', 'github', 'codex', '4life', 'yandex', 'яндекс', 'content', 'контент', 'oracle', 'body', 'проект']);
+  return hasAny(text, ['lifemap', 'life os', 'navigator', 'навигатор', 'sleda', 'след', 'inbox', 'telegram', 'github', 'codex', '4life', 'yandex', 'яндекс', 'content', 'контент', 'oracle', 'body', 'проект']);
 }
 
 function matchTasks(tasks = [], title = '') {
@@ -149,7 +146,8 @@ function matchTasks(tasks = [], title = '') {
     const canonicalProject = projectTitle(task);
     const text = key(`${canonicalProject} ${task.project} ${task.goalName} ${task.title} ${task.tags?.join(' ')}`);
     if (text.includes(needle) || needle.includes(key(canonicalProject))) return true;
-    if (needle.includes('навиг') && hasAny(text, ['life os', 'notion', 'map', 'navigator'])) return true;
+    if (needle.includes('lifemap') && hasAny(text, ['life os', 'notion', 'map', 'navigator'])) return true;
+    if (needle.includes('навиг') && hasAny(text, ['lifemap', 'life os', 'notion', 'map', 'navigator'])) return true;
     if (needle.includes('след') && hasAny(text, ['sleda', 'след'])) return true;
     return false;
   });
@@ -186,7 +184,8 @@ function makeGroupNode({ id, title, icon, items = [], summary, kind = 'group', c
   const activeLeaves = leafItems.filter((item) => item.state !== 'done');
   const completedLeaves = leafItems.filter((item) => item.state === 'done');
   const childItems = children.length ? children : leafItems;
-  const state = activeLeaves.length ? stateFromTasks(activeLeaves.map((leaf) => leaf.raw || leaf)) : (completedLeaves.length ? 'done' : statusState(status));
+  const activeChildren = childItems.filter((item) => item.state !== 'done');
+  const state = activeLeaves.length ? stateFromItems(activeLeaves.map((leaf) => leaf.raw || leaf)) : (activeChildren.length ? stateFromItems(activeChildren) : (completedLeaves.length ? 'done' : statusState(status)));
   const progress = activeLeaves.length ? avg(activeLeaves) : avg(childItems);
   return {
     id,
@@ -267,7 +266,7 @@ function mergeProjectNodes(declaredNodes = [], fallbackNodes = []) {
       completedTasks: doneList.length || childLeaves.reduce((sum, child) => sum + countLeaves(child, 'done'), 0),
       totalTasks: taskList.length || childLeaves.reduce((sum, child) => sum + countLeaves(child, 'all'), 0),
       progress: activeList.length ? avg(activeList) : existing.progress || node.progress || 0,
-      state: activeList.length ? stateFromTasks(activeList.map((leaf) => leaf.raw || leaf)) : (doneList.length ? 'done' : existing.state),
+      state: activeList.length ? stateFromItems(activeList.map((leaf) => leaf.raw || leaf)) : (doneList.length ? 'done' : existing.state),
     });
   });
   return [...map.values()].sort((a, b) => (b.tasks || 0) - (a.tasks || 0));
@@ -302,7 +301,6 @@ function makeLeafSphere({ id, title, icon, leaves, summary, kind = 'sphere' }) {
 function classifySnapshot(snapshot) {
   const allTasks = snapshot.tasks || [];
   const activeTasks = allTasks.filter((task) => !isDoneTask(task));
-  const completedTasks = allTasks.filter(isDoneTask);
   const goals = snapshot.goals || [];
   const projectAreas = snapshot.projectAreas || [];
   const dreams = snapshot.dreams || [];
@@ -320,19 +318,17 @@ function classifySnapshot(snapshot) {
     .map((area) => areaToProjectNode(area, allTasks));
   const lifeDreams = dreams.filter((dream) => !dream.linkedProject).map(dreamToLeaf);
   const goalNodes = buildGoals(goals, allTasks).filter((goal) => goal.tasks > 0 || goal.completedTasks > 0 || goal.progress > 0).slice(0, 10);
-  const signalNodes = signals.slice(0, 12).map(signalToLeaf);
+  const signalNodes = signals.slice(0, 24).map(signalToLeaf);
   const incomeTasks = byText(activeTasks, ['доход', 'клиент', 'деньги', 'money', 'sales', 'продаж', '4life', 'парсер']).map(taskToLeaf);
   const backlogTasks = activeTasks.filter((task) => ['queue', 'paused'].includes(statusState(task.status))).slice(0, 24).map(taskToLeaf);
-  const completedLeaves = completedTasks.slice(0, 50).map(taskToLeaf);
 
   const topNodes = [];
-  if (projectNodes.length) topNodes.push(makeGroupNode({ id: 'sphere-projects', title: 'Проекты', icon: 'PR', children: projectNodes, summary: 'Сфера проектов: здесь лежат Навигатор, Sleda.net и другие рабочие направления.', kind: 'sphere' }));
+  if (projectNodes.length) topNodes.push(makeGroupNode({ id: 'sphere-projects', title: 'Проекты', icon: 'PR', children: projectNodes, summary: 'Сфера проектов: здесь лежат LifeMap, Sleda.net и другие рабочие направления.', kind: 'sphere' }));
+  topNodes.push(makeLeafSphere({ id: 'sphere-inbox', title: 'AI Inbox', icon: 'IN', leaves: signalNodes, summary: 'Входящие из Telegram-бота и других источников: что прислал, когда, что полезно и как применить.' }));
   if (goalNodes.length) topNodes.push(makeGroupNode({ id: 'sphere-goals', title: 'Цели', icon: 'GO', children: goalNodes, summary: 'Крупные цели из Notion, связанные с задачами.', kind: 'sphere' }));
-  if (signalNodes.length) topNodes.push(makeLeafSphere({ id: 'sphere-inbox', title: 'AI Inbox', icon: 'IN', leaves: signalNodes, summary: 'Входящие AI-сигналы, Telegram-посты, идеи и материалы.' }));
   if (lifeAreaNodes.length || lifeDreams.length) topNodes.push(makeGroupNode({ id: 'sphere-life', title: 'Жизнь', icon: 'LF', children: [...lifeAreaNodes, ...lifeDreams], summary: 'Личные сферы, мечты, навыки, тело, творчество и баланс.', kind: 'sphere' }));
   if (incomeTasks.length) topNodes.push(makeLeafSphere({ id: 'sphere-income', title: 'Доход', icon: '₽', leaves: incomeTasks, summary: 'Задачи и направления, связанные с клиентами, деньгами и монетизацией.' }));
   if (backlogTasks.length) topNodes.push(makeLeafSphere({ id: 'sphere-backlog', title: 'Идеи / потом', icon: 'BK', leaves: backlogTasks, summary: 'Сохранённые задачи и идеи, которые не должны сбивать фокус.' }));
-  if (completedLeaves.length) topNodes.push(makeLeafSphere({ id: 'sphere-done', title: 'Выполнено', icon: 'OK', leaves: completedLeaves, summary: 'Архив выполненных задач. Их можно вернуть обратно в работу.' }));
   return topNodes.slice(0, 8);
 }
 
@@ -344,18 +340,18 @@ export function buildActionMap(snapshot) {
   const progress = Number(current.progress) || avg(tasks) || 0;
   return {
     id: 'root',
-    title: 'AI-first Life OS',
+    title: 'LifeMap',
     subtitle: 'Центр системы',
-    icon: 'OS',
+    icon: 'LM',
     status: 'центр',
     state: 'active',
     progress,
     tasks: activeCount,
     completedTasks: tasks.filter(isDoneTask).length,
-    summary: 'Главная орбита. Здесь крупные сферы: проекты, цели, входящие сигналы, жизнь, доход и идеи на потом.',
+    summary: 'Главная орбита LifeMap: проекты, цели, AI Inbox, жизнь, доход и идеи на потом.',
     details: ['Клик по сфере открывает её как новый центр.', 'Задачи выбранной ветки показываются списком справа.', 'Данные приходят из Notion через backend snapshot.'],
     session: {
-      current: current.title || 'Life OS Map: сделать карту рабочим навигатором',
+      current: current.title || 'LifeMap: сделать карту рабочим навигатором',
       next: current.nextAction || 'Выбрать сферу и перейти к ближайшему практическому шагу.',
     },
     children,
