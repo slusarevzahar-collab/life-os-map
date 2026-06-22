@@ -1,27 +1,27 @@
-# Life OS Map — Navigator Master Plan
+# LifeMap — Navigator Master Plan
 
-This document fixes the product logic we developed in canvas and turns it into an implementation plan.
+This document fixes the product logic we developed and turns it into an implementation plan.
 
 ## Core idea
 
-Life OS Map is not just a dashboard. It is a visual navigator for Zachary's goals, projects, tasks, time, sessions, and AI-assisted next actions.
+LifeMap is a visual navigator for Zachary's projects, goals, tasks, time, incoming AI signals, and AI-assisted next actions.
 
-The map should behave like a living operating system:
+The map should behave like a living working system:
 
-1. Center: AI-first Life OS / main mission.
-2. First orbit: Goals from Notion Goals DB.
-3. Second orbit: active tasks grouped under goals.
-4. Third layer: sessions, deadlines, overdue states, time debt, and progress.
-5. Copilot layer: recommends the next action based on goals, dates, status, priority, and recent sessions.
+1. Center: LifeMap.
+2. First orbit: main spheres — Projects, AI Inbox, Goals, Life, Income, Backlog.
+3. Second orbit: concrete projects, goals, or signal groups.
+4. Leaf level: tasks and processed inbox signals.
+5. Mission Control: stable current focus and focus queue, independent from random map browsing.
 
 ## Product principles
 
 - Map first. Panels are helpers, not the main screen.
 - The user must be able to hide panels and navigate the map cleanly.
-- Every task should have a goal, status, date, next action, progress, and priority.
-- Time matters: created date, planned date, due date, started at, finished at, duration, reschedules, and time debt.
+- Current focus should stay stable until the user changes it, marks the task Done, or puts another item into focus.
+- Done inside LifeMap means only: task is completed and moved to completed tasks. No mandatory session summary inside the app.
 - Notion is the source of truth for now.
-- The app should gradually become write-capable: it should not only read Notion, but also write work sessions and task events back to Notion.
+- The app should gradually become write-capable: it should read Notion and write task changes, notes, focus state, and later sessions/events back to Notion.
 - The UI should feel premium, serious, calm, and modern — not toy-like.
 
 ## Current state
@@ -30,20 +30,25 @@ Implemented:
 
 - React/Vite frontend.
 - Express backend.
-- Reads Tasks DB, Goals DB, and Work Sessions DB from Notion.
-- Shows mission control, active queue, data snapshot, plan panel.
-- Supports map filters.
-- Uses Goal select as a fallback grouping mechanism when real relation is missing.
-- Has partial canvas-like hierarchy: center -> goals -> tasks.
+- Reads Tasks DB from Notion.
+- Reads Goals DB, Projects DB, Dreams DB, Work Sessions DB, and AI Signals Inbox DB when IDs are provided and integration access is granted.
+- Shows LifeMap as the central node.
+- Shows main spheres including AI Inbox.
+- Shows Mission Control with current focus and queue.
+- Supports Done and restore from Done.
+- Supports task order changes through Priority.
+- Supports renaming through context menu.
+- Supports task notes via `Session Notes`.
+- Uses Project/Goal select properties as fallback grouping when relation fields are not ready.
 
 Known gaps:
 
-- Drag/zoom is not implemented yet.
-- Map positioning is still not stable enough.
-- Goal-task relations are not true Notion relations yet; current fallback uses the Goal select property.
-- Calendar view could not be created automatically by connector and needs manual setup.
-- The app cannot yet write work sessions/events back to Notion.
-- Code is still too concentrated in App.jsx and needs component separation.
+- `App.jsx` is still too large and needs component separation.
+- Tablet drag behavior needs more testing and stabilization.
+- Planet text fitting still needs a final design pass.
+- True Notion relations between goals/projects/tasks are not yet the main model.
+- AI Inbox needs a full ingestion pipeline: Telegram bot → processing → Notion signal → LifeMap display.
+- Work Sessions should be postponed until the basic LifeMap workflow is stable.
 
 ## Data model
 
@@ -74,6 +79,25 @@ Future field:
 
 - Goal Link — relation to Goals DB. Manual creation may be needed if connector blocks schema update.
 
+### AI Signals Inbox DB
+
+Purpose: processed incoming materials from Telegram bot and other sources.
+
+Useful fields:
+
+- Signal — title
+- Type — select
+- Status — select
+- Priority — select
+- Related projects — multi-select
+- Summary — text
+- Possible use — text
+- Next action — text
+- Source URL — url
+- Date captured — date
+
+LifeMap should show AI Inbox as a separate planet/sphere. Inside it, the user should see what was sent, when it was captured, what is useful, how it can be applied, and whether a next action should be created.
+
 ### Goals DB
 
 Required fields:
@@ -91,7 +115,9 @@ Required fields:
 
 ### Work Sessions DB
 
-Required fields:
+Postponed for now. This is useful later for time intelligence, but it should not complicate the first useful LifeMap MVP.
+
+Required fields later:
 
 - Session — title
 - Task — text or future relation
@@ -105,72 +131,47 @@ Required fields:
 
 ## Implementation backlog
 
-1. Stabilize map layout.
-   - Central root stays centered by default.
-   - Goals orbit the root.
-   - Tasks orbit their goal.
-   - Unlinked tasks go to Inbox / Без цели.
-
-2. Implement drag/zoom canvas mode.
-   - Drag on empty area and on nodes.
-   - Pinch/wheel zoom.
-   - Boundaries so the user cannot lose the map in empty space.
-   - Reset/center button.
-
-3. Separate code into components.
+1. Split `App.jsx` into components.
    - App.jsx should become orchestration only.
-   - Components: MapCanvas, MissionDeck, ActiveQueue, BottomNav, NodeBubble, DetailSheet, DataPanel, PlanPanel, CopilotPanel.
+   - Components: TopNav, MissionPanel, OrbitMap, SideList, TaskRow, UtilityPanel, ContextMenu, DetailCard.
 
-4. Separate data adapters.
-   - Notion mapping functions move from server.js to a dedicated adapter module.
-   - Add tests or at least fixtures for Notion-like payloads.
+2. Stabilize tablet drag behavior.
+   - Drag ghost should follow the finger.
+   - Notion should update only after a real reorder, not after a touch.
+   - Drop line should show the insertion point between tasks.
 
-5. Add write endpoints.
-   - POST /api/life-os/sessions
-   - POST /api/life-os/task-event
-   - PATCH /api/life-os/tasks/:id
+3. Stabilize map layout.
+   - Central root stays readable.
+   - Main spheres orbit the root.
+   - Project/task planets use consistent sizing and text wrapping.
+   - No Done planet on the main map; Done belongs in Mission Control / completed panel.
 
-6. Add work session flow.
-   - Start session.
-   - Finish session.
-   - Record duration.
-   - Save result and next step.
-   - Send to Work Sessions DB.
+4. Make Mission Control truly useful.
+   - Stable current focus.
+   - Next item.
+   - Expandable queue.
+   - Completed tasks shortcut.
+   - Error area for backend/frontend issues.
 
-7. Add time intelligence.
+5. Build AI Inbox pipeline.
+   - Telegram bot receives links, notes, posts, screenshots, or text.
+   - AI processes the incoming item.
+   - Notion stores structured signal.
+   - LifeMap displays it inside AI Inbox.
+
+6. Add better task detail editing.
+   - Inline notes.
+   - Rename through context menu.
+   - Later: edit next action, priority, due date, project, goal.
+
+7. Add time intelligence later.
    - Highlight overdue tasks.
    - Show rescheduled tasks.
    - Calculate time debt.
    - Weekly done count.
    - Weekly focus minutes.
 
-8. Improve mobile UX.
-   - Dashboard mode for phone.
-   - Map-only mode.
-   - Compact filters.
-   - Bottom sheet that does not cover the map too aggressively.
-
-9. Improve visual seriousness.
-   - Reduce toy-like bubbles.
-   - Use calmer typography.
-   - Better spacing.
-   - More premium motion.
-   - More legible labels.
-
-10. Add Copilot logic.
-   - Recommend next action.
-   - Explain why this task is next.
-   - Detect missing fields in Notion.
-   - Suggest cleanup actions.
-
-11. Add Notion hygiene views.
-   - By Goal board.
-   - Calendar by Due Date.
-   - Overdue tasks view.
-   - Missing Goal view.
-   - Active Today view.
-
-12. Add deployment path.
+8. Add deployment path.
    - Keep Codespaces for development.
    - Later add Vercel/Render/Railway or another hosting option.
    - Eventually evaluate Telegram Mini App / PWA / APK wrapper.
@@ -178,10 +179,9 @@ Required fields:
 ## Next recommended order
 
 1. Pull latest code.
-2. Restart API and frontend.
-3. Check if Goal select grouping now works better.
-4. Manually create Calendar view in Notion if connector cannot.
-5. Implement drag/zoom canvas mode.
-6. Split frontend components.
-7. Add write endpoints for sessions.
-8. Make the navigator usable as a daily work tool.
+2. Restart only the changed process: frontend for UI changes, API for backend changes.
+3. Check the basic LifeMap loop: choose focus → see queue → mark Done → restore from completed.
+4. Split frontend components.
+5. Stabilize tablet drag.
+6. Build the AI Inbox pipeline.
+7. Make LifeMap usable as a daily work tool.
