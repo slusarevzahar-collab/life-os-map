@@ -19,6 +19,8 @@ function typeKey(value = '') { return key(value); }
 function hasAny(text = '', tokens = []) { const source = key(text); return tokens.some((token) => source.includes(key(token))); }
 function clampPercent(value = 0) { return Math.max(0, Math.min(100, Math.round(Number(value) || 0))); }
 function completionPercent(completed = 0, total = 0, fallback = 0) { return total > 0 ? clampPercent((completed / total) * 100) : clampPercent(fallback); }
+function isPlaceholderText(value = '') { return hasAny(value, ['редактируется поле next action', 'editing next action', 'next action в notion']); }
+function useful(value = '') { const text = clean(value); return text && !isPlaceholderText(text) ? text : ''; }
 
 function iconFor(title = '', fallback = 'ND') {
   const lower = key(title);
@@ -64,7 +66,8 @@ function topTask(tasks = []) {
 }
 
 function taskToLeaf(task) {
-  const note = task.sessionNotes || task.notes || '';
+  const note = useful(task.sessionNotes || task.notes || '');
+  const nextAction = useful(task.nextAction || '');
   const done = isDoneTask(task);
   return {
     id: `task-${task.id}`,
@@ -77,8 +80,8 @@ function taskToLeaf(task) {
     tasks: done ? 0 : 1,
     completedTasks: done ? 1 : 0,
     totalTasks: 1,
-    summary: task.nextAction || note || task.title || 'Следующий шаг пока не указан.',
-    details: [note, task.nextAction, task.goalName, task.project, task.dueDate].filter(Boolean),
+    summary: nextAction || note || task.title || 'Следующий шаг пока не указан.',
+    details: [note, nextAction, useful(task.goalName), useful(task.project), useful(task.dueDate)].filter(Boolean),
     children: [],
     taskList: [],
     kind: 'task',
@@ -100,8 +103,8 @@ function signalToLeaf(signal) {
     tasks: done ? 0 : 1,
     completedTasks: done ? 1 : 0,
     totalTasks: 1,
-    summary: signal.summary || signal.possibleUse || signal.nextAction || 'Сигнал сохранён в AI Inbox.',
-    details: [signal.summary, signal.possibleUse, signal.nextAction, signal.sourceUrl, signal.capturedAt].filter(Boolean),
+    summary: useful(signal.summary) || useful(signal.possibleUse) || useful(signal.nextAction) || 'Сигнал сохранён в AI Inbox.',
+    details: [useful(signal.summary), useful(signal.possibleUse), useful(signal.nextAction), useful(signal.sourceUrl), useful(signal.capturedAt)].filter(Boolean),
     children: [],
     taskList: [],
     kind: 'signal',
@@ -123,8 +126,8 @@ function dreamToLeaf(dream) {
     tasks: done ? 0 : 1,
     completedTasks: done ? 1 : 0,
     totalTasks: 1,
-    summary: dream.nextStep || dream.why || 'Цель, мечта или желание из Notion.',
-    details: [dream.lifeSphere, dream.type, dream.why, dream.nextStep].filter(Boolean),
+    summary: useful(dream.nextStep) || useful(dream.why) || 'Цель, мечта или желание из Notion.',
+    details: [useful(dream.lifeSphere), useful(dream.type), useful(dream.why), useful(dream.nextStep)].filter(Boolean),
     children: [],
     taskList: [],
     kind: 'dream',
@@ -221,8 +224,8 @@ function makeGroupNode({ id, title, icon, items = [], summary, kind = 'group', c
     tasks: stats.active,
     completedTasks: stats.completed,
     totalTasks: stats.total,
-    summary: summary || topTask(activeLeaves.map((leaf) => leaf.raw || leaf))?.nextAction || `${title}: ${stats.completed}/${stats.total} выполнено.`,
-    details: details.length ? details : activeLeaves.slice(0, 4).map((task) => task.title),
+    summary: useful(summary) || useful(topTask(activeLeaves.map((leaf) => leaf.raw || leaf))?.nextAction) || `${title}: ${stats.completed}/${stats.total} выполнено.`,
+    details: details.map(useful).filter(Boolean).length ? details.map(useful).filter(Boolean) : activeLeaves.slice(0, 4).map((task) => task.title),
     children: childItems,
     taskList: leafItems,
     kind,
@@ -242,7 +245,7 @@ function groupByProject(tasks = []) {
     title,
     icon: iconFor(title, 'PR'),
     items,
-    summary: topTask(items.filter((task) => !isDoneTask(task)))?.nextAction || `Проект: ${title}`,
+    summary: useful(topTask(items.filter((task) => !isDoneTask(task)))?.nextAction) || `Проект: ${title}`,
     kind: 'project',
   }));
 }
@@ -256,7 +259,7 @@ function areaToProjectNode(area, tasks = []) {
     title,
     icon: iconFor(title, 'PR'),
     items: related,
-    summary: area.nextAction || area.currentState || area.goal || area.why || `Проект: ${title}`,
+    summary: area.nextAction || area.currentState || area.goal || `Направление: ${title}`,
     status: area.status,
     details: [area.goal, area.currentState, area.nextAction, area.why].filter(Boolean),
     kind: LIFE_TYPES.has(typeKey(area.type)) ? 'lifeArea' : 'project',
@@ -281,7 +284,7 @@ function mergeProjectNodes(declaredNodes = [], fallbackNodes = []) {
       ...existing,
       sourceId: existing.sourceId || node.sourceId || null,
       raw: existing.raw || node.raw || null,
-      summary: existing.summary || node.summary,
+      summary: useful(existing.summary) || useful(node.summary),
       details: uniqById(taskList).slice(0, 4).map((item) => item.title),
       children: childLeaves.length ? childLeaves : taskList,
       taskList,
@@ -304,7 +307,7 @@ function buildGoals(goals = [], tasks = []) {
       title: goal.title || 'Цель',
       icon: 'GO',
       items: related,
-      summary: goal.nextAction || `Цель: ${goal.title}`,
+      summary: useful(goal.nextAction) || `Цель: ${goal.title}`,
       status: goal.status,
       details: [goal.horizon, goal.targetDate, goal.nextAction].filter(Boolean),
       kind: 'goal',
@@ -375,10 +378,10 @@ export function buildActionMap(snapshot) {
     completedTasks,
     totalTasks,
     summary: 'Главная орбита LifeMap: проекты, цели, AI Inbox, жизнь, доход и идеи на потом.',
-    details: ['Клик по сфере открывает её как новый центр.', 'Задачи выбранной ветки показываются списком справа.', 'Прогресс считается как выполненные задачи / все задачи ветки.'],
+    details: [],
     session: {
       current: current.title || 'LifeMap: сделать карту рабочим навигатором',
-      next: current.nextAction || 'Выбрать сферу и перейти к ближайшему практическому шагу.',
+      next: useful(current.nextAction) || 'Выбрать сферу и перейти к ближайшему практическому шагу.',
     },
     children,
     taskList: [],
