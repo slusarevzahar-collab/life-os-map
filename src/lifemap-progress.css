@@ -97,6 +97,10 @@
   max-height: none !important;
 }
 
+.detailHead:not(:has(.ring)) {
+  grid-template-columns: 56px minmax(0, 1fr) !important;
+}
+
 .noteEditorActions {
   justify-content: flex-end !important;
 }
@@ -112,5 +116,9 @@
   .mission:not(.missionCollapsed) {
     bottom: 12px !important;
     max-height: calc(100vh - 74px);
+  }
+
+  .detailHead:not(:has(.ring)) {
+    grid-template-columns: 48px minmax(0, 1fr) !important;
   }
 }
