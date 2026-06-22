@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { isDoneNode } from '../lib/actionMapModel.js';
+import { isDoneNode, isLeafNode } from '../lib/actionMapModel.js';
 import { canPatchTask } from '../lib/lifeMapSelectors.js';
 import { Ring } from './Ring.jsx';
 
@@ -7,6 +7,7 @@ export function DetailCard({ node, onClose, onComplete, onRestore, onOpenMenu, b
   if (!node) return null;
   const patchable = canPatchTask(node);
   const done = isDoneNode(node);
+  const showProgress = !isLeafNode(node) && Number(node.totalTasks || 0) > 0;
 
   return (
     <motion.aside
@@ -20,8 +21,8 @@ export function DetailCard({ node, onClose, onComplete, onRestore, onOpenMenu, b
       <button className="closeDetail" onClick={onClose}>×</button>
       <div className="detailHead">
         <span>{node.icon}</span>
-        <div><small>{node.subtitle || 'Задача'}</small><h2>{node.title}</h2></div>
-        <Ring value={node.progress} />
+        <div><small>{node.subtitle || 'Объект'}</small><h2>{node.title}</h2></div>
+        {showProgress ? <Ring value={node.progress} /> : null}
       </div>
       <p>{node.summary || 'Описание пока не заполнено.'}</p>
       {patchable ? (
