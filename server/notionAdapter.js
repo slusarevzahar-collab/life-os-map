@@ -222,15 +222,32 @@ function buildPlanning(tasks) {
   }, { onTrack: 0, next: 0, waiting: 0, overdue: 0, done: 0 });
 }
 
-async function queryDatabase(notion, databaseId, mapper, label, warnings) {
+const reportedDatabaseWarnings = new Set();
+
+function isObjectNotFound(error) {
+  return error?.code === 'object_not_found' || /could not find database/i.test(error?.message || '');
+}
+
+function databaseAccessMessage(label, databaseId) {
+  return `${label}: база ${databaseId} не найдена или не открыта для интеграции Life OS Map Backend.`;
+}
+
+async function queryDatabase(notion, databaseId, mapper, label, warnings, options = {}) {
   if (!databaseId) return [];
+  const required = Boolean(options.required);
   try {
     const response = await notion.databases.query({ database_id: databaseId, page_size: 50 });
     return response.results.map(mapper);
   } catch (error) {
-    const message = `${label}: ${error.message}`;
+    const message = isObjectNotFound(error) ? databaseAccessMessage(label, databaseId) : `${label}: ${error.message}`;
     warnings.push(message);
-    console.warn(`LifeMap ${message}`);
+
+    const warningKey = `${label}:${databaseId}:${error?.code || error?.message}`;
+    if (!reportedDatabaseWarnings.has(warningKey)) {
+      reportedDatabaseWarnings.add(warningKey);
+      const log = required ? console.warn : console.info;
+      log(`LifeMap ${message}`);
+    }
     return [];
   }
 }
@@ -247,7 +264,7 @@ export async function getNotionSnapshot({ notionToken, tasksDbId, goalsDbId, ses
   if (!notionToken || !tasksDbId) return null;
   const notion = new Client({ auth: notionToken });
   const warnings = [];
-  const rawTasks = (await queryDatabase(notion, tasksDbId, mapNotionTask, 'Tasks DB', warnings)).sort((a, b) => (a.priority || 999) - (b.priority || 999));
+  const rawTasks = (await queryDatabase(notion, tasksDbId, mapNotionTask, 'Tasks DB', warnings, { required: true })).sort((a, b) => (a.priority || 999) - (b.priority || 999));
   const goals = (await queryDatabase(notion, goalsDbId, mapNotionGoal, 'Goals DB', warnings)).sort((a, b) => (b.progress || 0) - (a.progress || 0));
   const tasks = attachGoalsToTasks(rawTasks, goals);
   const sessions = (await queryDatabase(notion, sessionsDbId, mapNotionSession, 'Work Sessions DB', warnings)).sort((a, b) => String(b.startedAt || '').localeCompare(String(a.startedAt || '')));
@@ -262,12 +279,12 @@ export async function getNotionSnapshot({ notionToken, tasksDbId, goalsDbId, ses
       updatedAt: new Date().toISOString(),
       warnings,
       connected: {
-        tasks: Boolean(tasksDbId) && tasks.length > 0,
-        goals: Boolean(goalsDbId) && goals.length > 0,
-        sessions: Boolean(sessionsDbId) && sessions.length > 0,
-        projectAreas: Boolean(projectsDbId) && projectAreas.length > 0,
-        dreams: Boolean(dreamsDbId) && dreams.length > 0,
-        signals: Boolean(signalsDbId) && signals.length > 0,
+        tasks: Boolean(tasksDbId && !warnings.some((item) => item.startsWith('Tasks DB:'))),
+        goals: Boolean(goalsDbId && !warnings.some((item) => item.startsWith('Goals DB:'))),
+        sessions: Boolean(sessionsDbId && !warnings.some((item) => item.startsWith('Work Sessions DB:'))),
+        projectAreas: Boolean(projectsDbId && !warnings.some((item) => item.startsWith('Projects & Life Areas DB:'))),
+        dreams: Boolean(dreamsDbId && !warnings.some((item) => item.startsWith('Goals, Dreams & Desires DB:'))),
+        signals: Boolean(signalsDbId && !warnings.some((item) => item.startsWith('AI Signals Inbox DB:'))),
       },
     },
     currentFocus: currentFocus ? {
@@ -276,11 +293,10 @@ export async function getNotionSnapshot({ notionToken, tasksDbId, goalsDbId, ses
       project: currentFocus.project,
       status: currentFocus.status,
       progress: currentFocus.progress,
-      priority: currentFocus.priority,
-      nextAction: currentFocus.nextAction || 'Следующий шаг не указан.',
-    } : mockSnapshot.currentFocus,
-    goals,
+      nextAction: currentFocus.nextAction,
+    } : null,
     tasks,
+    goals,
     sessions,
     projectAreas,
     dreams,
@@ -289,62 +305,61 @@ export async function getNotionSnapshot({ notionToken, tasksDbId, goalsDbId, ses
   };
 }
 
-export async function createWorkSession({ notionToken, sessionsDbId, payload }) {
-  if (!notionToken || !sessionsDbId) throw new Error('NOTION_TOKEN and NOTION_SESSIONS_DB_ID are required');
+export async function updateTaskEvent({ notionToken, taskId, event }) {
+  if (!notionToken) throw new Error('NOTION_TOKEN is missing.');
+  if (!taskId) throw new Error('Task id is missing.');
   const notion = new Client({ auth: notionToken });
-  const title = payload.title || payload.session || `Work session · ${new Date().toLocaleString('ru-RU')}`;
+  const properties = {};
+  if (hasOwn(event, 'status')) properties.Status = selectProperty(event.status);
+  if (hasOwn(event, 'progress')) properties.Progress = numberProperty(event.progress);
+  if (hasOwn(event, 'priority')) properties.Priority = numberProperty(event.priority);
+  if (hasOwn(event, 'dueDate')) properties['Due Date'] = dateProperty(event.dueDate);
+  if (hasOwn(event, 'plannedDate')) properties['Planned Date'] = dateProperty(event.plannedDate);
+  if (hasOwn(event, 'startedAt')) properties['Started At'] = dateProperty(event.startedAt);
+  if (hasOwn(event, 'finishedAt')) properties['Finished At'] = dateProperty(event.finishedAt);
+  if (hasOwn(event, 'durationMin')) properties['Duration Min'] = numberProperty(event.durationMin);
+  if (hasOwn(event, 'timeDebt')) properties['Time Debt'] = numberProperty(event.timeDebt);
+  if (hasOwn(event, 'rescheduleCount')) properties['Reschedule Count'] = numberProperty(event.rescheduleCount);
+  if (hasOwn(event, 'nextAction')) properties['Next Action'] = textProperty(event.nextAction);
+  if (hasOwn(event, 'sessionNotes')) properties['Session Notes'] = textProperty(event.sessionNotes);
+  if (hasOwn(event, 'title')) properties.Task = titleProperty(event.title);
+  await notion.pages.update({ page_id: taskId, properties: cleanProperties(properties) });
+  return { id: taskId, updated: true };
+}
+
+export async function createWorkSession({ notionToken, sessionsDbId, payload = {} }) {
+  if (!notionToken) throw new Error('NOTION_TOKEN is missing.');
+  if (!sessionsDbId) throw new Error('NOTION_SESSIONS_DB_ID is missing.');
+  const notion = new Client({ auth: notionToken });
   const properties = cleanProperties({
-    Session: titleProperty(title),
+    Session: titleProperty(payload.title || payload.session || 'LifeMap session'),
     Task: textProperty(payload.task || ''),
-    Project: selectProperty(payload.project || 'Life OS'),
-    Status: selectProperty(payload.status || 'Finished'),
+    Project: selectProperty(payload.project || 'LifeMap'),
+    Status: selectProperty(payload.status || 'Done'),
     'Started At': dateProperty(payload.startedAt),
-    'Finished At': dateProperty(payload.finishedAt),
+    'Finished At': dateProperty(payload.finishedAt || new Date().toISOString()),
     'Duration Min': numberProperty(payload.durationMin),
     Result: textProperty(payload.result || ''),
-    'Next Step': textProperty(payload.nextStep || payload.nextAction || ''),
+    'Next Step': textProperty(payload.nextStep || ''),
   });
-  const response = await notion.pages.create({ parent: { database_id: sessionsDbId }, properties });
-  return { id: response.id, url: response.url };
-}
-
-export async function updateTaskEvent({ notionToken, taskId, event }) {
-  if (!notionToken || !taskId) throw new Error('NOTION_TOKEN and taskId are required');
-  const notion = new Client({ auth: notionToken });
-  const now = new Date().toISOString();
-  const properties = cleanProperties({
-    Task: event.title ? titleProperty(event.title) : undefined,
-    Status: selectProperty(event.status),
-    Progress: numberProperty(event.progress),
-    Priority: numberProperty(event.priority),
-    'Due Date': dateProperty(event.dueDate),
-    'Planned Date': dateProperty(event.plannedDate),
-    'Last Touched': dateProperty(now),
-    'Next Action': hasOwn(event, 'nextAction') ? textProperty(event.nextAction) : undefined,
-    'Session Notes': hasOwn(event, 'sessionNotes') ? textProperty(event.sessionNotes) : undefined,
-    'Time Debt': numberProperty(event.timeDebt),
-    'Reschedule Count': numberProperty(event.rescheduleCount),
-  });
-  const response = await notion.pages.update({ page_id: taskId, properties });
-  return { id: response.id, url: response.url };
-}
-
-function titlePropertyNameForKind(kind = '') {
-  const normalized = String(kind || '').toLowerCase();
-  if (normalized === 'task') return 'Task';
-  if (normalized === 'goal') return 'Goal';
-  if (normalized === 'project' || normalized === 'lifearea') return 'Name';
-  if (normalized === 'dream') return 'Goal / Dream';
-  if (normalized === 'signal') return 'Signal';
-  return 'Name';
+  const page = await notion.pages.create({ parent: { database_id: sessionsDbId }, properties });
+  return { id: page.id, created: true };
 }
 
 export async function updateItemTitle({ notionToken, itemId, kind, title }) {
-  if (!notionToken || !itemId) throw new Error('NOTION_TOKEN and itemId are required');
-  const cleanTitle = String(title || '').trim();
-  if (!cleanTitle) throw new Error('Title is required');
+  if (!notionToken) throw new Error('NOTION_TOKEN is missing.');
+  if (!itemId) throw new Error('Item id is missing.');
+  if (!title) throw new Error('Title is missing.');
   const notion = new Client({ auth: notionToken });
-  const propertyName = titlePropertyNameForKind(kind);
-  const response = await notion.pages.update({ page_id: itemId, properties: { [propertyName]: titleProperty(cleanTitle) } });
-  return { id: response.id, url: response.url, propertyName };
+  const propertyByKind = {
+    task: 'Task',
+    goal: 'Goal',
+    projectArea: 'Name',
+    dream: 'Goal / Dream',
+    signal: 'Signal',
+    session: 'Session',
+  };
+  const prop = propertyByKind[kind] || 'Name';
+  await notion.pages.update({ page_id: itemId, properties: { [prop]: titleProperty(title) } });
+  return { id: itemId, updated: true, title };
 }
