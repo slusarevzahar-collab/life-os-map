@@ -15,22 +15,63 @@ function progressLabel(item) {
   return total > 0 ? `${progress}% · ${done}/${total}` : `${progress}%`;
 }
 
+function compactCode(value = 'LM') {
+  const source = String(value || 'LM').toUpperCase();
+  const letters = (source.match(/[A-ZА-Я]{1,2}/)?.[0] || 'LM').slice(0, 2);
+  const rawNumber = Number(source.match(/\d+/)?.[0] || 1);
+  const number = ((Math.max(rawNumber, 1) - 1) % 100) + 1;
+  return `${letters}${number}`;
+}
+
 function taskCode(item) {
-  return item.code || item.raw?.code || item.icon || 'LM';
+  return compactCode(item.code || item.raw?.code || item.icon || 'LM');
 }
 
 const codeBadgeStyle = {
   width: 'auto',
-  minWidth: 56,
+  minWidth: 48,
   padding: '0 8px',
   fontSize: 10,
-  letterSpacing: '0.035em',
+  letterSpacing: '0.025em',
   whiteSpace: 'nowrap',
 };
 
-const taskMainStyle = { gridTemplateColumns: 'minmax(56px, auto) minmax(0, 1fr)' };
+const taskMainStyle = { gridTemplateColumns: 'minmax(48px, auto) minmax(0, 1fr)' };
 
-export function SideList({ map, viewMode, setViewMode, onOpen, onComplete, onRestore, onReorderList, onOpenMenu, onSaveNote, busyTaskId }) {
+function InlineTitleEditor({ value, onChange, onSubmit, onCancel }) {
+  return (
+    <input
+      className="inlineTitleInput taskTitleInput"
+      autoFocus
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      onBlur={onSubmit}
+      onClick={(event) => event.stopPropagation()}
+      onPointerDown={(event) => event.stopPropagation()}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') onSubmit(event);
+        if (event.key === 'Escape') onCancel(event);
+      }}
+    />
+  );
+}
+
+export function SideList({
+  map,
+  viewMode,
+  setViewMode,
+  onOpen,
+  onComplete,
+  onRestore,
+  onReorderList,
+  onOpenMenu,
+  onSaveNote,
+  busyTaskId,
+  inlineEditor,
+  onInlineRenameChange,
+  onSubmitInlineRename,
+  onCancelInlineRename,
+}) {
   const items = listItems(map).filter((item) => isLeafNode(item));
   const [dragId, setDragId] = useState(null);
   const [dropTarget, setDropTarget] = useState(null);
@@ -148,12 +189,24 @@ export function SideList({ map, viewMode, setViewMode, onOpen, onComplete, onRes
             const done = isDoneNode(item);
             const dropClass = dropTarget?.id === item.id ? `drop-${dropTarget.position}` : '';
             const expanded = expandedId === item.id;
+            const editing = inlineEditor?.nodeId === item.id;
             const noteValue = notesDraft[item.id] ?? item.raw?.sessionNotes ?? item.summary ?? '';
             const code = taskCode(item);
             return (
               <div className={`sideItemRow ${done ? 'doneRow' : ''} ${expanded ? 'expandedRow' : ''} ${dragId === item.id ? 'draggingRow' : ''} ${dropClass}`} key={item.id} data-reorder-id={patchable && !done ? item.id : undefined} onContextMenu={(event) => onOpenMenu(item, event)}>
-                <button className="sideItemMain" style={taskMainStyle} onClick={() => nested && !isLeafNode(item) ? onOpen(item.id) : setExpandedId((current) => current === item.id ? null : item.id)}>
-                  <span className="taskCodeBadge" style={codeBadgeStyle} title={`Код задачи: ${code}`}>{code}</span><div><b>{item.title}</b>{nested ? <small>{`${item.tasks || 0} задач · открыть ветку`}</small> : null}</div>
+                <button className="sideItemMain" style={taskMainStyle} onClick={() => editing ? null : (nested && !isLeafNode(item) ? onOpen(item.id) : setExpandedId((current) => current === item.id ? null : item.id))}>
+                  <span className="taskCodeBadge" style={codeBadgeStyle} title={`Код задачи: ${code}`}>{code}</span>
+                  <div>
+                    {editing ? (
+                      <InlineTitleEditor
+                        value={inlineEditor.value}
+                        onChange={onInlineRenameChange}
+                        onSubmit={(event) => onSubmitInlineRename(item, event)}
+                        onCancel={onCancelInlineRename}
+                      />
+                    ) : <b>{item.title}</b>}
+                    {nested ? <small>{`${item.tasks || 0} задач · открыть ветку`}</small> : null}
+                  </div>
                 </button>
                 <div className="rowActions">
                   {isLeafNode(item) ? <button className="expandMini" title="Развернуть" onClick={(event) => { event.stopPropagation(); setExpandedId((current) => current === item.id ? null : item.id); }}><ChevronDown open={expanded} /></button> : null}
