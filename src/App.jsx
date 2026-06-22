@@ -42,6 +42,34 @@ function writeStorage(key, value) {
   } catch {}
 }
 
+function normalizeTitle(value = '') {
+  return String(value || '').trim().toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ');
+}
+
+function siblingTitleExists(parentNode, title, ignoreId = null) {
+  const needle = normalizeTitle(title);
+  if (!parentNode || !needle) return false;
+  return (parentNode.children || []).some((child) => child.id !== ignoreId && normalizeTitle(child.title) === needle);
+}
+
+function findParentNode(node, targetId) {
+  if (!node) return null;
+  if ((node.children || []).some((child) => child.id === targetId)) return node;
+  for (const child of node.children || []) {
+    const parent = findParentNode(child, targetId);
+    if (parent) return parent;
+  }
+  return null;
+}
+
+function uniqueLocalTitle(parentNode) {
+  const base = 'Новая планета';
+  if (!siblingTitleExists(parentNode, base)) return base;
+  let index = 2;
+  while (siblingTitleExists(parentNode, `${base} ${index}`)) index += 1;
+  return `${base} ${index}`;
+}
+
 function localObjectNode(parentId, object) {
   return {
     id: object.id,
@@ -80,6 +108,7 @@ function hasTaskSideList(node) {
 
 function TextInputDialog({ editor, busy, onSubmit, onClose }) {
   const [value, setValue] = useState(editor?.initialValue || '');
+  useEffect(() => { setValue(editor?.initialValue || ''); }, [editor?.id, editor?.initialValue]);
   if (!editor) return null;
   const submit = (event) => {
     event.preventDefault();
@@ -113,6 +142,7 @@ function App() {
   const [viewMode, setViewMode] = useState('active');
   const [contextMenu, setContextMenu] = useState(null);
   const [objectEditor, setObjectEditor] = useState(null);
+  const [inlineEditor, setInlineEditor] = useState(null);
   const [editorBusy, setEditorBusy] = useState(false);
   const [focusQueue, setFocusQueue] = useState(() => readStorage(FOCUS_STORAGE_KEY, []));
   const [titleAliases, setTitleAliases] = useState(() => readStorage(TITLE_ALIASES_KEY, {}));
@@ -151,11 +181,17 @@ function App() {
 
   useEffect(() => { setViewMode(currentId === 'sphere-done' ? 'done' : 'active'); }, [currentId]);
 
+  const showToast = (message, timeout = 2200) => {
+    setToast(message);
+    setTimeout(() => setToast(''), timeout);
+  };
+
   const openNode = (id) => {
     setRoute((prev) => [...prev, id]);
     setSelected(null);
     setPanel(null);
     setContextMenu(null);
+    setInlineEditor(null);
   };
 
   const goBack = () => {
@@ -163,6 +199,7 @@ function App() {
     setSelected(null);
     setPanel(null);
     setContextMenu(null);
+    setInlineEditor(null);
   };
 
   const goCenter = () => {
@@ -170,6 +207,7 @@ function App() {
     setSelected(null);
     setPanel(null);
     setContextMenu(null);
+    setInlineEditor(null);
   };
 
   const openMenu = (node, eventOrPoint) => {
@@ -182,13 +220,16 @@ function App() {
 
   const beginCreateObject = (node) => {
     setContextMenu(null);
+    const parent = findNode(rootMap, node.id);
+    const initialValue = uniqueLocalTitle(parent);
     setObjectEditor({
+      id: `${node.id}-${Date.now()}`,
       mode: 'create',
       node,
       title: node.title || 'LifeMap',
       label: 'Название нового объекта',
       placeholder: 'Например: AI Inbox',
-      initialValue: 'Новая планета',
+      initialValue,
       confirmText: 'Создать',
     });
   };
@@ -196,15 +237,52 @@ function App() {
   const beginRenameNode = (node) => {
     if (!canRenameNode(node)) return;
     setContextMenu(null);
-    setObjectEditor({
-      mode: 'rename',
-      node,
-      title: node.title || 'Объект',
-      label: 'Новое название',
-      placeholder: 'Введите название',
-      initialValue: node.title || '',
-      confirmText: 'Сохранить',
-    });
+    setInlineEditor({ nodeId: node.id, value: node.title || '' });
+  };
+
+  const submitRename = async (node, rawTitle) => {
+    const title = String(rawTitle || '').trim();
+    if (!node || !title) { setInlineEditor(null); return; }
+    if (title === node.title) { setInlineEditor(null); return; }
+
+    const parent = findParentNode(rootMap, node.id);
+    if (!isLeafNode(node) && siblingTitleExists(parent, title, node.id)) {
+      showToast('Такой объект уже есть на этой орбите. Выбери другое название.');
+      return;
+    }
+
+    if (!node.sourceId) {
+      setTitleAliases((aliases) => ({ ...aliases, [node.id]: title }));
+      setInlineEditor(null);
+      showToast('Название обновлено локально.');
+      return;
+    }
+
+    setEditorBusy(true);
+    setBusyTaskId(node.sourceId);
+    setToast('Переименовываю в Notion…');
+    try {
+      await patchItemTitle(node, title);
+      setFocusQueue((queue) => queue.map((item) => item.sourceId === node.sourceId ? { ...item, title } : item));
+      await loadSnapshot();
+      setSelected(null);
+      setInlineEditor(null);
+      showToast('Название обновлено в Notion.');
+    } catch (error) {
+      const message = `Rename: ${error.message}`;
+      setToast(`Не переименовалось: ${error.message}`);
+      setErrorLog((items) => [message, ...items].slice(0, 8));
+      setPanel('errors');
+    } finally {
+      setEditorBusy(false);
+      setBusyTaskId(null);
+    }
+  };
+
+  const submitInlineRename = (node, event) => {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    submitRename(node, inlineEditor?.value);
   };
 
   const submitObjectEditor = async (value) => {
@@ -213,47 +291,18 @@ function App() {
     if (!editor || !title) return;
     if (editor.mode === 'create') {
       const node = editor.node;
+      const parent = findNode(rootMap, node.id);
+      if (siblingTitleExists(parent, title)) {
+        showToast('Такой объект уже есть на этой орбите. Выбери другое название.');
+        return;
+      }
       const id = `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
       setCustomObjects((items) => ({
         ...items,
         [node.id]: [...(items[node.id] || []), { id, title, icon: 'OB', createdAt: new Date().toISOString() }],
       }));
       setObjectEditor(null);
-      setToast('Новая планета создана локально в этом уровне LifeMap.');
-      setTimeout(() => setToast(''), 2400);
-      return;
-    }
-
-    if (editor.mode === 'rename') {
-      const node = editor.node;
-      if (title === node.title) { setObjectEditor(null); return; }
-      if (!node.sourceId) {
-        setTitleAliases((aliases) => ({ ...aliases, [node.id]: title }));
-        setObjectEditor(null);
-        setToast('Название обновлено локально.');
-        setTimeout(() => setToast(''), 2400);
-        return;
-      }
-      setEditorBusy(true);
-      setBusyTaskId(node.sourceId);
-      setToast('Переименовываю в Notion…');
-      try {
-        await patchItemTitle(node, title);
-        setFocusQueue((queue) => queue.map((item) => item.sourceId === node.sourceId ? { ...item, title } : item));
-        await loadSnapshot();
-        setSelected(null);
-        setObjectEditor(null);
-        setToast('Название обновлено в Notion.');
-        setTimeout(() => setToast(''), 2400);
-      } catch (error) {
-        const message = `Rename: ${error.message}`;
-        setToast(`Не переименовалось: ${error.message}`);
-        setErrorLog((items) => [message, ...items].slice(0, 8));
-        setPanel('errors');
-      } finally {
-        setEditorBusy(false);
-        setBusyTaskId(null);
-      }
+      showToast('Новая планета создана локально в этом уровне LifeMap.', 2400);
     }
   };
 
@@ -276,8 +325,7 @@ function App() {
     setRoute((prev) => prev.includes(node.id) ? prev.slice(0, Math.max(1, prev.indexOf(node.id))) : prev);
     setSelected(null);
     setContextMenu(null);
-    setToast('Локальный объект удалён из LifeMap.');
-    setTimeout(() => setToast(''), 2200);
+    showToast('Локальный объект удалён из LifeMap.');
   };
 
   const updateTask = async (node, payload, successText) => {
@@ -295,8 +343,7 @@ function App() {
       } : item));
       await loadSnapshot();
       setSelected(null);
-      setToast(successText);
-      setTimeout(() => setToast(''), 2400);
+      showToast(successText, 2400);
     } catch (error) {
       const message = `Task update: ${error.message}`;
       setToast(`Не сохранилось: ${error.message}`);
@@ -319,8 +366,7 @@ function App() {
     try {
       await Promise.all(patchableItems.map((item, orderIndex) => patchTask(item.sourceId, { priority: (orderIndex + 1) * 10 })));
       await loadSnapshot();
-      setToast('Порядок задач обновлён.');
-      setTimeout(() => setToast(''), 2200);
+      showToast('Порядок задач обновлён.');
     } catch (error) {
       const message = `Task reorder: ${error.message}`;
       setToast(`Порядок не сохранился: ${error.message}`);
@@ -338,7 +384,7 @@ function App() {
     setFocusQueue((queue) => [item, ...queue.filter((next) => (item.sourceId && next.sourceId !== item.sourceId) || (!item.sourceId && next.id !== item.id))].slice(0, 12));
     setContextMenu(null);
     if (canPatchTask(target)) updateTask(target, { status: 'Now', nextAction: target.raw?.nextAction || target.summary || '' }, 'Текущий фокус обновлён.');
-    else { setToast('Текущий фокус обновлён локально.'); setTimeout(() => setToast(''), 2000); }
+    else showToast('Текущий фокус обновлён локально.', 2000);
   };
 
   const setFocusNext = (node) => {
@@ -351,7 +397,14 @@ function App() {
     });
     setContextMenu(null);
     if (canPatchTask(target)) updateTask(target, { status: 'Next', nextAction: target.raw?.nextAction || target.summary || '' }, 'Задача поставлена следующей.');
-    else { setToast('Задача поставлена следующей локально.'); setTimeout(() => setToast(''), 2000); }
+    else showToast('Задача поставлена следующей локально.', 2000);
+  };
+
+  const inlineRenameProps = {
+    inlineEditor,
+    onInlineRenameChange: (value) => setInlineEditor((editor) => editor ? { ...editor, value } : editor),
+    onSubmitInlineRename: submitInlineRename,
+    onCancelInlineRename: (event) => { event?.preventDefault?.(); event?.stopPropagation?.(); setInlineEditor(null); },
   };
 
   return (
@@ -360,9 +413,9 @@ function App() {
       <TopNav canBack={canBack} onBack={goBack} onCenter={goCenter} apiState={dataState(snapshot, apiState)} errorCount={errors.length} onErrors={() => setPanel('errors')} />
       <MissionPanel focus={activeFocus} focusQueueItems={focusQueueItems} snapshot={snapshot} apiState={apiState} onDone={() => setPanel('done')} />
       <AnimatePresence mode="wait">
-        <OrbitMap key={currentMap.id} map={currentMap} hasSide={showSideList} onOpen={openNode} onOpenMenu={openMenu} />
+        <OrbitMap key={currentMap.id} map={currentMap} hasSide={showSideList} onOpen={openNode} onOpenMenu={openMenu} {...inlineRenameProps} />
       </AnimatePresence>
-      {showSideList ? <SideList map={currentMap} viewMode={viewMode} setViewMode={setViewMode} onOpen={openNode} onComplete={completeTask} onRestore={restoreTask} onReorderList={reorderList} onOpenMenu={openMenu} onSaveNote={saveNote} busyTaskId={busyTaskId} /> : null}
+      {showSideList ? <SideList map={currentMap} viewMode={viewMode} setViewMode={setViewMode} onOpen={openNode} onComplete={completeTask} onRestore={restoreTask} onReorderList={reorderList} onOpenMenu={openMenu} onSaveNote={saveNote} busyTaskId={busyTaskId} {...inlineRenameProps} /> : null}
       <AnimatePresence>
         {selected ? <DetailCard key={selected.id} node={selected} onClose={() => setSelected(null)} onComplete={completeTask} onRestore={restoreTask} onOpenMenu={openMenu} busyTaskId={busyTaskId} /> : null}
         {panel ? <UtilityPanel key={panel} type={panel} rootMap={rootMap} errors={errors} onClose={() => setPanel(null)} onRestore={restoreTask} busyTaskId={busyTaskId} /> : null}
