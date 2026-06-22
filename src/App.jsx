@@ -7,7 +7,7 @@ import './action-map-latest.css';
 import './lifemap-progress.css';
 
 import { buildActionMap, findNode } from './lib/actionMapModel.js';
-import { FOCUS_STORAGE_KEY, TITLE_ALIASES_KEY } from './constants/lifeMap.js';
+import { CUSTOM_OBJECTS_KEY, FOCUS_STORAGE_KEY, TITLE_ALIASES_KEY } from './constants/lifeMap.js';
 import { dataState, emptySnapshot, fetchSnapshot, patchItemTitle, patchTask } from './lib/lifeMapRuntime.js';
 import {
   applyTitleAliases,
@@ -42,6 +42,38 @@ function writeStorage(key, value) {
   } catch {}
 }
 
+function localObjectNode(parentId, object) {
+  return {
+    id: object.id,
+    sourceId: null,
+    title: object.title || 'Новый объект',
+    icon: object.icon || 'OB',
+    status: 'локальный объект',
+    state: 'queue',
+    progress: 0,
+    tasks: 0,
+    completedTasks: 0,
+    totalTasks: 0,
+    summary: 'Локальная планета LifeMap. Позже её можно связать с Notion или превратить в полноценную задачу/проект.',
+    details: [],
+    children: [],
+    taskList: [],
+    kind: 'custom',
+    raw: { local: true, parentId, createdAt: object.createdAt },
+  };
+}
+
+function attachCustomObjects(node, customObjects = {}) {
+  if (!node) return node;
+  const localChildren = (customObjects[node.id] || []).map((item) => localObjectNode(node.id, item));
+  const children = [...(node.children || []).map((child) => attachCustomObjects(child, customObjects)), ...localChildren];
+  return {
+    ...node,
+    children,
+    taskList: (node.taskList || []).map((child) => attachCustomObjects(child, customObjects)),
+  };
+}
+
 function App() {
   const [snapshot, setSnapshot] = useState(() => emptySnapshot('loading'));
   const [apiState, setApiState] = useState('loading');
@@ -55,6 +87,7 @@ function App() {
   const [contextMenu, setContextMenu] = useState(null);
   const [focusQueue, setFocusQueue] = useState(() => readStorage(FOCUS_STORAGE_KEY, []));
   const [titleAliases, setTitleAliases] = useState(() => readStorage(TITLE_ALIASES_KEY, {}));
+  const [customObjects, setCustomObjects] = useState(() => readStorage(CUSTOM_OBJECTS_KEY, {}));
 
   const loadSnapshot = useCallback(() => {
     setApiState((state) => state === 'api offline' ? 'loading' : state);
@@ -75,9 +108,10 @@ function App() {
   useEffect(() => { loadSnapshot().catch(() => {}); }, [loadSnapshot]);
   useEffect(() => { writeStorage(FOCUS_STORAGE_KEY, focusQueue.slice(0, 12)); }, [focusQueue]);
   useEffect(() => { writeStorage(TITLE_ALIASES_KEY, titleAliases); }, [titleAliases]);
+  useEffect(() => { writeStorage(CUSTOM_OBJECTS_KEY, customObjects); }, [customObjects]);
 
   const baseRootMap = useMemo(() => buildActionMap(snapshot), [snapshot]);
-  const rootMap = useMemo(() => applyTitleAliases(baseRootMap, titleAliases), [baseRootMap, titleAliases]);
+  const rootMap = useMemo(() => applyTitleAliases(attachCustomObjects(baseRootMap, customObjects), titleAliases), [baseRootMap, customObjects, titleAliases]);
   const activeFocus = useMemo(() => resolveFocus(rootMap, snapshot, focusQueue), [rootMap, snapshot, focusQueue]);
   const focusQueueItems = useMemo(() => buildFocusSequence(rootMap, activeFocus, focusQueue), [rootMap, activeFocus, focusQueue]);
   const currentId = route[route.length - 1];
@@ -116,6 +150,20 @@ function App() {
     const x = Math.min(eventOrPoint?.clientX ?? window.innerWidth / 2, window.innerWidth - 230);
     const y = Math.min(eventOrPoint?.clientY ?? window.innerHeight / 2, window.innerHeight - 180);
     setContextMenu({ node, x: Math.max(12, x), y: Math.max(12, y) });
+  };
+
+  const createObject = (node) => {
+    const nextTitle = window.prompt('Название нового объекта', 'Новая планета');
+    const title = String(nextTitle || '').trim();
+    if (!title) { setContextMenu(null); return; }
+    const id = `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    setCustomObjects((items) => ({
+      ...items,
+      [node.id]: [...(items[node.id] || []), { id, title, icon: 'OB', createdAt: new Date().toISOString() }],
+    }));
+    setContextMenu(null);
+    setToast('Новая планета создана локально в этом уровне LifeMap.');
+    setTimeout(() => setToast(''), 2400);
   };
 
   const updateTask = async (node, payload, successText) => {
@@ -236,7 +284,7 @@ function App() {
         {selected ? <DetailCard key={selected.id} node={selected} onClose={() => setSelected(null)} onComplete={completeTask} onRestore={restoreTask} onOpenMenu={openMenu} busyTaskId={busyTaskId} /> : null}
         {panel ? <UtilityPanel key={panel} type={panel} rootMap={rootMap} errors={errors} onClose={() => setPanel(null)} onRestore={restoreTask} busyTaskId={busyTaskId} /> : null}
       </AnimatePresence>
-      <ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} onFocusNow={setFocusNow} onFocusNext={setFocusNext} onRename={renameNode} />
+      <ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} onFocusNow={setFocusNow} onFocusNext={setFocusNext} onRename={renameNode} onCreateObject={createObject} />
       {toast ? <div className="toast">{toast}</div> : null}
     </main>
   );
