@@ -1,16 +1,16 @@
-# Life OS Map
+# LifeMap
 
-Интерактивный AI-first навигатор целей, задач, рабочих сессий и следующих действий Захара.
+Интерактивный AI-first навигатор проектов, задач, входящих сигналов и следующего фокуса Захара.
 
 ## Что это
 
-Life OS Map — не просто dashboard. Это визуальная карта жизни/проектов:
+LifeMap — не просто dashboard. Это рабочая карта, которая помогает не теряться в проектах и задачах:
 
 ```text
-AI-first Life OS → Goals → Tasks → Work Sessions → Time / Progress / Copilot
+цели → проекты → задачи → очередь фокуса → Done / возврат в работу
 ```
 
-Карта должна быть главным способом ориентироваться во всём объёме целей и задач. Панели слева/справа — вспомогательные: их можно скрывать, чтобы работать с чистой картой.
+Главный смысл LifeMap — видеть систему целиком и быстро понимать: над чем я работаю сейчас, что дальше, какие проекты двигают меня к доходу и какие входящие сигналы стоит обработать.
 
 ## Текущий статус
 
@@ -19,10 +19,14 @@ AI-first Life OS → Goals → Tasks → Work Sessions → Time / Progress / Cop
 - React/Vite frontend.
 - Express backend.
 - Live-чтение Notion Tasks DB.
-- Live-чтение Goals DB и Work Sessions DB, если переданы ID.
-- Canvas-like модель: root → goals → tasks.
-- Фильтры карты: Все / Сейчас / Следующее / В работе / Пауза.
-- Command Deck, Active Queue, Data panel, Plan panel, Copilot panel.
+- Live-чтение Goals DB, Projects DB, Dreams DB и AI Signals Inbox DB, если переданы ID и интеграции есть доступ.
+- Карта сфер: LifeMap → Проекты / AI Inbox / Цели / Жизнь / Доход / Идеи.
+- Отдельная планета AI Inbox для входящих материалов из Telegram-бота и других источников.
+- Mission Control с текущим фокусом и очередью.
+- Done / возврат задачи из выполненных.
+- Переименование через контекстное меню.
+- Заметки к задаче через раскрытие карточки.
+- Drag-перестановка задач в списке с записью порядка в Notion через Priority.
 - Notion adapter вынесен в `server/notionAdapter.js`.
 - Архитектурный план хранится в `docs/NAVIGATOR_MASTER_PLAN.md`.
 
@@ -37,7 +41,7 @@ server.js: /api/life-os/snapshot
   ↓
 React frontend
   ↓
-Life OS Map UI
+LifeMap UI
 ```
 
 ## Как запускать в Codespaces
@@ -49,10 +53,10 @@ Life OS Map UI
 Это сервер, который читает Notion. Он работает на порту `3001`.
 
 ```bash
-NOTION_TOKEN="ТВОЙ_ТОКЕН" NOTION_TASKS_DB_ID="a6fbb0e23b2542908e374a1298cf3842" NOTION_GOALS_DB_ID="a399c256328b4a5aa2f6e70402309b78" NOTION_SESSIONS_DB_ID="704ef8ce0e144db3b1cf9871b5194fa7" npm run api
+npm run api
 ```
 
-Токен нельзя присылать в чат и нельзя коммитить в GitHub.
+Токен нельзя присылать в чат и нельзя коммитить в GitHub. Лучше хранить значения в `.env`.
 
 Если всё хорошо, увидишь:
 
@@ -60,8 +64,6 @@ NOTION_TOKEN="ТВОЙ_ТОКЕН" NOTION_TASKS_DB_ID="a6fbb0e23b2542908e374a129
 Life OS API listening on http://localhost:3001
 NOTION_TOKEN is set
 NOTION_TASKS_DB_ID is set
-NOTION_GOALS_DB_ID is set
-NOTION_SESSIONS_DB_ID is set
 ```
 
 Этот терминал не закрывать.
@@ -84,37 +86,35 @@ npm run dev
 git pull
 ```
 
-Потом перезапусти нужный процесс.
+Потом перезапусти только тот процесс, который реально менялся.
 
 Для frontend:
 
 ```bash
-Ctrl + C
 npm run dev
 ```
 
 Для API:
 
 ```bash
-Ctrl + C
-NOTION_TOKEN="ТВОЙ_ТОКЕН" NOTION_TASKS_DB_ID="a6fbb0e23b2542908e374a1298cf3842" NOTION_GOALS_DB_ID="a399c256328b4a5aa2f6e70402309b78" NOTION_SESSIONS_DB_ID="704ef8ce0e144db3b1cf9871b5194fa7" npm run api
+npm run api
 ```
 
 ## Частые ошибки
 
 ### EADDRINUSE / port 3001 already in use
 
-API уже запущен в другом терминале. Найди старый терминал с `Life OS API listening...` и нажми `Ctrl + C`, либо не запускай второй API.
+API уже запущен в другом терминале. Найди старый терминал с `Life OS API listening...` и останови его вручную, либо не запускай второй API.
 
-### `fallback` в интерфейсе
+### `api offline` в интерфейсе
 
 Frontend не видит API или API не запущен. Проверь терминал API и перезагрузи сайт.
 
-### `connected`, но нет Goals/Sessions
+### `connected`, но нет Goals/Projects/Signals
 
 Проверь, что:
 
-- в команду API переданы `NOTION_GOALS_DB_ID` и `NOTION_SESSIONS_DB_ID`;
+- в `.env` переданы нужные `NOTION_*_DB_ID`;
 - Notion integration `Life OS Map Backend` подключена к этим базам;
 - в базах есть записи.
 
@@ -124,18 +124,18 @@ Frontend не видит API или API не запущен. Проверь те
 
 ## Ближайший roadmap
 
-1. Стабилизировать canvas-layout карты.
-2. Добавить drag/zoom и ограничения пустой области.
-3. Разделить frontend на компоненты.
-4. Добавить write API для Work Sessions DB.
-5. Добавить task event API: старт, пауза, завершение, перенос.
-6. Добавить календарную и временную аналитику.
+1. Разделить `App.jsx` на компоненты.
+2. Довести drag на планшете до стабильного поведения.
+3. Уточнить модель текущего фокуса и очереди.
+4. Довести AI Inbox до рабочего сценария: Telegram → обработка → Notion → LifeMap.
+5. Добавить нормальные окна/панели для деталей задач и сигналов.
+6. Добавить базовую аналитику времени и прогресса.
 7. Усилить визуальный стиль до premium / serious tool.
 
 ## Важная логика продукта
 
-Не превращать карту в обычный список задач. Список задач полезен, но главный смысл Life OS Map — видеть систему целиком:
+Не превращать карту в обычный список задач. Список задач полезен, но главный смысл LifeMap — видеть систему целиком:
 
 ```text
-куда я иду → какие цели активны → какие задачи двигают цель → сколько времени уходит → что делать дальше
+куда я иду → какой проект активен → какая задача сейчас → что дальше → что уже сделано
 ```
