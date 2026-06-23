@@ -150,6 +150,7 @@ export function OrbitMap({
           const fontSize = planetFontSize(node.title);
           const progress = progressValue(node);
           const editing = inlineEditor?.nodeId === node.id;
+          const progressText = progressTitle(node);
           const style = { '--angle': `${angle}deg`, '--angle-back': `${-angle}deg`, '--orbit-shift': orbitShift, '--node-size': `${size}px`, '--node-font': `${fontSize}px`, '--node-progress': `${progress}%` };
           const content = (
             <span className="nodeOrb">
@@ -161,7 +162,7 @@ export function OrbitMap({
                   onCancel={onCancelInlineRename}
                 />
               ) : <em>{node.title}</em>}
-              <strong>{progress}%</strong>
+              <strong aria-label={progressText} title={progressText} />
             </span>
           );
 
@@ -174,7 +175,7 @@ export function OrbitMap({
               key={node.id}
               className={`mapNode orbitNode state-${node.state}`}
               style={style}
-              title={`${node.title} · ${progressTitle(node)}`}
+              title={`${node.title} · ${progressText}`}
               onContextMenu={(event) => onOpenMenu(node, event)}
               onPointerDown={(event) => startPress(node, event)}
               onPointerUp={clearPress}
