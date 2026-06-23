@@ -5,6 +5,7 @@ import './action-map.css';
 import './action-map-overrides.css';
 import './action-map-latest.css';
 import './lifemap-progress.css';
+import './progress-polish.css';
 
 import { buildActionMap, findNode, isLeafNode } from './lib/actionMapModel.js';
 import { CUSTOM_OBJECTS_KEY, FOCUS_STORAGE_KEY, TITLE_ALIASES_KEY } from './constants/lifeMap.js';
