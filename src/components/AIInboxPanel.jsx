@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { patchSignal } from '../lib/lifeMapRuntime.js';
 import { listItems } from '../lib/lifeMapSelectors.js';
 
 function isProcessed(status = '') {
@@ -29,34 +28,18 @@ function chipText(value) {
 
 export function AIInboxPanel({ map, viewMode, setViewMode, onOpenMenu }) {
   const [expandedId, setExpandedId] = useState(null);
-  const [busyId, setBusyId] = useState(null);
   const [localState, setLocalState] = useState({});
-  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
 
   const signals = useMemo(() => listItems(map).filter((item) => item.kind === 'signal'), [map]);
   const activeSignals = signals.filter((item) => !isProcessed(localState[item.sourceId || item.id] || item.status));
   const processedSignals = signals.filter((item) => isProcessed(localState[item.sourceId || item.id] || item.status));
   const visibleSignals = viewMode === 'done' ? processedSignals : activeSignals;
 
-  const updateSignalStatus = async (item, status) => {
-    if (!item?.sourceId || item.raw?.local) return;
-    setBusyId(item.sourceId);
-    setError('');
-    try {
-      await patchSignal(item.sourceId, {
-        status,
-        nextAction: status === 'Reviewed'
-          ? 'Сигнал разобран вручную в LifeMap. Следующий шаг будет выбран отдельно.'
-          : status === 'Archived'
-            ? 'Сигнал отправлен в архив LifeMap AI Inbox.'
-            : 'Вернуть сигнал во входящие LifeMap AI Inbox.',
-      });
-      setLocalState((state) => ({ ...state, [item.sourceId]: status }));
-    } catch (err) {
-      setError(err.message || 'Не удалось обновить сигнал.');
-    } finally {
-      setBusyId(null);
-    }
+  const updateLocalStatus = (item, status) => {
+    setLocalState((state) => ({ ...state, [item.sourceId || item.id]: status }));
+    setNotice('Статус изменён локально. Запись статуса в Notion подключим следующим шагом.');
+    setTimeout(() => setNotice(''), 2600);
   };
 
   return (
@@ -75,7 +58,7 @@ export function AIInboxPanel({ map, viewMode, setViewMode, onOpenMenu }) {
         <button className={viewMode === 'done' ? 'active' : ''} onClick={() => setViewMode('done')}>Разобрано <span>{processedSignals.length}</span></button>
       </div>
 
-      {error ? <div className="inboxError">{error}</div> : null}
+      {notice ? <div className="inboxNotice">{notice}</div> : null}
 
       {visibleSignals.length ? (
         <div className="sideItems inboxItems">
@@ -96,11 +79,11 @@ export function AIInboxPanel({ map, viewMode, setViewMode, onOpenMenu }) {
                 </button>
                 <div className="rowActions inboxActions">
                   {processed ? (
-                    <button className="restoreMini" disabled={busyId === item.sourceId || !item.sourceId} onClick={(event) => { event.stopPropagation(); updateSignalStatus(item, 'New'); }}>{busyId === item.sourceId ? '…' : 'Вернуть'}</button>
+                    <button className="restoreMini" onClick={(event) => { event.stopPropagation(); updateLocalStatus(item, 'New'); }}>Вернуть</button>
                   ) : (
                     <>
-                      <button className="doneMini" disabled={busyId === item.sourceId || !item.sourceId} onClick={(event) => { event.stopPropagation(); updateSignalStatus(item, 'Reviewed'); }}>{busyId === item.sourceId ? '…' : 'Разобрано'}</button>
-                      <button className="archiveMini" disabled={busyId === item.sourceId || !item.sourceId} onClick={(event) => { event.stopPropagation(); updateSignalStatus(item, 'Archived'); }}>Архив</button>
+                      <button className="doneMini" onClick={(event) => { event.stopPropagation(); updateLocalStatus(item, 'Reviewed'); }}>Разобрано</button>
+                      <button className="archiveMini" onClick={(event) => { event.stopPropagation(); updateLocalStatus(item, 'Archived'); }}>Архив</button>
                     </>
                   )}
                 </div>
