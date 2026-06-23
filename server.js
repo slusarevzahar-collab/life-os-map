@@ -89,6 +89,22 @@ function cleanUiWarnings(snapshot) {
   };
 }
 
+function computePlanning(tasks = []) {
+  return tasks.reduce((acc, task) => {
+    const status = String(task.status || '').toLowerCase();
+    if (status.includes('done') || status.includes('готово')) acc.done += 1;
+    else if (status.includes('overdue') || status.includes('просроч')) acc.overdue += 1;
+    else if (status.includes('waiting') || status.includes('ожид')) acc.waiting += 1;
+    else if (status.includes('next') || status.includes('след')) acc.next += 1;
+    else acc.onTrack += 1;
+    return acc;
+  }, { onTrack: 0, next: 0, waiting: 0, overdue: 0, done: 0 });
+}
+
+function withComputedPlanning(snapshot) {
+  return { ...snapshot, planning: computePlanning(snapshot.tasks || []) };
+}
+
 function uniqueSignals(signals = []) {
   const seen = new Set();
   return signals.filter((signal) => {
@@ -115,6 +131,10 @@ function withLocalSignals(snapshot) {
   };
 }
 
+function prepareSnapshot(snapshot) {
+  return withComputedPlanning(withLocalSignals(snapshot));
+}
+
 function telegramSecretOk(req) {
   if (!telegramWebhookSecret) return true;
   return req.get('X-Telegram-Bot-Api-Secret-Token') === telegramWebhookSecret;
@@ -124,17 +144,17 @@ app.get('/api/life-os/snapshot', async (_req, res) => {
   try {
     const notionSnapshot = await getNotionSnapshot({ notionToken, tasksDbId, goalsDbId, sessionsDbId, projectsDbId, dreamsDbId, signalsDbId });
     if (notionSnapshot) {
-      res.json(withLocalSignals(cleanUiWarnings(notionSnapshot)));
+      res.json(prepareSnapshot(cleanUiWarnings(notionSnapshot)));
       return;
     }
 
-    res.json(withLocalSignals(makeMockResponse('NOTION_TOKEN or NOTION_TASKS_DB_ID is missing. API is returning mock data.')));
+    res.json(prepareSnapshot(makeMockResponse('NOTION_TOKEN or NOTION_TASKS_DB_ID is missing. API is returning mock data.')));
   } catch (error) {
     console.error('LifeMap Notion API error:', error.message);
     res.status(500).json({
       error: 'Failed to build LifeMap snapshot',
       details: error.message,
-      fallback: withLocalSignals(makeMockResponse(error.message)),
+      fallback: prepareSnapshot(makeMockResponse(error.message)),
     });
   }
 });
