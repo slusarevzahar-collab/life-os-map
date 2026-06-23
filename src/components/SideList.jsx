@@ -1,18 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { isDoneNode, isLeafNode } from '../lib/actionMapModel.js';
 import { canPatchTask, listItems } from '../lib/lifeMapSelectors.js';
-import { DRAG_THRESHOLD } from '../constants/lifeMap.js';
 import { ChevronDown } from './ChevronDown.jsx';
 
-function progressValue(item) {
-  return Math.max(0, Math.min(100, Math.round(Number(item.progress) || 0)));
-}
-
-function progressLabel(item) {
-  const progress = progressValue(item);
-  const done = Number(item.completedTasks) || 0;
-  const total = Number(item.totalTasks) || 0;
-  return total > 0 ? `${progress}% · ${done}/${total}` : `${progress}%`;
+function processedSignal(status = '') {
+  return /reviewed|processed|archived|done|обработ|разобран|архив|готов/i.test(String(status || ''));
 }
 
 function compactCode(value = 'LM') {
@@ -23,20 +15,22 @@ function compactCode(value = 'LM') {
   return `${letters}${number}`;
 }
 
-function taskCode(item) {
-  return compactCode(item.code || item.raw?.code || item.icon || 'LM');
+function itemCode(item, fallback = 'LM') {
+  return compactCode(item.code || item.raw?.code || item.icon || fallback);
 }
 
-const codeBadgeStyle = {
-  width: 'auto',
-  minWidth: 48,
-  padding: '0 8px',
-  fontSize: 10,
-  letterSpacing: '0.025em',
-  whiteSpace: 'nowrap',
-};
+function progressValue(item) {
+  return Math.max(0, Math.min(100, Math.round(Number(item.progress) || 0)));
+}
 
-const taskMainStyle = { gridTemplateColumns: 'minmax(48px, auto) minmax(0, 1fr)' };
+function formatDate(value) {
+  if (!value) return '';
+  try {
+    return new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
+  } catch {
+    return String(value);
+  }
+}
 
 function InlineTitleEditor({ value, onChange, onSubmit, onCancel }) {
   return (
@@ -56,6 +50,72 @@ function InlineTitleEditor({ value, onChange, onSubmit, onCancel }) {
   );
 }
 
+function SignalDetails({ item }) {
+  const raw = item.raw || {};
+  const projects = raw.relatedProjects || [];
+  return (
+    <div className="inlineTaskDetails inboxDetails">
+      {raw.summary ? <p>{raw.summary}</p> : null}
+      {raw.possibleUse ? <div><small>Как применить</small><p>{raw.possibleUse}</p></div> : null}
+      {raw.nextAction ? <div><small>Далее</small><p>{raw.nextAction}</p></div> : null}
+      {projects.length ? <div className="inboxChips">{projects.map((project) => <span key={project}>{project}</span>)}</div> : null}
+      {raw.sourceUrl ? <a className="inboxLink" href={raw.sourceUrl} target="_blank" rel="noreferrer">Открыть источник</a> : null}
+    </div>
+  );
+}
+
+function AIInboxList({ map, viewMode, setViewMode, onOpenMenu }) {
+  const [expandedId, setExpandedId] = useState(null);
+  const [localState, setLocalState] = useState({});
+  const [notice, setNotice] = useState('');
+  const signals = useMemo(() => listItems(map).filter((item) => item.kind === 'signal'), [map]);
+  const active = signals.filter((item) => !processedSignal(localState[item.sourceId || item.id] || item.status));
+  const done = signals.filter((item) => processedSignal(localState[item.sourceId || item.id] || item.status));
+  const visible = viewMode === 'done' ? done : active;
+
+  const markLocal = (item, status) => {
+    setLocalState((state) => ({ ...state, [item.sourceId || item.id]: status }));
+    setNotice('Пока статус меняется локально. Запись статуса в Notion подключим следующим шагом.');
+    setTimeout(() => setNotice(''), 2600);
+  };
+
+  return (
+    <aside className="sideList inboxPanel" onClick={(event) => event.stopPropagation()}>
+      <div className="sideListHead inboxHead">
+        <div><small>AI Inbox · входящие сигналы</small><strong>{map.title}</strong><p>Это посты, ссылки, идеи и инструменты из Telegram. Они ещё не задачи: сначала их нужно разобрать.</p></div>
+        <b className="miniProgressRing" title={`${active.length} новых`}>{active.length}</b>
+      </div>
+      <div className="sideTabs">
+        <button className={viewMode === 'active' ? 'active' : ''} onClick={() => setViewMode('active')}>Новые <span>{active.length}</span></button>
+        <button className={viewMode === 'done' ? 'active' : ''} onClick={() => setViewMode('done')}>Разобрано <span>{done.length}</span></button>
+      </div>
+      {notice ? <div className="inboxNotice">{notice}</div> : null}
+      {visible.length ? <div className="sideItems inboxItems">
+        {visible.map((item) => {
+          const raw = item.raw || {};
+          const expanded = expandedId === item.id;
+          const currentStatus = localState[item.sourceId || item.id] || item.status || 'New';
+          const processed = processedSignal(currentStatus);
+          return (
+            <div className={`sideItemRow inboxSignal ${expanded ? 'expandedRow' : ''}`} key={item.id} onContextMenu={(event) => onOpenMenu(item, event)}>
+              <button className="sideItemMain inboxSignalMain" onClick={() => setExpandedId((id) => id === item.id ? null : item.id)}>
+                <span className="taskCodeBadge inboxCode">{itemCode(item, 'IN')}</span>
+                <div><b>{item.title}</b><small>{[raw.type || item.status || 'Telegram', formatDate(raw.capturedAt), raw.priority].filter(Boolean).join(' · ')}</small></div>
+              </button>
+              <div className="rowActions inboxActions">
+                {processed
+                  ? <button className="restoreMini" onClick={(event) => { event.stopPropagation(); markLocal(item, 'New'); }}>Вернуть</button>
+                  : <><button className="doneMini" onClick={(event) => { event.stopPropagation(); markLocal(item, 'Reviewed'); }}>Разобрано</button><button className="archiveMini" onClick={(event) => { event.stopPropagation(); markLocal(item, 'Archived'); }}>Архив</button></>}
+              </div>
+              {expanded ? <SignalDetails item={item} /> : null}
+            </div>
+          );
+        })}
+      </div> : <div className="emptySide"><b>{viewMode === 'done' ? 'Разобранных сигналов пока нет' : 'Новых сигналов нет'}</b><p>Отправь пост или ссылку Telegram-боту — они появятся здесь.</p></div>}
+    </aside>
+  );
+}
+
 export function SideList({
   map,
   viewMode,
@@ -63,7 +123,6 @@ export function SideList({
   onOpen,
   onComplete,
   onRestore,
-  onReorderList,
   onOpenMenu,
   onSaveNote,
   busyTaskId,
@@ -73,167 +132,40 @@ export function SideList({
   onCancelInlineRename,
 }) {
   const items = listItems(map).filter((item) => isLeafNode(item));
-  const [dragId, setDragId] = useState(null);
-  const [dropTarget, setDropTarget] = useState(null);
-  const [dragPreview, setDragPreview] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
   const [notesDraft, setNotesDraft] = useState({});
-  const sideItemsRef = useRef(null);
-  const pointerDragRef = useRef(null);
+  const inboxMode = map?.id === 'sphere-inbox' || map?.kind === 'inbox' || (map?.title === 'AI Inbox' && items.some((item) => item.kind === 'signal'));
+
+  if (inboxMode) return <AIInboxList map={map} viewMode={viewMode} setViewMode={setViewMode} onOpenMenu={onOpenMenu} />;
 
   const activeItems = items.filter((item) => !isDoneNode(item));
   const doneItems = items.filter((item) => isDoneNode(item));
   const visibleItems = viewMode === 'done' ? doneItems : activeItems;
-  const reorderableItems = visibleItems.filter((item) => canPatchTask(item) && !isDoneNode(item));
-
-  const makeReorderedList = useCallback((fromId, target) => {
-    if (!fromId || !target?.id || fromId === target.id) return null;
-    const from = reorderableItems.findIndex((item) => item.id === fromId);
-    if (from < 0) return null;
-    const reordered = [...reorderableItems];
-    const [moved] = reordered.splice(from, 1);
-    let insertAt = reordered.findIndex((item) => item.id === target.id);
-    if (insertAt < 0) insertAt = reordered.length;
-    if (target.position === 'after') insertAt += 1;
-    reordered.splice(insertAt, 0, moved);
-    const before = reorderableItems.map((item) => item.id).join('|');
-    const after = reordered.map((item) => item.id).join('|');
-    return before === after ? null : reordered;
-  }, [reorderableItems]);
-
-  const updateDropTarget = useCallback((clientY) => {
-    const dragState = pointerDragRef.current;
-    if (!dragState?.active || !sideItemsRef.current) return;
-    const rows = Array.from(sideItemsRef.current.querySelectorAll('[data-reorder-id]'));
-    let best = null;
-    rows.forEach((row) => {
-      const id = row.getAttribute('data-reorder-id');
-      if (!id || id === dragState.id) return;
-      const rect = row.getBoundingClientRect();
-      const distance = clientY >= rect.top && clientY <= rect.bottom ? 0 : Math.min(Math.abs(clientY - rect.top), Math.abs(clientY - rect.bottom));
-      if (!best || distance < best.distance) best = { id, rect, distance };
-    });
-    if (!best) return;
-    const position = clientY < best.rect.top + best.rect.height / 2 ? 'before' : 'after';
-    const nextTarget = { id: best.id, position };
-    pointerDragRef.current = { ...dragState, dropTarget: nextTarget };
-    setDropTarget(nextTarget);
-  }, []);
-
-  const movePointerDrag = useCallback((event) => {
-    const dragState = pointerDragRef.current;
-    if (!dragState) return;
-    event.preventDefault?.();
-    const dx = event.clientX - dragState.startX;
-    const dy = event.clientY - dragState.startY;
-    const distance = Math.hypot(dx, dy);
-    if (!dragState.active && distance < DRAG_THRESHOLD) return;
-    const nextState = { ...dragState, x: event.clientX, y: event.clientY, active: true };
-    pointerDragRef.current = nextState;
-    if (!dragState.active) setDragId(dragState.id);
-    setDragPreview({ id: dragState.id, code: taskCode(dragState.item), title: dragState.item.title, x: event.clientX, y: event.clientY });
-    updateDropTarget(event.clientY);
-  }, [updateDropTarget]);
-
-  const endPointerDrag = useCallback((event) => {
-    const dragState = pointerDragRef.current;
-    if (!dragState) return;
-    event?.preventDefault?.();
-    const reordered = dragState.active ? makeReorderedList(dragState.id, dragState.dropTarget) : null;
-    pointerDragRef.current = null;
-    setDragId(null);
-    setDropTarget(null);
-    setDragPreview(null);
-    if (reordered) onReorderList(reordered);
-  }, [makeReorderedList, onReorderList]);
-
-  useEffect(() => {
-    const move = (event) => movePointerDrag(event);
-    const up = (event) => endPointerDrag(event);
-    window.addEventListener('pointermove', move, { passive: false });
-    window.addEventListener('pointerup', up);
-    window.addEventListener('pointercancel', up);
-    return () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
-      window.removeEventListener('pointercancel', up);
-    };
-  }, [movePointerDrag, endPointerDrag]);
-
-  const startPointerDrag = (event, item) => {
-    if (!canPatchTask(item) || isDoneNode(item) || busyTaskId === item.sourceId) return;
-    if (event.pointerType === 'mouse' && event.button !== 0) return;
-    event.preventDefault();
-    event.stopPropagation();
-    pointerDragRef.current = { id: item.id, item, startX: event.clientX, startY: event.clientY, x: event.clientX, y: event.clientY, active: false, dropTarget: null };
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-  };
-
   const mapProgress = progressValue(map);
 
   return (
     <aside className="sideList" onClick={(event) => event.stopPropagation()}>
-      <div className="sideListHead">
-        <div><small>{viewMode === 'done' ? 'Выполненные задачи' : 'Задачи ветки'}</small><strong>{map.title}</strong></div>
-        <b className="miniProgressRing" title={progressLabel(map)} style={{ '--pct': `${mapProgress}%` }}>{mapProgress}%</b>
-      </div>
-      <div className="sideTabs">
-        <button className={viewMode === 'active' ? 'active' : ''} onClick={() => setViewMode('active')}>Активные <span>{activeItems.length}</span></button>
-        <button className={viewMode === 'done' ? 'active' : ''} onClick={() => setViewMode('done')}>Сделано <span>{doneItems.length}</span></button>
-      </div>
-      {visibleItems.length ? (
-        <div className="sideItems" ref={sideItemsRef}>
-          {visibleItems.map((item) => {
-            const nested = Boolean((item.children || []).length || (item.taskList || []).length);
-            const patchable = canPatchTask(item);
-            const done = isDoneNode(item);
-            const dropClass = dropTarget?.id === item.id ? `drop-${dropTarget.position}` : '';
-            const expanded = expandedId === item.id;
-            const editing = inlineEditor?.nodeId === item.id;
-            const noteValue = notesDraft[item.id] ?? item.raw?.sessionNotes ?? item.summary ?? '';
-            const code = taskCode(item);
-            return (
-              <div className={`sideItemRow ${done ? 'doneRow' : ''} ${expanded ? 'expandedRow' : ''} ${dragId === item.id ? 'draggingRow' : ''} ${dropClass}`} key={item.id} data-reorder-id={patchable && !done ? item.id : undefined} onContextMenu={(event) => onOpenMenu(item, event)}>
-                <button className="sideItemMain" style={taskMainStyle} onClick={() => editing ? null : (nested && !isLeafNode(item) ? onOpen(item.id) : setExpandedId((current) => current === item.id ? null : item.id))}>
-                  <span className="taskCodeBadge" style={codeBadgeStyle} title={`Код задачи: ${code}`}>{code}</span>
-                  <div>
-                    {editing ? (
-                      <InlineTitleEditor
-                        value={inlineEditor.value}
-                        onChange={onInlineRenameChange}
-                        onSubmit={(event) => onSubmitInlineRename(item, event)}
-                        onCancel={onCancelInlineRename}
-                      />
-                    ) : <b>{item.title}</b>}
-                    {nested ? <small>{`${item.tasks || 0} задач · открыть ветку`}</small> : null}
-                  </div>
-                </button>
-                <div className="rowActions">
-                  {isLeafNode(item) ? <button className="expandMini" title="Развернуть" onClick={(event) => { event.stopPropagation(); setExpandedId((current) => current === item.id ? null : item.id); }}><ChevronDown open={expanded} /></button> : null}
-                  {patchable && !done ? <button className="dragHandle" title="Перетащить задачу" disabled={busyTaskId === item.sourceId} onPointerDown={(event) => startPointerDrag(event, item)}>⋮⋮</button> : null}
-                  {patchable ? <button className={done ? 'restoreMini' : 'doneMini'} disabled={busyTaskId === item.sourceId} onClick={(event) => { event.stopPropagation(); done ? onRestore(item) : onComplete(item); }}>{busyTaskId === item.sourceId ? '…' : done ? 'Вернуть' : 'Done'}</button> : null}
-                </div>
-                {expanded ? (
-                  <div className="inlineTaskDetails">
-                    <label className="noteEditorLabel">Заметка к задаче</label>
-                    <textarea className="noteEditor" value={noteValue} onChange={(event) => setNotesDraft((drafts) => ({ ...drafts, [item.id]: event.target.value }))} placeholder="Короткая заметка, уточнение или контекст по задаче" />
-                    <div className="noteEditorActions">
-                      <button disabled={!patchable || busyTaskId === item.sourceId} onClick={() => onSaveNote(item, noteValue)}>{busyTaskId === item.sourceId ? 'Сохраняю…' : 'Сохранить'}</button>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="emptySide"><b>{viewMode === 'done' ? 'Выполненных задач нет' : 'Список пуст'}</b><p>{viewMode === 'done' ? 'Когда задачи будут помечены Done, они появятся здесь и их можно будет вернуть обратно.' : 'Backend подключён, но у этой ветки пока нет задач для списка.'}</p></div>
-      )}
-      {dragPreview ? (
-        <div className="lifeDragGhost" style={{ left: dragPreview.x, top: dragPreview.y }}>
-          <button className="sideItemMain" style={taskMainStyle}><span className="taskCodeBadge" style={codeBadgeStyle}>{dragPreview.code}</span><div><b>{dragPreview.title}</b></div></button>
-        </div>
-      ) : null}
+      <div className="sideListHead"><div><small>{viewMode === 'done' ? 'Выполненные задачи' : 'Задачи ветки'}</small><strong>{map.title}</strong></div><b className="miniProgressRing" title={`${mapProgress}%`} style={{ '--pct': `${mapProgress}%` }}>{mapProgress}%</b></div>
+      <div className="sideTabs"><button className={viewMode === 'active' ? 'active' : ''} onClick={() => setViewMode('active')}>Активные <span>{activeItems.length}</span></button><button className={viewMode === 'done' ? 'active' : ''} onClick={() => setViewMode('done')}>Сделано <span>{doneItems.length}</span></button></div>
+      {visibleItems.length ? <div className="sideItems">
+        {visibleItems.map((item) => {
+          const patchable = canPatchTask(item);
+          const done = isDoneNode(item);
+          const expanded = expandedId === item.id;
+          const editing = inlineEditor?.nodeId === item.id;
+          const noteValue = notesDraft[item.id] ?? item.raw?.sessionNotes ?? item.summary ?? '';
+          return (
+            <div className={`sideItemRow ${done ? 'doneRow' : ''} ${expanded ? 'expandedRow' : ''}`} key={item.id} onContextMenu={(event) => onOpenMenu(item, event)}>
+              <button className="sideItemMain" style={{ gridTemplateColumns: 'minmax(48px, auto) minmax(0, 1fr)' }} onClick={() => setExpandedId((current) => current === item.id ? null : item.id)}>
+                <span className="taskCodeBadge" style={{ width: 'auto', minWidth: 48, padding: '0 8px', fontSize: 10 }}>{itemCode(item)}</span>
+                <div>{editing ? <InlineTitleEditor value={inlineEditor.value} onChange={onInlineRenameChange} onSubmit={(event) => onSubmitInlineRename(item, event)} onCancel={onCancelInlineRename} /> : <b>{item.title}</b>}</div>
+              </button>
+              <div className="rowActions"><button className="expandMini" title="Развернуть" onClick={(event) => { event.stopPropagation(); setExpandedId((current) => current === item.id ? null : item.id); }}><ChevronDown open={expanded} /></button>{patchable ? <button className={done ? 'restoreMini' : 'doneMini'} disabled={busyTaskId === item.sourceId} onClick={(event) => { event.stopPropagation(); done ? onRestore(item) : onComplete(item); }}>{busyTaskId === item.sourceId ? '…' : done ? 'Вернуть' : 'Done'}</button> : null}</div>
+              {expanded ? <div className="inlineTaskDetails"><label className="noteEditorLabel">Заметка к задаче</label><textarea className="noteEditor" value={noteValue} onChange={(event) => setNotesDraft((drafts) => ({ ...drafts, [item.id]: event.target.value }))} placeholder="Короткая заметка, уточнение или контекст по задаче" /><div className="noteEditorActions"><button disabled={!patchable || busyTaskId === item.sourceId} onClick={() => onSaveNote(item, noteValue)}>{busyTaskId === item.sourceId ? 'Сохраняю…' : 'Сохранить'}</button></div></div> : null}
+            </div>
+          );
+        })}
+      </div> : <div className="emptySide"><b>{viewMode === 'done' ? 'Выполненных задач нет' : 'Список пуст'}</b><p>{viewMode === 'done' ? 'Когда задачи будут помечены Done, они появятся здесь.' : 'У этой ветки пока нет задач для списка.'}</p></div>}
     </aside>
   );
 }
