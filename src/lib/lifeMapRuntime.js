@@ -70,22 +70,7 @@ export async function patchTask(taskId, payload) {
 }
 
 export async function patchSignal(signalId, payload) {
-  const errors = [];
-  for (const url of apiCandidates(`/api/life-os/signals/${signalId}`)) {
-    try {
-      const response = await fetch(url, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || data.ok === false) throw new Error(data.error || `API ${response.status}`);
-      return data;
-    } catch (error) {
-      errors.push(`${url}: ${error.message}`);
-    }
-  }
-  throw new Error(errors.join(' | '));
+  return patchTask(signalId, { status: payload.status });
 }
 
 export async function patchItemTitle(node, title) {
