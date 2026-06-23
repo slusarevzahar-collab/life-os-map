@@ -1,6 +1,26 @@
 import { useState } from 'react';
 import { ChevronDown } from './ChevronDown.jsx';
 
+const jumpLineStyle = {
+  width: '100%',
+  display: 'block',
+  textAlign: 'left',
+  cursor: 'pointer',
+};
+
+const queueItemStyle = {
+  width: '100%',
+  display: 'grid',
+  gridTemplateColumns: '30px minmax(0, 1fr)',
+  alignItems: 'center',
+  gap: 10,
+  border: 0,
+  color: 'inherit',
+  background: 'transparent',
+  textAlign: 'left',
+  cursor: 'pointer',
+};
+
 export function MissionPanel({ focus, focusQueueItems, snapshot, apiState, onDone, onOpenFocus }) {
   const [open, setOpen] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
@@ -40,8 +60,8 @@ export function MissionPanel({ focus, focusQueueItems, snapshot, apiState, onDon
       </div>
       {isOffline ? <div className="warningLine">Карта специально не показывает запасные данные: backend API недоступен. Запусти npm run api и обнови страницу.</div> : null}
       {isMock ? <div className="warningLine">Сейчас карта получает mock-данные. Нужно, чтобы backend видел NOTION_TOKEN и NOTION_TASKS_DB_ID.</div> : null}
-      <button className="missionLine activeLine missionJumpLine" onClick={() => openFocusItem(focus)}>Сейчас: {currentTitle}</button>
-      <button className="missionLine nextLine missionJumpLine" onClick={() => openFocusItem(nextItem || focus)}>Далее: {nextAction}</button>
+      <button className="missionLine activeLine missionJumpLine" style={jumpLineStyle} onClick={() => openFocusItem(focus)}>Сейчас: {currentTitle}</button>
+      <button className="missionLine nextLine missionJumpLine" style={jumpLineStyle} onClick={() => openFocusItem(nextItem || focus)}>Далее: {nextAction}</button>
       <div className="focusControls">
         <button className="queueToggle" onClick={() => setQueueOpen((value) => !value)}>
           {queueOpen ? 'Скрыть очередь' : `Очередь ${queueItems.length}`} <ChevronDown open={queueOpen} />
@@ -51,7 +71,7 @@ export function MissionPanel({ focus, focusQueueItems, snapshot, apiState, onDon
       {queueOpen ? (
         <div className="focusQueueList">
           {queueItems.length ? queueItems.map((item, index) => (
-            <button key={`${item.sourceId || item.id}-${index}`} className="focusQueueItem" onClick={() => openFocusItem(item)}>
+            <button key={`${item.sourceId || item.id}-${index}`} className="focusQueueItem" style={queueItemStyle} onClick={() => openFocusItem(item)}>
               <b>{index + 1}</b><span>{item.title}</span>
             </button>
           )) : <div className="emptyQueue"><b>—</b><span>Дополнительной очереди пока нет.</span></div>}
