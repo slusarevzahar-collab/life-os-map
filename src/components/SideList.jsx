@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { isDoneNode, isLeafNode } from '../lib/actionMapModel.js';
+import { patchSignal } from '../lib/lifeMapRuntime.js';
 import { canPatchTask, listItems } from '../lib/lifeMapSelectors.js';
 import { ChevronDown } from './ChevronDown.jsx';
 
@@ -30,6 +31,14 @@ function formatDate(value) {
   } catch {
     return String(value);
   }
+}
+
+function nodeHighlighted(item, highlightedItemId) {
+  if (!item || !highlightedItemId) return false;
+  return item.id === highlightedItemId ||
+    item.sourceId === highlightedItemId ||
+    `task-${item.sourceId}` === highlightedItemId ||
+    `signal-${item.sourceId}` === highlightedItemId;
 }
 
 function InlineTitleEditor({ value, onChange, onSubmit, onCancel }) {
@@ -64,19 +73,52 @@ function SignalDetails({ item }) {
   );
 }
 
-function AIInboxList({ map, viewMode, setViewMode, onOpenMenu }) {
+function AIInboxList({ map, viewMode, setViewMode, onOpenMenu, highlightedItemId }) {
   const [expandedId, setExpandedId] = useState(null);
   const [localState, setLocalState] = useState({});
   const [notice, setNotice] = useState('');
+  const [error, setError] = useState('');
+  const [busySignalId, setBusySignalId] = useState(null);
+  const listRef = useRef(null);
   const signals = useMemo(() => listItems(map).filter((item) => item.kind === 'signal'), [map]);
   const active = signals.filter((item) => !processedSignal(localState[item.sourceId || item.id] || item.status));
   const done = signals.filter((item) => processedSignal(localState[item.sourceId || item.id] || item.status));
   const visible = viewMode === 'done' ? done : active;
 
-  const markLocal = (item, status) => {
-    setLocalState((state) => ({ ...state, [item.sourceId || item.id]: status }));
-    setNotice('Пока статус меняется локально. Запись статуса в Notion подключим следующим шагом.');
-    setTimeout(() => setNotice(''), 2600);
+  useEffect(() => {
+    if (!highlightedItemId || !listRef.current) return;
+    listRef.current.querySelector('.highlightedTask')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [highlightedItemId, visible.length]);
+
+  const updateSignalStatus = async (item, status) => {
+    const signalId = item.sourceId;
+    const nextAction = status === 'Reviewed'
+      ? 'Сигнал разобран вручную в LifeMap. Следующий шаг будет выбран отдельно.'
+      : status === 'Archived'
+        ? 'Сигнал отправлен в архив LifeMap AI Inbox.'
+        : 'Вернуть сигнал во входящие LifeMap AI Inbox.';
+
+    if (!signalId || item.raw?.local) {
+      setLocalState((state) => ({ ...state, [item.sourceId || item.id]: status }));
+      setNotice('Статус изменён локально: этот сигнал хранится не в Notion.');
+      setTimeout(() => setNotice(''), 2600);
+      return;
+    }
+
+    setBusySignalId(signalId);
+    setError('');
+    setNotice('Сохраняю статус сигнала в Notion…');
+    try {
+      await patchSignal(signalId, { status, nextAction });
+      setLocalState((state) => ({ ...state, [signalId]: status }));
+      setNotice(status === 'New' ? 'Сигнал возвращён во входящие и сохранён в Notion.' : 'Статус сигнала сохранён в Notion.');
+      setTimeout(() => setNotice(''), 2600);
+    } catch (err) {
+      setError(`Не удалось сохранить статус в Notion: ${err.message}`);
+      setNotice('');
+    } finally {
+      setBusySignalId(null);
+    }
   };
 
   return (
@@ -90,22 +132,25 @@ function AIInboxList({ map, viewMode, setViewMode, onOpenMenu }) {
         <button className={viewMode === 'done' ? 'active' : ''} onClick={() => setViewMode('done')}>Разобрано <span>{done.length}</span></button>
       </div>
       {notice ? <div className="inboxNotice">{notice}</div> : null}
-      {visible.length ? <div className="sideItems inboxItems">
+      {error ? <div className="inboxError">{error}</div> : null}
+      {visible.length ? <div className="sideItems inboxItems" ref={listRef}>
         {visible.map((item) => {
           const raw = item.raw || {};
           const expanded = expandedId === item.id;
           const currentStatus = localState[item.sourceId || item.id] || item.status || 'New';
           const processed = processedSignal(currentStatus);
+          const highlighted = nodeHighlighted(item, highlightedItemId);
+          const busy = busySignalId === item.sourceId;
           return (
-            <div className={`sideItemRow inboxSignal ${expanded ? 'expandedRow' : ''}`} key={item.id} onContextMenu={(event) => onOpenMenu(item, event)}>
+            <div className={`sideItemRow inboxSignal ${expanded ? 'expandedRow' : ''} ${highlighted ? 'highlightedTask' : ''}`} key={item.id} onContextMenu={(event) => onOpenMenu(item, event)}>
               <button className="sideItemMain inboxSignalMain" onClick={() => setExpandedId((id) => id === item.id ? null : item.id)}>
                 <span className="taskCodeBadge inboxCode">{itemCode(item, 'IN')}</span>
                 <div><b>{item.title}</b><small>{[raw.type || item.status || 'Telegram', formatDate(raw.capturedAt), raw.priority].filter(Boolean).join(' · ')}</small></div>
               </button>
               <div className="rowActions inboxActions">
                 {processed
-                  ? <button className="restoreMini" onClick={(event) => { event.stopPropagation(); markLocal(item, 'New'); }}>Вернуть</button>
-                  : <><button className="doneMini" onClick={(event) => { event.stopPropagation(); markLocal(item, 'Reviewed'); }}>Разобрано</button><button className="archiveMini" onClick={(event) => { event.stopPropagation(); markLocal(item, 'Archived'); }}>Архив</button></>}
+                  ? <button className="restoreMini" disabled={busy} onClick={(event) => { event.stopPropagation(); updateSignalStatus(item, 'New'); }}>{busy ? '…' : 'Вернуть'}</button>
+                  : <><button className="doneMini" disabled={busy} onClick={(event) => { event.stopPropagation(); updateSignalStatus(item, 'Reviewed'); }}>{busy ? '…' : 'Разобрано'}</button><button className="archiveMini" disabled={busy} onClick={(event) => { event.stopPropagation(); updateSignalStatus(item, 'Archived'); }}>Архив</button></>}
               </div>
               {expanded ? <SignalDetails item={item} /> : null}
             </div>
@@ -126,6 +171,7 @@ export function SideList({
   onOpenMenu,
   onSaveNote,
   busyTaskId,
+  highlightedItemId,
   inlineEditor,
   onInlineRenameChange,
   onSubmitInlineRename,
@@ -134,28 +180,35 @@ export function SideList({
   const items = listItems(map).filter((item) => isLeafNode(item));
   const [expandedId, setExpandedId] = useState(null);
   const [notesDraft, setNotesDraft] = useState({});
+  const listRef = useRef(null);
   const inboxMode = map?.id === 'sphere-inbox' || map?.kind === 'inbox' || (map?.title === 'AI Inbox' && items.some((item) => item.kind === 'signal'));
 
-  if (inboxMode) return <AIInboxList map={map} viewMode={viewMode} setViewMode={setViewMode} onOpenMenu={onOpenMenu} />;
+  if (inboxMode) return <AIInboxList map={map} viewMode={viewMode} setViewMode={setViewMode} onOpenMenu={onOpenMenu} highlightedItemId={highlightedItemId} />;
 
   const activeItems = items.filter((item) => !isDoneNode(item));
   const doneItems = items.filter((item) => isDoneNode(item));
   const visibleItems = viewMode === 'done' ? doneItems : activeItems;
   const mapProgress = progressValue(map);
 
+  useEffect(() => {
+    if (!highlightedItemId || !listRef.current) return;
+    listRef.current.querySelector('.highlightedTask')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [highlightedItemId, visibleItems.length]);
+
   return (
     <aside className="sideList" onClick={(event) => event.stopPropagation()}>
       <div className="sideListHead"><div><small>{viewMode === 'done' ? 'Выполненные задачи' : 'Задачи ветки'}</small><strong>{map.title}</strong></div><b className="miniProgressRing" title={`${mapProgress}%`} style={{ '--pct': `${mapProgress}%` }}>{mapProgress}%</b></div>
       <div className="sideTabs"><button className={viewMode === 'active' ? 'active' : ''} onClick={() => setViewMode('active')}>Активные <span>{activeItems.length}</span></button><button className={viewMode === 'done' ? 'active' : ''} onClick={() => setViewMode('done')}>Сделано <span>{doneItems.length}</span></button></div>
-      {visibleItems.length ? <div className="sideItems">
+      {visibleItems.length ? <div className="sideItems" ref={listRef}>
         {visibleItems.map((item) => {
           const patchable = canPatchTask(item);
           const done = isDoneNode(item);
           const expanded = expandedId === item.id;
           const editing = inlineEditor?.nodeId === item.id;
           const noteValue = notesDraft[item.id] ?? item.raw?.sessionNotes ?? item.summary ?? '';
+          const highlighted = nodeHighlighted(item, highlightedItemId);
           return (
-            <div className={`sideItemRow ${done ? 'doneRow' : ''} ${expanded ? 'expandedRow' : ''}`} key={item.id} onContextMenu={(event) => onOpenMenu(item, event)}>
+            <div className={`sideItemRow ${done ? 'doneRow' : ''} ${expanded ? 'expandedRow' : ''} ${highlighted ? 'highlightedTask' : ''}`} key={item.id} onContextMenu={(event) => onOpenMenu(item, event)}>
               <button className="sideItemMain" style={{ gridTemplateColumns: 'minmax(48px, auto) minmax(0, 1fr)' }} onClick={() => setExpandedId((current) => current === item.id ? null : item.id)}>
                 <span className="taskCodeBadge" style={{ width: 'auto', minWidth: 48, padding: '0 8px', fontSize: 10 }}>{itemCode(item)}</span>
                 <div>{editing ? <InlineTitleEditor value={inlineEditor.value} onChange={onInlineRenameChange} onSubmit={(event) => onSubmitInlineRename(item, event)} onCancel={onCancelInlineRename} /> : <b>{item.title}</b>}</div>
