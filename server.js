@@ -2,12 +2,22 @@ import fs from 'node:fs';
 import path from 'node:path';
 import express from 'express';
 import {
+  createSignal,
   createWorkSession,
   getNotionSnapshot,
   mockSnapshot,
   updateItemTitle,
   updateTaskEvent,
 } from './server/notionAdapter.js';
+import {
+  allowedTelegramUser,
+  appendLocalSignal,
+  buildSignalFromTelegramUpdate,
+  getTelegramWebhookInfo,
+  readLocalSignals,
+  sendTelegramMessage,
+  setTelegramWebhook,
+} from './server/telegramAdapter.js';
 
 function loadLocalEnv() {
   const envPath = path.resolve(process.cwd(), '.env');
@@ -38,8 +48,12 @@ const sessionsDbId = process.env.NOTION_SESSIONS_DB_ID;
 const projectsDbId = process.env.NOTION_PROJECTS_DB_ID;
 const dreamsDbId = process.env.NOTION_DREAMS_DB_ID;
 const signalsDbId = process.env.NOTION_SIGNALS_DB_ID;
+const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
+const telegramWebhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+const telegramAllowedUserIds = process.env.TELEGRAM_ALLOWED_USER_IDS || '';
+const telegramWebhookUrl = process.env.TELEGRAM_WEBHOOK_URL;
 
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
 
 function makeMockResponse(reason) {
   return {
@@ -56,6 +70,7 @@ function makeMockResponse(reason) {
         projectAreas: false,
         dreams: false,
         signals: false,
+        telegram: Boolean(telegramBotToken),
       },
     },
   };
@@ -74,21 +89,52 @@ function cleanUiWarnings(snapshot) {
   };
 }
 
+function uniqueSignals(signals = []) {
+  const seen = new Set();
+  return signals.filter((signal) => {
+    const key = signal.id || `${signal.title}:${signal.capturedAt}`;
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function withLocalSignals(snapshot) {
+  const localSignals = readLocalSignals(50);
+  return {
+    ...snapshot,
+    signals: uniqueSignals([...localSignals, ...(snapshot.signals || [])]),
+    meta: {
+      ...(snapshot.meta || {}),
+      connected: {
+        ...(snapshot.meta?.connected || {}),
+        telegram: Boolean(telegramBotToken),
+        localTelegramInbox: Boolean(localSignals.length),
+      },
+    },
+  };
+}
+
+function telegramSecretOk(req) {
+  if (!telegramWebhookSecret) return true;
+  return req.get('X-Telegram-Bot-Api-Secret-Token') === telegramWebhookSecret;
+}
+
 app.get('/api/life-os/snapshot', async (_req, res) => {
   try {
     const notionSnapshot = await getNotionSnapshot({ notionToken, tasksDbId, goalsDbId, sessionsDbId, projectsDbId, dreamsDbId, signalsDbId });
     if (notionSnapshot) {
-      res.json(cleanUiWarnings(notionSnapshot));
+      res.json(withLocalSignals(cleanUiWarnings(notionSnapshot)));
       return;
     }
 
-    res.json(makeMockResponse('NOTION_TOKEN or NOTION_TASKS_DB_ID is missing. API is returning mock data.'));
+    res.json(withLocalSignals(makeMockResponse('NOTION_TOKEN or NOTION_TASKS_DB_ID is missing. API is returning mock data.')));
   } catch (error) {
     console.error('LifeMap Notion API error:', error.message);
     res.status(500).json({
       error: 'Failed to build LifeMap snapshot',
       details: error.message,
-      fallback: makeMockResponse(error.message),
+      fallback: withLocalSignals(makeMockResponse(error.message)),
     });
   }
 });
@@ -123,6 +169,73 @@ app.patch('/api/life-os/items/:id/title', async (req, res) => {
   }
 });
 
+app.post('/api/telegram/webhook', async (req, res) => {
+  if (!telegramSecretOk(req)) {
+    res.status(403).json({ ok: false, error: 'Bad Telegram webhook secret.' });
+    return;
+  }
+
+  const signal = buildSignalFromTelegramUpdate(req.body || {});
+  if (!signal) {
+    res.json({ ok: true, skipped: true });
+    return;
+  }
+
+  if (!allowedTelegramUser(signal, telegramAllowedUserIds)) {
+    console.warn(`LifeMap Telegram rejected message from ${signal.telegram?.userId || signal.telegram?.chatId || 'unknown user'}`);
+    res.json({ ok: true, rejected: true });
+    return;
+  }
+
+  let storage = 'local';
+  let notionResult = null;
+  try {
+    if (!notionToken || !signalsDbId) throw new Error('NOTION_TOKEN or NOTION_SIGNALS_DB_ID is missing.');
+    notionResult = await createSignal({ notionToken, signalsDbId, payload: signal });
+    storage = `notion:${notionResult.mode}`;
+  } catch (error) {
+    appendLocalSignal({ ...signal, storageError: error.message });
+    storage = 'local-fallback';
+    console.warn(`LifeMap Telegram saved signal locally: ${error.message}`);
+  }
+
+  sendTelegramMessage({
+    botToken: telegramBotToken,
+    chatId: signal.telegram?.chatId,
+    text: `Принял в LifeMap AI Inbox: ${signal.title}\nХранилище: ${storage}`,
+  }).catch((error) => console.warn(`LifeMap Telegram ack failed: ${error.message}`));
+
+  res.json({ ok: true, storage, signal: { id: signal.id, title: signal.title }, notion: notionResult });
+});
+
+app.post('/api/telegram/set-webhook', async (req, res) => {
+  try {
+    const webhookUrl = req.body?.url || telegramWebhookUrl;
+    const result = await setTelegramWebhook({ botToken: telegramBotToken, webhookUrl, secretToken: telegramWebhookSecret });
+    res.json({ ok: true, webhookUrl, result });
+  } catch (error) {
+    console.error('LifeMap set Telegram webhook error:', error.message);
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.get('/api/telegram/status', async (_req, res) => {
+  try {
+    const webhook = telegramBotToken ? await getTelegramWebhookInfo(telegramBotToken) : null;
+    res.json({
+      ok: true,
+      configured: Boolean(telegramBotToken),
+      hasSecret: Boolean(telegramWebhookSecret),
+      allowedUsersLocked: Boolean(telegramAllowedUserIds),
+      signalsDb: Boolean(signalsDbId),
+      localSignals: readLocalSignals(50).length,
+      webhook,
+    });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
 app.get('/api/life-os/health', (_req, res) => {
   res.json({
     ok: true,
@@ -134,6 +247,9 @@ app.get('/api/life-os/health', (_req, res) => {
       'POST /api/life-os/sessions',
       'PATCH /api/life-os/tasks/:id',
       'PATCH /api/life-os/items/:id/title',
+      'POST /api/telegram/webhook',
+      'POST /api/telegram/set-webhook',
+      'GET /api/telegram/status',
       'GET /api/life-os/health',
     ],
     notion: {
@@ -144,6 +260,13 @@ app.get('/api/life-os/health', (_req, res) => {
       projects: Boolean(projectsDbId),
       dreams: Boolean(dreamsDbId),
       signals: Boolean(signalsDbId),
+    },
+    telegram: {
+      token: Boolean(telegramBotToken),
+      secret: Boolean(telegramWebhookSecret),
+      allowedUsersLocked: Boolean(telegramAllowedUserIds),
+      webhookUrl: Boolean(telegramWebhookUrl),
+      localSignals: readLocalSignals(50).length,
     },
   });
 });
@@ -158,4 +281,5 @@ app.listen(port, () => {
   console.log(projectsDbId ? 'NOTION_PROJECTS_DB_ID is set' : 'NOTION_PROJECTS_DB_ID is not set; projects disabled');
   console.log(dreamsDbId ? 'NOTION_DREAMS_DB_ID is set' : 'NOTION_DREAMS_DB_ID is not set; dreams disabled');
   console.log(signalsDbId ? 'NOTION_SIGNALS_DB_ID is set' : 'NOTION_SIGNALS_DB_ID is not set; signals disabled');
+  console.log(telegramBotToken ? 'TELEGRAM_BOT_TOKEN is set' : 'TELEGRAM_BOT_TOKEN is not set; Telegram intake disabled');
 });
