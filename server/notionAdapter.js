@@ -77,8 +77,14 @@ function textProperty(value = '') {
 }
 function titleProperty(value = '') { return { title: [{ text: { content: String(value || 'Untitled') } }] }; }
 function selectProperty(value) { return value ? { select: { name: String(value) } } : undefined; }
+function multiSelectProperty(values = []) {
+  const list = Array.isArray(values) ? values : String(values || '').split(',');
+  const clean = list.map((name) => String(name || '').trim()).filter(Boolean);
+  return clean.length ? { multi_select: clean.map((name) => ({ name })) } : undefined;
+}
 function numberProperty(value) { const number = Number(value); return Number.isFinite(number) ? { number } : undefined; }
 function dateProperty(value) { return value ? { date: { start: value } } : undefined; }
+function urlProperty(value) { return value ? { url: String(value) } : undefined; }
 function cleanProperties(properties) { return Object.fromEntries(Object.entries(properties).filter(([, value]) => value !== undefined && value !== null)); }
 function hasOwn(obj, key) { return Object.prototype.hasOwnProperty.call(obj || {}, key); }
 
@@ -256,7 +262,7 @@ function buildPlanning(tasks) {
     else if (status.includes('next') || status.includes('след')) acc.next += 1;
     else acc.onTrack += 1;
     return acc;
-  }, { onTrack: 0, next: 0, waiting: 0, overdue: 0, done: 0 });
+  }, { onTrack: 0, next: 1, waiting: 0, overdue: 0, done: 0 });
 }
 
 const reportedDatabaseWarnings = new Set();
@@ -312,7 +318,7 @@ export async function getNotionSnapshot({ notionToken, tasksDbId, goalsDbId, ses
   return {
     meta: {
       source: 'notion-live-workspace',
-      version: '0.8.2',
+      version: '0.8.3',
       updatedAt: new Date().toISOString(),
       warnings,
       connected: {
@@ -382,6 +388,46 @@ export async function createWorkSession({ notionToken, sessionsDbId, payload = {
   });
   const page = await notion.pages.create({ parent: { database_id: sessionsDbId }, properties });
   return { id: page.id, created: true };
+}
+
+export async function createSignal({ notionToken, signalsDbId, payload = {} }) {
+  if (!notionToken) throw new Error('NOTION_TOKEN is missing.');
+  if (!signalsDbId) throw new Error('NOTION_SIGNALS_DB_ID is missing.');
+  const notion = new Client({ auth: notionToken });
+  const title = payload.title || 'Telegram signal';
+  const richProperties = cleanProperties({
+    Signal: titleProperty(title),
+    Type: selectProperty(payload.type || 'Telegram'),
+    Status: selectProperty(payload.status || 'New'),
+    Priority: selectProperty(payload.priority || 'Normal'),
+    'Related projects': multiSelectProperty(payload.relatedProjects || []),
+    Summary: textProperty(payload.summary || payload.rawText || ''),
+    'Next action': textProperty(payload.nextAction || ''),
+    'Possible use': textProperty(payload.possibleUse || ''),
+    'Source URL': urlProperty(payload.sourceUrl || ''),
+    'Date captured': dateProperty(payload.capturedAt || new Date().toISOString()),
+  });
+  const textOnlyProperties = cleanProperties({
+    Signal: titleProperty(title),
+    Summary: textProperty(payload.summary || payload.rawText || ''),
+    'Next action': textProperty(payload.nextAction || ''),
+    'Possible use': textProperty(payload.possibleUse || ''),
+    'Source URL': urlProperty(payload.sourceUrl || ''),
+    'Date captured': dateProperty(payload.capturedAt || new Date().toISOString()),
+  });
+
+  try {
+    const page = await notion.pages.create({ parent: { database_id: signalsDbId }, properties: richProperties });
+    return { id: page.id, created: true, mode: 'rich' };
+  } catch (error) {
+    try {
+      const page = await notion.pages.create({ parent: { database_id: signalsDbId }, properties: textOnlyProperties });
+      return { id: page.id, created: true, mode: 'text-only', fallbackFrom: error.message };
+    } catch (fallbackError) {
+      const page = await notion.pages.create({ parent: { database_id: signalsDbId }, properties: { Signal: titleProperty(title) } });
+      return { id: page.id, created: true, mode: 'title-only', fallbackFrom: fallbackError.message };
+    }
+  }
 }
 
 export async function updateItemTitle({ notionToken, itemId, kind, title }) {
