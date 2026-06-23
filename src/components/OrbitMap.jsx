@@ -32,6 +32,29 @@ function progressTitle(node) {
   return total > 0 ? `${progress}% · ${done}/${total}` : `${progress}%`;
 }
 
+function progressRingStyle(progress) {
+  return {
+    position: 'absolute',
+    inset: '-5px',
+    top: '-5px',
+    right: '-5px',
+    width: 'auto',
+    minWidth: 0,
+    height: 'auto',
+    padding: 0,
+    border: 0,
+    borderRadius: 999,
+    color: 'transparent',
+    fontSize: 0,
+    lineHeight: 0,
+    background: `conic-gradient(rgba(103, 232, 249, 0.98) ${progress}%, rgba(255,255,255,0.1) 0)`,
+    boxShadow: '0 0 18px rgba(103, 232, 249, 0.28), inset 0 0 10px rgba(103, 232, 249, 0.12)',
+    WebkitMask: 'radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px))',
+    mask: 'radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px))',
+    pointerEvents: 'none',
+  };
+}
+
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
@@ -162,7 +185,7 @@ export function OrbitMap({
                   onCancel={onCancelInlineRename}
                 />
               ) : <em>{node.title}</em>}
-              <strong aria-label={progressText} title={progressText} />
+              <strong aria-label={progressText} title={progressText} style={progressRingStyle(progress)} />
             </span>
           );
 
