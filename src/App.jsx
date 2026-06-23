@@ -28,6 +28,9 @@ import { DetailCard } from './components/DetailCard.jsx';
 import { UtilityPanel } from './components/UtilityPanel.jsx';
 import { ContextMenu } from './components/ContextMenu.jsx';
 
+const ROUTE_STORAGE_KEY = 'lifemap.route.v1';
+const SNAPSHOT_REFRESH_MS = 15000;
+
 function readStorage(key, fallback) {
   try {
     return JSON.parse(window.localStorage.getItem(key) || JSON.stringify(fallback));
@@ -40,6 +43,25 @@ function writeStorage(key, value) {
   try {
     window.localStorage.setItem(key, JSON.stringify(value));
   } catch {}
+}
+
+function readInitialRoute() {
+  if (typeof window === 'undefined') return ['root'];
+  const hash = window.location.hash.replace(/^#/, '').trim();
+  if (hash) {
+    const route = hash.split('/').map((part) => decodeURIComponent(part)).filter(Boolean);
+    if (route.length) return route[0] === 'root' ? route : ['root', ...route];
+  }
+  const stored = readStorage(ROUTE_STORAGE_KEY, ['root']);
+  return Array.isArray(stored) && stored.length ? stored : ['root'];
+}
+
+function writeRoute(route) {
+  const safeRoute = Array.isArray(route) && route.length ? route : ['root'];
+  writeStorage(ROUTE_STORAGE_KEY, safeRoute);
+  if (typeof window === 'undefined') return;
+  const nextHash = `#${safeRoute.map((part) => encodeURIComponent(part)).join('/')}`;
+  if (window.location.hash !== nextHash) window.history.replaceState(null, '', nextHash);
 }
 
 function normalizeTitle(value = '') {
@@ -157,7 +179,7 @@ function TextInputDialog({ editor, busy, onSubmit, onClose }) {
 function App() {
   const [snapshot, setSnapshot] = useState(() => emptySnapshot('loading'));
   const [apiState, setApiState] = useState('loading');
-  const [route, setRoute] = useState(['root']);
+  const [route, setRoute] = useState(() => readInitialRoute());
   const [selected, setSelected] = useState(null);
   const [panel, setPanel] = useState(null);
   const [busyTaskId, setBusyTaskId] = useState(null);
@@ -190,6 +212,13 @@ function App() {
   }, []);
 
   useEffect(() => { loadSnapshot().catch(() => {}); }, [loadSnapshot]);
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') loadSnapshot().catch(() => {});
+    }, SNAPSHOT_REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, [loadSnapshot]);
+  useEffect(() => { writeRoute(route); }, [route]);
   useEffect(() => { writeStorage(FOCUS_STORAGE_KEY, focusQueue.slice(0, 12)); }, [focusQueue]);
   useEffect(() => { writeStorage(TITLE_ALIASES_KEY, titleAliases); }, [titleAliases]);
   useEffect(() => { writeStorage(CUSTOM_OBJECTS_KEY, customObjects); }, [customObjects]);
@@ -199,7 +228,7 @@ function App() {
   const activeFocus = useMemo(() => resolveFocus(rootMap, snapshot, focusQueue), [rootMap, snapshot, focusQueue]);
   const focusQueueItems = useMemo(() => buildFocusSequence(rootMap, activeFocus, focusQueue), [rootMap, activeFocus, focusQueue]);
   const currentId = route[route.length - 1];
-  const currentMap = useMemo(() => findNode(rootMap, currentId), [rootMap, currentId]);
+  const currentMap = useMemo(() => findNode(rootMap, currentId) || rootMap, [rootMap, currentId]);
   const canBack = route.length > 1;
   const showSideList = canBack && hasTaskSideList(currentMap);
   const errors = useMemo(() => [...(snapshot.meta?.warnings || []), ...errorLog].filter(Boolean), [snapshot.meta?.warnings, errorLog]);
