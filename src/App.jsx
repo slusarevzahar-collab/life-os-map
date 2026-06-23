@@ -106,6 +106,30 @@ function hasTaskSideList(node) {
   return listItems(node).some((item) => isLeafNode(item));
 }
 
+function matchesFocusItem(node, item) {
+  if (!node || !item) return false;
+  return node.id === item.id ||
+    (item.sourceId && node.sourceId === item.sourceId) ||
+    (item.sourceId && node.id === `task-${item.sourceId}`) ||
+    (item.sourceId && node.id === `signal-${item.sourceId}`);
+}
+
+function findBranchPathForItem(node, item, path = ['root']) {
+  if (!node || !item) return null;
+  if (listItems(node).some((entry) => matchesFocusItem(entry, item))) return path;
+  for (const child of node.children || []) {
+    if (isLeafNode(child)) continue;
+    const found = findBranchPathForItem(child, item, [...path, child.id]);
+    if (found) return found;
+  }
+  return null;
+}
+
+function highlightKey(item) {
+  if (!item) return '';
+  return item.id || (item.sourceId ? `task-${item.sourceId}` : '');
+}
+
 function TextInputDialog({ editor, busy, onSubmit, onClose }) {
   const [value, setValue] = useState(editor?.initialValue || '');
   useEffect(() => { setValue(editor?.initialValue || ''); }, [editor?.id, editor?.initialValue]);
@@ -144,6 +168,7 @@ function App() {
   const [objectEditor, setObjectEditor] = useState(null);
   const [inlineEditor, setInlineEditor] = useState(null);
   const [editorBusy, setEditorBusy] = useState(false);
+  const [highlightedItemId, setHighlightedItemId] = useState('');
   const [focusQueue, setFocusQueue] = useState(() => readStorage(FOCUS_STORAGE_KEY, []));
   const [titleAliases, setTitleAliases] = useState(() => readStorage(TITLE_ALIASES_KEY, {}));
   const [customObjects, setCustomObjects] = useState(() => readStorage(CUSTOM_OBJECTS_KEY, {}));
@@ -192,6 +217,23 @@ function App() {
     setPanel(null);
     setContextMenu(null);
     setInlineEditor(null);
+  };
+
+  const openFocusItem = (item) => {
+    if (!item) return;
+    const path = findBranchPathForItem(rootMap, item);
+    if (!path) {
+      showToast('Не нашёл эту задачу на текущей карте. Обнови snapshot или проверь Notion.');
+      return;
+    }
+    setRoute(path);
+    setSelected(null);
+    setPanel(null);
+    setContextMenu(null);
+    setInlineEditor(null);
+    setViewMode('active');
+    setHighlightedItemId(highlightKey(item));
+    setTimeout(() => setHighlightedItemId(''), 2600);
   };
 
   const goBack = () => {
@@ -308,6 +350,11 @@ function App() {
 
   const deleteObject = (node) => {
     if (!node?.raw?.local) return;
+    const confirmed = window.confirm(`Удалить объект «${node.title}»? Это действие нельзя отменить.`);
+    if (!confirmed) {
+      setContextMenu(null);
+      return;
+    }
     setCustomObjects((items) => {
       const next = { ...items };
       Object.keys(next).forEach((parentId) => {
@@ -411,11 +458,11 @@ function App() {
     <main className={`app actionApp ${showSideList ? 'hasSideList branchView' : ''}`} onClick={() => { setPanel(null); setContextMenu(null); }}>
       <Stars />
       <TopNav canBack={canBack} onBack={goBack} onCenter={goCenter} apiState={dataState(snapshot, apiState)} errorCount={errors.length} onErrors={() => setPanel('errors')} />
-      <MissionPanel focus={activeFocus} focusQueueItems={focusQueueItems} snapshot={snapshot} apiState={apiState} onDone={() => setPanel('done')} />
+      <MissionPanel focus={activeFocus} focusQueueItems={focusQueueItems} snapshot={snapshot} apiState={apiState} onDone={() => setPanel('done')} onOpenFocus={openFocusItem} />
       <AnimatePresence mode="wait">
         <OrbitMap key={currentMap.id} map={currentMap} hasSide={showSideList} onOpen={openNode} onOpenMenu={openMenu} {...inlineRenameProps} />
       </AnimatePresence>
-      {showSideList ? <SideList map={currentMap} viewMode={viewMode} setViewMode={setViewMode} onOpen={openNode} onComplete={completeTask} onRestore={restoreTask} onReorderList={reorderList} onOpenMenu={openMenu} onSaveNote={saveNote} busyTaskId={busyTaskId} {...inlineRenameProps} /> : null}
+      {showSideList ? <SideList map={currentMap} viewMode={viewMode} setViewMode={setViewMode} onOpen={openNode} onComplete={completeTask} onRestore={restoreTask} onReorderList={reorderList} onOpenMenu={openMenu} onSaveNote={saveNote} busyTaskId={busyTaskId} highlightedItemId={highlightedItemId} {...inlineRenameProps} /> : null}
       <AnimatePresence>
         {selected ? <DetailCard key={selected.id} node={selected} onClose={() => setSelected(null)} onComplete={completeTask} onRestore={restoreTask} onOpenMenu={openMenu} busyTaskId={busyTaskId} /> : null}
         {panel ? <UtilityPanel key={panel} type={panel} rootMap={rootMap} errors={errors} onClose={() => setPanel(null)} onRestore={restoreTask} busyTaskId={busyTaskId} /> : null}
