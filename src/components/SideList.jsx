@@ -41,6 +41,15 @@ function nodeHighlighted(item, highlightedItemId) {
     `signal-${item.sourceId}` === highlightedItemId;
 }
 
+function highlightRowStyle(active) {
+  return active ? {
+    borderColor: 'rgba(125, 249, 255, 0.78)',
+    background: 'rgba(103, 232, 249, 0.14)',
+    boxShadow: '0 0 0 1px rgba(103, 232, 249, 0.2), 0 0 34px rgba(103, 232, 249, 0.22)',
+    transform: 'translateY(-1px)',
+  } : undefined;
+}
+
 function InlineTitleEditor({ value, onChange, onSubmit, onCancel }) {
   return (
     <input
@@ -142,7 +151,7 @@ function AIInboxList({ map, viewMode, setViewMode, onOpenMenu, highlightedItemId
           const highlighted = nodeHighlighted(item, highlightedItemId);
           const busy = busySignalId === item.sourceId;
           return (
-            <div className={`sideItemRow inboxSignal ${expanded ? 'expandedRow' : ''} ${highlighted ? 'highlightedTask' : ''}`} key={item.id} onContextMenu={(event) => onOpenMenu(item, event)}>
+            <div className={`sideItemRow inboxSignal ${expanded ? 'expandedRow' : ''} ${highlighted ? 'highlightedTask' : ''}`} style={highlightRowStyle(highlighted)} key={item.id} onContextMenu={(event) => onOpenMenu(item, event)}>
               <button className="sideItemMain inboxSignalMain" onClick={() => setExpandedId((id) => id === item.id ? null : item.id)}>
                 <span className="taskCodeBadge inboxCode">{itemCode(item, 'IN')}</span>
                 <div><b>{item.title}</b><small>{[raw.type || item.status || 'Telegram', formatDate(raw.capturedAt), raw.priority].filter(Boolean).join(' · ')}</small></div>
@@ -208,7 +217,7 @@ export function SideList({
           const noteValue = notesDraft[item.id] ?? item.raw?.sessionNotes ?? item.summary ?? '';
           const highlighted = nodeHighlighted(item, highlightedItemId);
           return (
-            <div className={`sideItemRow ${done ? 'doneRow' : ''} ${expanded ? 'expandedRow' : ''} ${highlighted ? 'highlightedTask' : ''}`} key={item.id} onContextMenu={(event) => onOpenMenu(item, event)}>
+            <div className={`sideItemRow ${done ? 'doneRow' : ''} ${expanded ? 'expandedRow' : ''} ${highlighted ? 'highlightedTask' : ''}`} style={highlightRowStyle(highlighted)} key={item.id} onContextMenu={(event) => onOpenMenu(item, event)}>
               <button className="sideItemMain" style={{ gridTemplateColumns: 'minmax(48px, auto) minmax(0, 1fr)' }} onClick={() => setExpandedId((current) => current === item.id ? null : item.id)}>
                 <span className="taskCodeBadge" style={{ width: 'auto', minWidth: 48, padding: '0 8px', fontSize: 10 }}>{itemCode(item)}</span>
                 <div>{editing ? <InlineTitleEditor value={inlineEditor.value} onChange={onInlineRenameChange} onSubmit={(event) => onSubmitInlineRename(item, event)} onCancel={onCancelInlineRename} /> : <b>{item.title}</b>}</div>
