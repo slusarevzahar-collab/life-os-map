@@ -191,9 +191,6 @@ export function SideList({
   const [notesDraft, setNotesDraft] = useState({});
   const listRef = useRef(null);
   const inboxMode = map?.id === 'sphere-inbox' || map?.kind === 'inbox' || (map?.title === 'AI Inbox' && items.some((item) => item.kind === 'signal'));
-
-  if (inboxMode) return <AIInboxList map={map} viewMode={viewMode} setViewMode={setViewMode} onOpenMenu={onOpenMenu} highlightedItemId={highlightedItemId} />;
-
   const activeItems = items.filter((item) => !isDoneNode(item));
   const doneItems = items.filter((item) => isDoneNode(item));
   const visibleItems = viewMode === 'done' ? doneItems : activeItems;
@@ -203,6 +200,8 @@ export function SideList({
     if (!highlightedItemId || !listRef.current) return;
     listRef.current.querySelector('.highlightedTask')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }, [highlightedItemId, visibleItems.length]);
+
+  if (inboxMode) return <AIInboxList map={map} viewMode={viewMode} setViewMode={setViewMode} onOpenMenu={onOpenMenu} highlightedItemId={highlightedItemId} />;
 
   return (
     <aside className="sideList" onClick={(event) => event.stopPropagation()}>
