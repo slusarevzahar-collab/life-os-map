@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFile } from 'node:child_process';
 import express from 'express';
 import {
   createSignal,
@@ -140,6 +141,51 @@ function telegramSecretOk(req) {
   return req.get('X-Telegram-Bot-Api-Secret-Token') === telegramWebhookSecret;
 }
 
+function codespacesPublicUrl(targetPort = port) {
+  if (process.env.TELEGRAM_WEBHOOK_URL) return process.env.TELEGRAM_WEBHOOK_URL;
+  const name = process.env.CODESPACE_NAME;
+  const domain = process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN || 'app.github.dev';
+  if (!name || process.env.CODESPACES !== 'true') return '';
+  return `https://${name}-${targetPort}.${domain}/api/telegram/webhook`;
+}
+
+function execGh(args = []) {
+  return new Promise((resolve, reject) => {
+    execFile('gh', args, { timeout: 15000 }, (error, stdout, stderr) => {
+      if (error) {
+        reject(new Error((stderr || stdout || error.message).trim()));
+        return;
+      }
+      resolve((stdout || stderr || '').trim());
+    });
+  });
+}
+
+async function publishCodespacesPort() {
+  if (process.env.CODESPACES !== 'true') return { skipped: true, reason: 'not-codespaces' };
+  try {
+    await execGh(['codespace', 'ports', 'visibility', `${port}:public`]);
+    return { ok: true, port: Number(port) };
+  } catch (error) {
+    console.warn(`LifeMap could not auto-public Codespaces port ${port}: ${error.message}`);
+    return { ok: false, error: error.message };
+  }
+}
+
+async function syncTelegramWebhook() {
+  if (!telegramBotToken) return { skipped: true, reason: 'missing-bot-token' };
+  const webhookUrl = codespacesPublicUrl(port) || telegramWebhookUrl;
+  if (!webhookUrl) return { skipped: true, reason: 'missing-webhook-url' };
+  try {
+    const result = await setTelegramWebhook({ botToken: telegramBotToken, webhookUrl, secretToken: telegramWebhookSecret });
+    console.log(`LifeMap Telegram webhook synced: ${webhookUrl}`);
+    return { ok: true, webhookUrl, result };
+  } catch (error) {
+    console.warn(`LifeMap Telegram webhook sync failed: ${error.message}`);
+    return { ok: false, webhookUrl, error: error.message };
+  }
+}
+
 app.get('/api/life-os/snapshot', async (_req, res) => {
   try {
     const notionSnapshot = await getNotionSnapshot({ notionToken, tasksDbId, goalsDbId, sessionsDbId, projectsDbId, dreamsDbId, signalsDbId });
@@ -230,7 +276,7 @@ app.post('/api/telegram/webhook', async (req, res) => {
 
 app.post('/api/telegram/set-webhook', async (req, res) => {
   try {
-    const webhookUrl = req.body?.url || telegramWebhookUrl;
+    const webhookUrl = req.body?.url || telegramWebhookUrl || codespacesPublicUrl(port);
     const result = await setTelegramWebhook({ botToken: telegramBotToken, webhookUrl, secretToken: telegramWebhookSecret });
     res.json({ ok: true, webhookUrl, result });
   } catch (error) {
@@ -249,6 +295,7 @@ app.get('/api/telegram/status', async (_req, res) => {
       allowedUsersLocked: Boolean(telegramAllowedUserIds),
       signalsDb: Boolean(signalsDbId),
       localSignals: readLocalSignals(50).length,
+      computedWebhookUrl: codespacesPublicUrl(port) || telegramWebhookUrl || '',
       webhook,
     });
   } catch (error) {
@@ -260,18 +307,9 @@ app.get('/api/life-os/health', (_req, res) => {
   res.json({
     ok: true,
     service: 'lifemap-api',
-    port,
+    port: Number(port),
     envLoaded,
-    endpoints: [
-      'GET /api/life-os/snapshot',
-      'POST /api/life-os/sessions',
-      'PATCH /api/life-os/tasks/:id',
-      'PATCH /api/life-os/items/:id/title',
-      'POST /api/telegram/webhook',
-      'POST /api/telegram/set-webhook',
-      'GET /api/telegram/status',
-      'GET /api/life-os/health',
-    ],
+    endpoints: ['GET /api/life-os/snapshot', 'POST /api/life-os/sessions', 'PATCH /api/life-os/tasks/:id', 'PATCH /api/life-os/items/:id/title', 'POST /api/telegram/webhook', 'POST /api/telegram/set-webhook', 'GET /api/telegram/status', 'GET /api/life-os/health'],
     notion: {
       token: Boolean(notionToken),
       tasks: Boolean(tasksDbId),
@@ -285,21 +323,23 @@ app.get('/api/life-os/health', (_req, res) => {
       token: Boolean(telegramBotToken),
       secret: Boolean(telegramWebhookSecret),
       allowedUsersLocked: Boolean(telegramAllowedUserIds),
-      webhookUrl: Boolean(telegramWebhookUrl),
-      localSignals: readLocalSignals(50).length,
+      webhookUrl: Boolean(telegramWebhookUrl || codespacesPublicUrl(port)),
     },
   });
 });
 
-app.listen(port, () => {
+app.listen(port, async () => {
   console.log(`LifeMap API listening on http://localhost:${port}`);
-  console.log(envLoaded ? '.env loaded' : '.env file not found; using shell environment only');
-  console.log(notionToken ? 'NOTION_TOKEN is set' : 'NOTION_TOKEN is not set; using mock snapshot');
-  console.log(tasksDbId ? 'NOTION_TASKS_DB_ID is set' : 'NOTION_TASKS_DB_ID is not set; using mock snapshot');
-  console.log(goalsDbId ? 'NOTION_GOALS_DB_ID is set' : 'NOTION_GOALS_DB_ID is not set; goals disabled');
-  console.log(sessionsDbId ? 'NOTION_SESSIONS_DB_ID is set' : 'NOTION_SESSIONS_DB_ID is not set; sessions disabled');
-  console.log(projectsDbId ? 'NOTION_PROJECTS_DB_ID is set' : 'NOTION_PROJECTS_DB_ID is not set; projects disabled');
-  console.log(dreamsDbId ? 'NOTION_DREAMS_DB_ID is set' : 'NOTION_DREAMS_DB_ID is not set; dreams disabled');
-  console.log(signalsDbId ? 'NOTION_SIGNALS_DB_ID is set' : 'NOTION_SIGNALS_DB_ID is not set; signals disabled');
-  console.log(telegramBotToken ? 'TELEGRAM_BOT_TOKEN is set' : 'TELEGRAM_BOT_TOKEN is not set; Telegram intake disabled');
+  console.log(envLoaded ? '.env loaded' : '.env not found; using process env');
+  console.log(notionToken ? 'NOTION_TOKEN is available' : 'NOTION_TOKEN is not set; using mock snapshot');
+  console.log(tasksDbId ? 'NOTION_TASKS_DB_ID is available' : 'NOTION_TASKS_DB_ID is not set; tasks disabled');
+  console.log(goalsDbId ? 'NOTION_GOALS_DB_ID is available' : 'NOTION_GOALS_DB_ID is not set; goals disabled');
+  console.log(sessionsDbId ? 'NOTION_SESSIONS_DB_ID is available' : 'NOTION_SESSIONS_DB_ID is not set; sessions disabled');
+  console.log(projectsDbId ? 'NOTION_PROJECTS_DB_ID is available' : 'NOTION_PROJECTS_DB_ID is not set; project areas disabled');
+  console.log(dreamsDbId ? 'NOTION_DREAMS_DB_ID is available' : 'NOTION_DREAMS_DB_ID is not set; dreams disabled');
+  console.log(signalsDbId ? 'NOTION_SIGNALS_DB_ID is available' : 'NOTION_SIGNALS_DB_ID is not set; AI Inbox disabled');
+
+  const portResult = await publishCodespacesPort();
+  if (portResult?.ok) console.log(`LifeMap Codespaces port ${port} is public.`);
+  await syncTelegramWebhook();
 });
