@@ -42,7 +42,67 @@ function collectEntityUrls(message = {}) {
     }
   });
   const rawUrls = source.match(/https?:\/\/\S+/gi) || [];
-  return [...new Set([...urls, ...rawUrls].map((url) => url.replace(/[),.;]+$/, '')))];
+  return [...new Set([...urls, ...rawUrls].map((url) => url.replace(/[),.;]+$/, '')))].filter(Boolean);
+}
+
+function publicTelegramLink(chat = {}, messageId) {
+  if (!messageId) return '';
+  if (chat.username) return `https://t.me/${chat.username}/${messageId}`;
+  const chatId = String(chat.id || '');
+  if (chatId.startsWith('-100')) return `https://t.me/c/${chatId.slice(4)}/${messageId}`;
+  return '';
+}
+
+function forwardedOrigin(message = {}) {
+  const origin = message.forward_origin;
+  if (origin?.type === 'channel' && origin.chat && origin.message_id) {
+    return {
+      url: publicTelegramLink(origin.chat, origin.message_id),
+      source: origin.chat.username ? `@${origin.chat.username}` : origin.chat.title || 'Telegram channel',
+      chatId: origin.chat.id,
+      messageId: origin.message_id,
+      type: origin.type,
+    };
+  }
+
+  if (origin?.type === 'chat' && origin.sender_chat && origin.message_id) {
+    return {
+      url: publicTelegramLink(origin.sender_chat, origin.message_id),
+      source: origin.sender_chat.username ? `@${origin.sender_chat.username}` : origin.sender_chat.title || 'Telegram chat',
+      chatId: origin.sender_chat.id,
+      messageId: origin.message_id,
+      type: origin.type,
+    };
+  }
+
+  if (message.forward_from_chat && message.forward_from_message_id) {
+    return {
+      url: publicTelegramLink(message.forward_from_chat, message.forward_from_message_id),
+      source: message.forward_from_chat.username ? `@${message.forward_from_chat.username}` : message.forward_from_chat.title || 'Telegram channel',
+      chatId: message.forward_from_chat.id,
+      messageId: message.forward_from_message_id,
+      type: 'legacy_forward',
+    };
+  }
+
+  return null;
+}
+
+function directMessageLink(message = {}) {
+  if (!message.chat || !message.message_id) return '';
+  if (!['channel', 'supergroup'].includes(message.chat.type)) return '';
+  return publicTelegramLink(message.chat, message.message_id);
+}
+
+function sourceLinkFor(message = {}, urls = []) {
+  const origin = forwardedOrigin(message);
+  const telegramPostUrl = origin?.url || directMessageLink(message);
+  return {
+    sourceUrl: telegramPostUrl || urls[0] || '',
+    telegramPostUrl,
+    forwardedFrom: origin,
+    entityUrls: urls,
+  };
 }
 
 function projectTagsFor(text = '') {
@@ -73,6 +133,8 @@ function inferPriority(text = '') {
 }
 
 function sourceLabel(message = {}) {
+  const origin = forwardedOrigin(message);
+  if (origin?.source) return origin.source;
   const chat = message.chat || {};
   if (chat.username) return `@${chat.username}`;
   if (chat.title) return chat.title;
@@ -87,8 +149,9 @@ export function buildSignalFromTelegramUpdate(update = {}) {
 
   const content = textFromMessage(message);
   const urls = collectEntityUrls(message);
+  const linkInfo = sourceLinkFor(message, urls);
   const originalText = String(content || '').trim();
-  const title = shortTitle(originalText || urls[0], 'Telegram signal');
+  const title = shortTitle(originalText || linkInfo.sourceUrl, 'Telegram signal');
   const capturedAt = message.date ? new Date(message.date * 1000).toISOString() : new Date().toISOString();
   const source = sourceLabel(message);
   const summary = originalText
@@ -109,7 +172,7 @@ export function buildSignalFromTelegramUpdate(update = {}) {
     summary,
     nextAction: 'Разобрать входящий сигнал и решить, превращать ли его в задачу, заметку или проектный материал.',
     possibleUse,
-    sourceUrl: urls[0] || '',
+    sourceUrl: linkInfo.sourceUrl,
     capturedAt,
     source,
     rawText: originalText,
@@ -121,6 +184,10 @@ export function buildSignalFromTelegramUpdate(update = {}) {
       userId: message.from?.id,
       username: message.from?.username || message.chat?.username || '',
       source,
+      sourceUrl: linkInfo.sourceUrl,
+      telegramPostUrl: linkInfo.telegramPostUrl,
+      forwardedFrom: linkInfo.forwardedFrom,
+      entityUrls: linkInfo.entityUrls,
     },
   };
 }
