@@ -10,5 +10,6 @@
       "onAutoForward": "silent",
       "visibility": "public"
     }
-  }
+  },
+  "postStartCommand": "gh codespace ports visibility 3001:public || true"
 }
