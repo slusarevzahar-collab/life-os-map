@@ -68,6 +68,49 @@ function InlineTitleEditor({ value, onChange, onSubmit, onCancel }) {
   );
 }
 
+function telegramDeepLink(sourceUrl = '') {
+  if (!sourceUrl) return '';
+  try {
+    const url = new URL(sourceUrl);
+    const host = url.hostname.replace(/^www\./, '').toLowerCase();
+    if (!['t.me', 'telegram.me'].includes(host)) return '';
+
+    const parts = url.pathname.split('/').filter(Boolean).map((part) => decodeURIComponent(part));
+    if (!parts.length) return '';
+
+    if (parts[0] === 'c' && parts[1] && parts[2]) {
+      return `tg://privatepost?channel=${encodeURIComponent(parts[1])}&post=${encodeURIComponent(parts[2])}`;
+    }
+
+    if (parts[0] === 's' && parts[1]) {
+      const post = parts[2] ? `&post=${encodeURIComponent(parts[2])}` : '';
+      return `tg://resolve?domain=${encodeURIComponent(parts[1])}${post}`;
+    }
+
+    if (/^[+]/.test(parts[0])) return sourceUrl;
+
+    const domain = parts[0];
+    const post = parts[1] ? `&post=${encodeURIComponent(parts[1])}` : '';
+    return `tg://resolve?domain=${encodeURIComponent(domain)}${post}`;
+  } catch {
+    return '';
+  }
+}
+
+function openSource(event, sourceUrl = '') {
+  event?.preventDefault?.();
+  event?.stopPropagation?.();
+  if (!sourceUrl) return;
+
+  const appUrl = telegramDeepLink(sourceUrl);
+  if (appUrl && appUrl.startsWith('tg://')) {
+    window.location.href = appUrl;
+    return;
+  }
+
+  window.open(sourceUrl, '_blank', 'noopener,noreferrer');
+}
+
 function SignalDetails({ item }) {
   const raw = item.raw || {};
   const projects = raw.relatedProjects || [];
@@ -77,7 +120,7 @@ function SignalDetails({ item }) {
       {raw.possibleUse ? <div><small>Как применить</small><p>{raw.possibleUse}</p></div> : null}
       {raw.nextAction ? <div><small>Далее</small><p>{raw.nextAction}</p></div> : null}
       {projects.length ? <div className="inboxChips">{projects.map((project) => <span key={project}>{project}</span>)}</div> : null}
-      {raw.sourceUrl ? <a className="inboxLink" href={raw.sourceUrl} target="_blank" rel="noreferrer">Открыть источник</a> : null}
+      {raw.sourceUrl ? <button className="inboxLink" type="button" onClick={(event) => openSource(event, raw.sourceUrl)}>Открыть источник</button> : null}
     </div>
   );
 }
