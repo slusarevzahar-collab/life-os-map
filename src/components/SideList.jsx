@@ -18,10 +18,11 @@ function processedSignal(status = '') {
 }
 
 function compactCode(value = 'LM') {
-  const source = String(value || 'LM').toUpperCase();
-  const letters = (source.match(/[A-ZА-Я]{1,2}/)?.[0] || 'LM').slice(0, 2);
-  const rawNumber = Number(source.match(/\d+/)?.[0] || 1);
-  const number = ((Math.max(rawNumber, 1) - 1) % 100) + 1;
+  const source = String(value || 'LM').toUpperCase().replace(/\s+/g, '');
+  const explicit = source.match(/^([A-ZА-Я]{1,3})-?(\d{1,4})$/);
+  if (explicit) return `${explicit[1]}${explicit[2]}`;
+  const letters = (source.match(/[A-ZА-Я]{1,3}/)?.[0] || 'LM').slice(0, 3);
+  const number = source.match(/\d+/)?.[0] || '1';
   return `${letters}${number}`;
 }
 
@@ -81,6 +82,75 @@ function arrayProp(value) {
   } catch {
     return String(value).split(',').map((item) => item.trim()).filter(Boolean);
   }
+}
+
+function parseTime(value) {
+  if (!value) return null;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : null;
+}
+
+function sourceChannel(sourceUrl = '') {
+  try {
+    const url = new URL(sourceUrl);
+    const parts = url.pathname.split('/').filter(Boolean);
+    if (parts[0] === 'c') return `c/${parts[1]}`;
+    return parts[0] || '';
+  } catch {
+    return '';
+  }
+}
+
+function shortEnoughSummary(item) {
+  const summary = String(item.raw?.summary || '').trim();
+  const title = String(item.title || '').trim();
+  return !summary || summary === title || summary.length < 80;
+}
+
+function isContextAttachment(item) {
+  const title = String(item.title || '').toLowerCase().trim();
+  const raw = item.raw || {};
+  return /\.(md|txt|pdf|docx?|json|csv|html?)$/.test(title) ||
+    (shortEnoughSummary(item) && /file|document|attachment|документ|файл/i.test(`${raw.type || ''} ${raw.summary || ''} ${raw.possibleUse || ''}`));
+}
+
+function closeEnoughForContext(attachments, parent) {
+  if (!attachments.length || !parent) return false;
+  const parentTime = parseTime(parent.raw?.capturedAt);
+  if (!parentTime) return false;
+  const parentChannel = sourceChannel(parent.raw?.sourceUrl || '');
+  return attachments.every((item) => {
+    const itemTime = parseTime(item.raw?.capturedAt);
+    const itemChannel = sourceChannel(item.raw?.sourceUrl || '');
+    const sameChannel = !parentChannel || !itemChannel || parentChannel === itemChannel;
+    const nearTime = itemTime ? Math.abs(parentTime - itemTime) <= 15 * 60 * 1000 : true;
+    return sameChannel && nearTime;
+  });
+}
+
+function groupSignalsForDisplay(items = []) {
+  const groups = [];
+  let pendingContext = [];
+
+  items.forEach((item) => {
+    if (isContextAttachment(item)) {
+      pendingContext.push(item);
+      return;
+    }
+
+    if (pendingContext.length && closeEnoughForContext(pendingContext, item)) {
+      groups.push({ item, contextItems: pendingContext });
+      pendingContext = [];
+      return;
+    }
+
+    pendingContext.forEach((contextItem) => groups.push({ item: contextItem, contextItems: [] }));
+    pendingContext = [];
+    groups.push({ item, contextItems: [] });
+  });
+
+  pendingContext.forEach((contextItem) => groups.push({ item: contextItem, contextItems: [] }));
+  return groups;
 }
 
 function inferSignalMeta(item) {
@@ -242,10 +312,11 @@ function openSource(event, sourceUrl = '') {
   window.open(sourceUrl, '_blank', 'noopener,noreferrer');
 }
 
-function SignalDetails({ item }) {
+function SignalDetails({ item, contextItems = [] }) {
   const raw = item.raw || {};
   const meta = inferSignalMeta(item);
   const projects = raw.relatedProjects || [];
+  const summary = String(raw.summary || '').trim();
   return (
     <div className="inlineTaskDetails inboxDetails">
       <div className="inboxChips inboxMetaChips">
@@ -253,16 +324,36 @@ function SignalDetails({ item }) {
         {meta.platforms.map((platform) => <span key={platform}>{platform}</span>)}
         {meta.assets.map((asset) => <span key={asset}>{asset}</span>)}
       </div>
-      {raw.summary ? <div><small>Суть</small><p>{raw.summary}</p></div> : null}
+      <div><small>Оригинальный текст / суть</small>{summary ? <p className="inboxFullText">{summary}</p> : <p className="inboxMissingText">Полный текст пока не попал в Notion. Сейчас сохранён только заголовок; на следующем этапе нужно доработать Telegram-бота, чтобы он сохранял caption/текст файла в Summary или тело страницы.</p>}</div>
       {raw.possibleUse ? <div><small>Как применить</small><p>{raw.possibleUse}</p></div> : null}
       <div><small>Решение AI Inbox</small><p>{meta.nextStep}</p></div>
       {raw.nextAction ? <div><small>Далее из Notion</small><p>{raw.nextAction}</p></div> : null}
       {projects.length ? <div className="inboxChips">{projects.map((project) => <span key={project}>{project}</span>)}</div> : null}
+      {contextItems.length ? (
+        <div className="contextDocs">
+          <small>Контекст к этому посту</small>
+          <div className="contextDocGrid">
+            {contextItems.map((contextItem) => <ContextDoc key={contextItem.id} item={contextItem} />)}
+          </div>
+        </div>
+      ) : null}
       <div className="inboxDetailActions">
         {raw.sourceUrl ? <button className="inboxLink" type="button" onClick={(event) => openSource(event, raw.sourceUrl)}>Открыть источник</button> : null}
         <button className="ghostInboxAction" type="button" title="Будет подключено следующим этапом">В библиотеку</button>
         <button className="ghostInboxAction" type="button" title="Будет подключено следующим этапом">Сделать задачей</button>
       </div>
+    </div>
+  );
+}
+
+function ContextDoc({ item }) {
+  const raw = item.raw || {};
+  const summary = String(raw.summary || '').trim();
+  return (
+    <div className="contextDocCard">
+      <b>{item.title}</b>
+      {summary && summary !== item.title ? <p>{summary}</p> : <p className="inboxMissingText">Документ сохранён как отдельный сигнал без полного текста. Нужно подтянуть содержимое файла на этапе Telegram-бота.</p>}
+      {raw.sourceUrl ? <button className="ghostInboxAction" type="button" onClick={(event) => openSource(event, raw.sourceUrl)}>Открыть документ</button> : null}
     </div>
   );
 }
@@ -276,16 +367,17 @@ function AIInboxList({ map, highlightedItemId }) {
   const [busySignalId, setBusySignalId] = useState(null);
   const listRef = useRef(null);
   const signals = useMemo(() => listItems(map).filter((item) => item.kind === 'signal'), [map]);
-  const counts = useMemo(() => Object.fromEntries(INBOX_TABS.map((tab) => [
-    tab.id,
-    signals.filter((item) => matchesInboxTab(item, tab.id, localState[item.sourceId || item.id])).length,
-  ])), [signals, localState]);
+  const counts = useMemo(() => Object.fromEntries(INBOX_TABS.map((tab) => {
+    const tabItems = signals.filter((item) => matchesInboxTab(item, tab.id, localState[item.sourceId || item.id]));
+    return [tab.id, groupSignalsForDisplay(tabItems).length];
+  })), [signals, localState]);
   const visible = useMemo(() => signals.filter((item) => matchesInboxTab(item, inboxTab, localState[item.sourceId || item.id])), [signals, inboxTab, localState]);
+  const visibleGroups = useMemo(() => groupSignalsForDisplay(visible), [visible]);
 
   useEffect(() => {
     if (!highlightedItemId || !listRef.current) return;
     listRef.current.querySelector('.highlightedTask')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  }, [highlightedItemId, visible.length]);
+  }, [highlightedItemId, visibleGroups.length]);
 
   const updateSignalStatus = async (item, status) => {
     const signalId = item.sourceId;
@@ -333,8 +425,8 @@ function AIInboxList({ map, highlightedItemId }) {
       </div>
       {notice ? <div className="inboxNotice">{notice}</div> : null}
       {error ? <div className="inboxError">{error}</div> : null}
-      {visible.length ? <div className="sideItems inboxItems" ref={listRef}>
-        {visible.map((item) => {
+      {visibleGroups.length ? <div className="sideItems inboxItems" ref={listRef}>
+        {visibleGroups.map(({ item, contextItems }) => {
           const raw = item.raw || {};
           const meta = inferSignalMeta(item);
           const expanded = expandedId === item.id;
@@ -348,7 +440,7 @@ function AIInboxList({ map, highlightedItemId }) {
                 <span className="taskCodeBadge inboxCode">{itemCode(item, 'IN')}</span>
                 <div>
                   <b>{item.title}</b>
-                  <small>{[meta.categoryLabel, meta.platforms.slice(0, 2).join(' + '), formatDate(raw.capturedAt), raw.priority].filter(Boolean).join(' · ')}</small>
+                  <small>{[meta.categoryLabel, meta.platforms.slice(0, 2).join(' + '), contextItems.length ? `${contextItems.length} файла контекста` : '', formatDate(raw.capturedAt), raw.priority].filter(Boolean).join(' · ')}</small>
                 </div>
               </button>
               <div className="rowActions inboxActions">
@@ -357,7 +449,7 @@ function AIInboxList({ map, highlightedItemId }) {
                   ? <button className="restoreMini" disabled={busy} onClick={(event) => { event.stopPropagation(); updateSignalStatus(item, 'New'); }}>{busy ? '…' : 'Вернуть'}</button>
                   : <><button className="doneMini" disabled={busy} onClick={(event) => { event.stopPropagation(); updateSignalStatus(item, 'Reviewed'); }}>{busy ? '…' : 'Разобрано'}</button><button className="archiveMini" disabled={busy} onClick={(event) => { event.stopPropagation(); updateSignalStatus(item, 'Archived'); }}>Архив</button></>}
               </div>
-              {expanded ? <SignalDetails item={item} /> : null}
+              {expanded ? <SignalDetails item={item} contextItems={contextItems} /> : null}
             </div>
           );
         })}
@@ -370,7 +462,6 @@ export function SideList({
   map,
   viewMode,
   setViewMode,
-  onOpen,
   onComplete,
   onRestore,
   onOpenMenu,
