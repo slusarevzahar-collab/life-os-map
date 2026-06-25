@@ -8,6 +8,8 @@
 
 .inlineTaskDetails.inboxDetails .inboxDetailActions {
   display: flex !important;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .inboxPanel {
@@ -76,11 +78,30 @@
   flex: 0 0 auto;
 }
 
-.inboxFullText {
-  max-height: 320px;
+.inboxBodyBlock {
+  display: block !important;
+  margin-top: 12px;
+}
+
+.inboxBodyBlock small,
+.contextDocs small {
+  display: block;
+  margin-bottom: 6px;
+  color: rgba(103, 232, 249, 0.82);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.inboxFullText,
+.inboxBodyBlock p {
+  margin: 0;
+  max-height: 340px;
   overflow: auto;
   white-space: pre-wrap;
-  line-height: 1.45;
+  line-height: 1.48;
+  color: rgba(236, 248, 255, 0.88);
 }
 
 .inboxTextLink {
@@ -92,6 +113,12 @@
 
 .inboxTextLink:hover {
   color: #ffffff;
+}
+
+.inboxMetaChips {
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .contextDocs {
@@ -122,7 +149,7 @@
 .contextDocCard p {
   margin: 6px 0 0 !important;
   font-size: 12px !important;
-  max-height: 120px;
+  max-height: 150px;
   overflow: auto;
   white-space: pre-wrap;
 }
@@ -140,6 +167,60 @@
 .inlineTaskDetails.inboxDetails .noteEditor,
 .inlineTaskDetails.inboxDetails .noteEditorActions {
   display: none !important;
+}
+
+.taskAiChat {
+  min-width: 40px !important;
+  height: 36px !important;
+  padding: 0 10px !important;
+  border: 1px solid rgba(103, 232, 249, 0.24) !important;
+  border-radius: 999px !important;
+  color: #76ecff !important;
+  background: rgba(103, 232, 249, 0.08) !important;
+  font-weight: 900 !important;
+}
+
+.assistantChatMock {
+  display: grid;
+  gap: 10px;
+  margin: 10px 0 12px;
+}
+
+.assistantMessage {
+  border: 1px solid rgba(103, 232, 249, 0.13);
+  border-radius: 18px;
+  padding: 12px 14px;
+  background: rgba(103, 232, 249, 0.06);
+}
+
+.assistantMessage b {
+  display: block;
+  margin-bottom: 5px;
+}
+
+.assistantMessage p {
+  margin: 0;
+  color: rgba(236, 248, 255, 0.78);
+  line-height: 1.45;
+}
+
+.assistantContextMessage {
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.assistantContextMessage small {
+  display: block;
+  margin-bottom: 6px;
+  color: rgba(103, 232, 249, 0.82);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.assistantRulesBlock {
+  max-height: 180px;
+  overflow: auto;
 }
 
 @media (max-width: 1100px) {
