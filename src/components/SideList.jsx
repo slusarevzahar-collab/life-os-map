@@ -4,6 +4,15 @@ import { patchSignal } from '../lib/lifeMapRuntime.js';
 import { canPatchTask, listItems } from '../lib/lifeMapSelectors.js';
 import { ChevronDown } from './ChevronDown.jsx';
 
+const INBOX_TABS = [
+  { id: 'new', label: 'Входящие' },
+  { id: 'prompts', label: 'Промпты' },
+  { id: 'tools', label: 'Инструменты' },
+  { id: 'workflow', label: 'Workflow' },
+  { id: 'tasks', label: 'В задачи' },
+  { id: 'done', label: 'Разобрано' },
+];
+
 function processedSignal(status = '') {
   return /reviewed|processed|archived|done|обработ|разобран|архив|готов/i.test(String(status || ''));
 }
@@ -48,6 +57,128 @@ function highlightRowStyle(active) {
     boxShadow: '0 0 0 1px rgba(103, 232, 249, 0.2), 0 0 34px rgba(103, 232, 249, 0.22)',
     transform: 'translateY(-1px)',
   } : undefined;
+}
+
+function textOf(item) {
+  const raw = item.raw || {};
+  return `${item.title || ''} ${raw.summary || ''} ${raw.possibleUse || ''} ${raw.nextAction || ''} ${raw.type || ''}`.toLowerCase();
+}
+
+function hasAny(source, tokens) {
+  return tokens.some((token) => source.includes(token.toLowerCase()));
+}
+
+function unique(items = []) {
+  return [...new Set(items.filter(Boolean))];
+}
+
+function arrayProp(value) {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return String(value).split(',').map((item) => item.trim()).filter(Boolean);
+  }
+}
+
+function inferSignalMeta(item) {
+  const raw = item.raw || {};
+  const text = textOf(item);
+  const platforms = new Set(arrayProp(raw.platforms || raw.toolPlatform || raw.tools));
+  const assets = new Set(arrayProp(raw.assetTypes || raw.assetType));
+
+  if (hasAny(text, ['chatgpt', 'gpt-'])) platforms.add('ChatGPT');
+  if (hasAny(text, ['codex', 'opencode'])) platforms.add('Codex');
+  if (hasAny(text, ['claude code'])) platforms.add('Claude Code');
+  if (hasAny(text, ['claude'])) platforms.add('Claude');
+  if (hasAny(text, ['mcp'])) platforms.add('MCP');
+  if (hasAny(text, ['github'])) platforms.add('GitHub');
+  if (hasAny(text, ['telegram', 'бот', 'bot'])) platforms.add('Telegram');
+  if (hasAny(text, ['notion'])) platforms.add('Notion');
+  if (hasAny(text, ['make'])) platforms.add('Make');
+
+  let category = raw.aiCategory || raw.category || '';
+  let decision = raw.decision || 'Review';
+
+  if (hasAny(text, ['промпт', 'prompt', 'claude.md', 'review.md'])) {
+    category ||= 'Prompt';
+    assets.add('Prompt');
+    assets.add('Instruction');
+    decision = raw.decision || 'Save to library';
+  }
+  if (hasAny(text, ['record & replay', 'workflow', 'пайплайн', 'pipeline', 'автоматизац', 'agent', 'агент'])) {
+    category ||= 'Workflow';
+    assets.add('Workflow');
+  }
+  if (hasAny(text, ['codex', 'github', 'cursor', 'opencode', 'claude code', 'ssd', 'trace', 'sqlite'])) {
+    category ||= 'Code/Codex';
+    assets.add('Instruction');
+  }
+  if (hasAny(text, ['design', 'дизайн', 'макет', 'ui', 'ux', 'интерфейс', 'компонент'])) {
+    category ||= 'Design/UX';
+    assets.add('Idea');
+  }
+  if (hasAny(text, ['скрейп', 'scraping', 'pixelrag', 'rag', 'retriever', 'embedding', 'парс'])) {
+    category ||= 'Research/News';
+    assets.add('Tool link');
+  }
+  if (hasAny(text, ['нейросети и сервисы', 'подборка', 'инструмент', 'tool', 'сервис'])) {
+    category ||= 'AI Tool';
+    assets.add('Tool link');
+  }
+  if (hasAny(text, ['клиент', 'деньги', 'монетизац', 'лимиты', 'платн'])) {
+    category ||= 'Business/Monetization';
+  }
+  if (hasAny(text, ['безопасн', 'legal', 'security', 'edr', 'уязвим', 'атака', 'reverse'])) {
+    category ||= 'Security/Legal';
+  }
+
+  category ||= raw.type === 'Tool' ? 'AI Tool' : raw.type || 'Reference';
+  if (!assets.size) assets.add(category === 'AI Tool' ? 'Tool link' : 'Source');
+
+  const categoryLabel = category === 'Code/Codex' ? 'Код / Codex' :
+    category === 'Design/UX' ? 'Дизайн / UX' :
+      category === 'Research/News' ? 'Ресёрч / новость' :
+        category === 'Business/Monetization' ? 'Деньги / бизнес' :
+          category === 'Security/Legal' ? 'Безопасность' :
+            category === 'AI Tool' ? 'AI-инструмент' :
+              category === 'Workflow' ? 'Workflow' :
+                category === 'Prompt' ? 'Промпт' : category;
+
+  const nextStep = category === 'Prompt'
+    ? 'Вынести в библиотеку промптов и подписать цель применения.'
+    : category === 'AI Tool'
+      ? 'Сохранить в библиотеку инструментов: что делает, где применить, нужна ли проверка.'
+      : category === 'Code/Codex'
+        ? 'Проверить, применимо ли это к текущему workflow LifeMap/Codex.'
+        : category === 'Workflow'
+          ? 'Разложить на повторяемые шаги и решить, нужна ли задача.'
+          : 'Разобрать и решить: архив, задача, заметка или проектный материал.';
+
+  return {
+    category,
+    categoryLabel,
+    platforms: unique([...platforms]),
+    assets: unique([...assets]),
+    decision,
+    nextStep,
+  };
+}
+
+function matchesInboxTab(item, tabId, localStatus) {
+  const status = localStatus || item.status;
+  const done = processedSignal(status);
+  const meta = inferSignalMeta(item);
+  if (tabId === 'done') return done;
+  if (done) return false;
+  if (tabId === 'new') return true;
+  if (tabId === 'prompts') return meta.category === 'Prompt' || meta.assets.includes('Prompt');
+  if (tabId === 'tools') return meta.category === 'AI Tool' || meta.assets.includes('Tool link') || meta.platforms.length > 0;
+  if (tabId === 'workflow') return meta.category === 'Workflow' || meta.assets.includes('Workflow') || meta.category === 'Code/Codex';
+  if (tabId === 'tasks') return meta.decision === 'Create task' || /задач|task/i.test(item.raw?.possibleUse || item.raw?.nextAction || '');
+  return true;
 }
 
 function InlineTitleEditor({ value, onChange, onSubmit, onCancel }) {
@@ -113,29 +244,43 @@ function openSource(event, sourceUrl = '') {
 
 function SignalDetails({ item }) {
   const raw = item.raw || {};
+  const meta = inferSignalMeta(item);
   const projects = raw.relatedProjects || [];
   return (
     <div className="inlineTaskDetails inboxDetails">
-      {raw.summary ? <p>{raw.summary}</p> : null}
+      <div className="inboxChips inboxMetaChips">
+        <span>{meta.categoryLabel}</span>
+        {meta.platforms.map((platform) => <span key={platform}>{platform}</span>)}
+        {meta.assets.map((asset) => <span key={asset}>{asset}</span>)}
+      </div>
+      {raw.summary ? <div><small>Суть</small><p>{raw.summary}</p></div> : null}
       {raw.possibleUse ? <div><small>Как применить</small><p>{raw.possibleUse}</p></div> : null}
-      {raw.nextAction ? <div><small>Далее</small><p>{raw.nextAction}</p></div> : null}
+      <div><small>Решение AI Inbox</small><p>{meta.nextStep}</p></div>
+      {raw.nextAction ? <div><small>Далее из Notion</small><p>{raw.nextAction}</p></div> : null}
       {projects.length ? <div className="inboxChips">{projects.map((project) => <span key={project}>{project}</span>)}</div> : null}
-      {raw.sourceUrl ? <button className="inboxLink" type="button" onClick={(event) => openSource(event, raw.sourceUrl)}>Открыть источник</button> : null}
+      <div className="inboxDetailActions">
+        {raw.sourceUrl ? <button className="inboxLink" type="button" onClick={(event) => openSource(event, raw.sourceUrl)}>Открыть источник</button> : null}
+        <button className="ghostInboxAction" type="button" title="Будет подключено следующим этапом">В библиотеку</button>
+        <button className="ghostInboxAction" type="button" title="Будет подключено следующим этапом">Сделать задачей</button>
+      </div>
     </div>
   );
 }
 
-function AIInboxList({ map, viewMode, setViewMode, onOpenMenu, highlightedItemId }) {
+function AIInboxList({ map, highlightedItemId }) {
   const [expandedId, setExpandedId] = useState(null);
+  const [inboxTab, setInboxTab] = useState('new');
   const [localState, setLocalState] = useState({});
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [busySignalId, setBusySignalId] = useState(null);
   const listRef = useRef(null);
   const signals = useMemo(() => listItems(map).filter((item) => item.kind === 'signal'), [map]);
-  const active = signals.filter((item) => !processedSignal(localState[item.sourceId || item.id] || item.status));
-  const done = signals.filter((item) => processedSignal(localState[item.sourceId || item.id] || item.status));
-  const visible = viewMode === 'done' ? done : active;
+  const counts = useMemo(() => Object.fromEntries(INBOX_TABS.map((tab) => [
+    tab.id,
+    signals.filter((item) => matchesInboxTab(item, tab.id, localState[item.sourceId || item.id])).length,
+  ])), [signals, localState]);
+  const visible = useMemo(() => signals.filter((item) => matchesInboxTab(item, inboxTab, localState[item.sourceId || item.id])), [signals, inboxTab, localState]);
 
   useEffect(() => {
     if (!highlightedItemId || !listRef.current) return;
@@ -176,30 +321,38 @@ function AIInboxList({ map, viewMode, setViewMode, onOpenMenu, highlightedItemId
   return (
     <aside className="sideList inboxPanel" onClick={(event) => event.stopPropagation()}>
       <div className="sideListHead inboxHead">
-        <div><small>AI Inbox · входящие сигналы</small><strong>{map.title}</strong><p>Это посты, ссылки, идеи и инструменты из Telegram. Они ещё не задачи: сначала их нужно разобрать.</p></div>
-        <b className="miniProgressRing" title={`${active.length} новых`}>{active.length}</b>
+        <div>
+          <small>AI Inbox · входящие сигналы</small>
+          <strong>{map.title}</strong>
+          <p>Посты, ссылки, промпты и инструменты из Telegram. Здесь они сначала сортируются, а уже потом становятся задачами, промптами или материалами проекта.</p>
+        </div>
+        <b className="miniProgressRing" title={`${counts.new || 0} входящих`}>{counts.new || 0}</b>
       </div>
-      <div className="sideTabs">
-        <button className={viewMode === 'active' ? 'active' : ''} onClick={() => setViewMode('active')}>Новые <span>{active.length}</span></button>
-        <button className={viewMode === 'done' ? 'active' : ''} onClick={() => setViewMode('done')}>Разобрано <span>{done.length}</span></button>
+      <div className="inboxCategoryTabs">
+        {INBOX_TABS.map((tab) => <button key={tab.id} className={inboxTab === tab.id ? 'active' : ''} onClick={() => setInboxTab(tab.id)}>{tab.label}<span>{counts[tab.id] || 0}</span></button>)}
       </div>
       {notice ? <div className="inboxNotice">{notice}</div> : null}
       {error ? <div className="inboxError">{error}</div> : null}
       {visible.length ? <div className="sideItems inboxItems" ref={listRef}>
         {visible.map((item) => {
           const raw = item.raw || {};
+          const meta = inferSignalMeta(item);
           const expanded = expandedId === item.id;
           const currentStatus = localState[item.sourceId || item.id] || item.status || 'New';
           const processed = processedSignal(currentStatus);
           const highlighted = nodeHighlighted(item, highlightedItemId);
           const busy = busySignalId === item.sourceId;
           return (
-            <div className={`sideItemRow inboxSignal ${expanded ? 'expandedRow' : ''} ${highlighted ? 'highlightedTask' : ''}`} style={highlightRowStyle(highlighted)} key={item.id} onContextMenu={(event) => onOpenMenu(item, event)}>
+            <div className={`sideItemRow inboxSignal ${expanded ? 'expandedRow' : ''} ${highlighted ? 'highlightedTask' : ''}`} style={highlightRowStyle(highlighted)} key={item.id}>
               <button className="sideItemMain inboxSignalMain" onClick={() => setExpandedId((id) => id === item.id ? null : item.id)}>
                 <span className="taskCodeBadge inboxCode">{itemCode(item, 'IN')}</span>
-                <div><b>{item.title}</b><small>{[raw.type || item.status || 'Telegram', formatDate(raw.capturedAt), raw.priority].filter(Boolean).join(' · ')}</small></div>
+                <div>
+                  <b>{item.title}</b>
+                  <small>{[meta.categoryLabel, meta.platforms.slice(0, 2).join(' + '), formatDate(raw.capturedAt), raw.priority].filter(Boolean).join(' · ')}</small>
+                </div>
               </button>
               <div className="rowActions inboxActions">
+                <button className="expandMini" title="Развернуть" onClick={(event) => { event.stopPropagation(); setExpandedId((id) => id === item.id ? null : item.id); }}><ChevronDown open={expanded} /></button>
                 {processed
                   ? <button className="restoreMini" disabled={busy} onClick={(event) => { event.stopPropagation(); updateSignalStatus(item, 'New'); }}>{busy ? '…' : 'Вернуть'}</button>
                   : <><button className="doneMini" disabled={busy} onClick={(event) => { event.stopPropagation(); updateSignalStatus(item, 'Reviewed'); }}>{busy ? '…' : 'Разобрано'}</button><button className="archiveMini" disabled={busy} onClick={(event) => { event.stopPropagation(); updateSignalStatus(item, 'Archived'); }}>Архив</button></>}
@@ -208,7 +361,7 @@ function AIInboxList({ map, viewMode, setViewMode, onOpenMenu, highlightedItemId
             </div>
           );
         })}
-      </div> : <div className="emptySide"><b>{viewMode === 'done' ? 'Разобранных сигналов пока нет' : 'Новых сигналов нет'}</b><p>Отправь пост или ссылку Telegram-боту — они появятся здесь.</p></div>}
+      </div> : <div className="emptySide"><b>Здесь пока пусто</b><p>В этой категории нет сигналов. Новые посты из Telegram появятся во «Входящих».</p></div>}
     </aside>
   );
 }
@@ -244,7 +397,7 @@ export function SideList({
     listRef.current.querySelector('.highlightedTask')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }, [highlightedItemId, visibleItems.length]);
 
-  if (inboxMode) return <AIInboxList map={map} viewMode={viewMode} setViewMode={setViewMode} onOpenMenu={onOpenMenu} highlightedItemId={highlightedItemId} />;
+  if (inboxMode) return <AIInboxList map={map} highlightedItemId={highlightedItemId} />;
 
   return (
     <aside className="sideList" onClick={(event) => event.stopPropagation()}>
