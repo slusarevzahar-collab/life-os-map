@@ -33,11 +33,11 @@ function taskIdFromRow(row) {
 }
 
 function enhanceEditableNotes() {
-  document.querySelectorAll('.inlineTaskDetails:not([data-edit-ready="true"])').forEach((details) => {
+  document.querySelectorAll('.inlineTaskDetails:not(.inboxDetails):not([data-edit-ready="true"])').forEach((details) => {
     const row = details.closest('.sideItemRow');
     const taskId = taskIdFromRow(row);
     if (!taskId) return;
-    const currentText = details.querySelector('p')?.textContent?.trim() || '';
+    const currentText = details.querySelector('p')?.textContent?.trim() || details.querySelector('textarea')?.value?.trim() || '';
     details.dataset.editReady = 'true';
     details.innerHTML = '';
 
@@ -53,7 +53,8 @@ function enhanceEditableNotes() {
     const actions = document.createElement('div');
     actions.className = 'noteEditorActions';
     const status = document.createElement('span');
-    status.textContent = 'Редактируется поле Next Action в Notion';
+    status.className = 'noteSaveStatus';
+    status.textContent = '';
     const save = document.createElement('button');
     save.type = 'button';
     save.textContent = 'Сохранить заметку';
@@ -62,12 +63,12 @@ function enhanceEditableNotes() {
       event.stopPropagation();
       save.disabled = true;
       save.textContent = 'Сохраняю…';
-      status.textContent = 'Сохраняю в Notion…';
+      status.textContent = 'Сохраняю…';
       try {
         await patchTask(taskId, { nextAction: textarea.value.trim() });
         save.textContent = 'Сохранено';
-        status.textContent = 'Заметка сохранена в Notion';
-        setTimeout(() => { save.textContent = 'Сохранить заметку'; status.textContent = 'Редактируется поле Next Action в Notion'; save.disabled = false; }, 1300);
+        status.textContent = 'Готово';
+        setTimeout(() => { save.textContent = 'Сохранить заметку'; status.textContent = ''; save.disabled = false; }, 1300);
       } catch (error) {
         save.textContent = 'Повторить';
         status.textContent = `Ошибка: ${error.message}`;
@@ -78,6 +79,37 @@ function enhanceEditableNotes() {
     actions.append(status, save);
     details.append(label, textarea, actions);
   });
+}
+
+function linkifyTextElement(element) {
+  if (!element || element.dataset.linkified === 'true') return;
+  const text = element.textContent || '';
+  const urlPattern = /(https?:\/\/[^\s<>()]+[^\s<>().,;:!?])/gi;
+  if (!urlPattern.test(text)) return;
+
+  urlPattern.lastIndex = 0;
+  const fragment = document.createDocumentFragment();
+  let lastIndex = 0;
+  let match;
+  while ((match = urlPattern.exec(text)) !== null) {
+    if (match.index > lastIndex) fragment.append(document.createTextNode(text.slice(lastIndex, match.index)));
+    const anchor = document.createElement('a');
+    anchor.href = match[0];
+    anchor.textContent = match[0];
+    anchor.target = '_blank';
+    anchor.rel = 'noopener noreferrer';
+    anchor.className = 'inboxTextLink';
+    fragment.append(anchor);
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < text.length) fragment.append(document.createTextNode(text.slice(lastIndex)));
+  element.textContent = '';
+  element.append(fragment);
+  element.dataset.linkified = 'true';
+}
+
+function enhanceInboxTextLinks() {
+  document.querySelectorAll('.inboxFullText:not([data-linkified="true"]), .contextDocCard p:not([data-linkified="true"])').forEach(linkifyTextElement);
 }
 
 let dragState = null;
@@ -132,11 +164,16 @@ function endDragPreview() {
   removeGhost();
 }
 
+function runEnhancements() {
+  enhanceEditableNotes();
+  enhanceInboxTextLinks();
+}
+
 document.addEventListener('pointerdown', beginDragPreview, true);
 document.addEventListener('pointermove', moveDragPreview, { capture: true, passive: false });
 document.addEventListener('pointerup', endDragPreview, true);
 document.addEventListener('pointercancel', endDragPreview, true);
 
-const observer = new MutationObserver(() => enhanceEditableNotes());
+const observer = new MutationObserver(() => runEnhancements());
 observer.observe(document.documentElement, { childList: true, subtree: true });
-setInterval(enhanceEditableNotes, 600);
+setInterval(runEnhancements, 600);
