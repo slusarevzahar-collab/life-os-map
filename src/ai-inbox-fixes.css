@@ -10,6 +10,25 @@
   display: flex !important;
 }
 
+.inboxPanel {
+  overflow: hidden;
+}
+
+.inboxHead {
+  display: block !important;
+  padding-bottom: 8px !important;
+  margin-bottom: 0 !important;
+}
+
+.inboxHead > div {
+  width: 100%;
+}
+
+.inboxHead p,
+.inboxHead .miniProgressRing {
+  display: none !important;
+}
+
 .inboxSignalMain {
   min-width: 0;
 }
@@ -34,18 +53,45 @@
 }
 
 .inboxCategoryTabs {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
   max-width: 100%;
-  padding-bottom: 12px;
+  padding: 8px 0 12px !important;
+  margin: 0 !important;
+  overflow: visible !important;
 }
 
 .inboxCategoryTabs button {
+  min-width: 0 !important;
+  width: 100%;
+  flex: initial !important;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 10px !important;
+  white-space: nowrap;
+}
+
+.inboxCategoryTabs button span {
   flex: 0 0 auto;
 }
 
 .inboxFullText {
-  max-height: 280px;
+  max-height: 320px;
   overflow: auto;
   white-space: pre-wrap;
+  line-height: 1.45;
+}
+
+.inboxTextLink {
+  color: #72e8ff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  word-break: break-word;
+}
+
+.inboxTextLink:hover {
+  color: #ffffff;
 }
 
 .contextDocs {
@@ -88,6 +134,18 @@
 .inboxMissingText {
   color: rgba(226, 246, 255, 0.58) !important;
   font-style: italic;
+}
+
+.inlineTaskDetails.inboxDetails .noteEditorLabel,
+.inlineTaskDetails.inboxDetails .noteEditor,
+.inlineTaskDetails.inboxDetails .noteEditorActions {
+  display: none !important;
+}
+
+@media (max-width: 1100px) {
+  .inboxCategoryTabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 900px) {
