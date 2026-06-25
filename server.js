@@ -3,6 +3,7 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import express from 'express';
 import {
+  archiveDuplicateSignals,
   createSignal,
   createWorkSession,
   getNotionSnapshot,
@@ -14,6 +15,7 @@ import {
   allowedTelegramUser,
   appendLocalSignal,
   buildSignalFromTelegramUpdate,
+  enrichSignalWithTelegramDocument,
   getTelegramWebhookInfo,
   readLocalSignals,
   sendTelegramMessage,
@@ -31,9 +33,7 @@ function loadLocalEnv() {
     if (eq === -1) return;
     const name = trimmed.slice(0, eq).trim();
     let value = trimmed.slice(eq + 1).trim();
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-      value = value.slice(1, -1);
-    }
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) value = value.slice(1, -1);
     if (name && process.env[name] === undefined) process.env[name] = value;
   });
   return true;
@@ -54,7 +54,7 @@ const telegramWebhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
 const telegramAllowedUserIds = process.env.TELEGRAM_ALLOWED_USER_IDS || '';
 const telegramWebhookUrl = process.env.TELEGRAM_WEBHOOK_URL;
 
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '4mb' }));
 
 function makeMockResponse(reason) {
   return {
@@ -64,15 +64,7 @@ function makeMockResponse(reason) {
       source: 'mock-backend-snapshot',
       updatedAt: new Date().toISOString(),
       warnings: [reason].filter(Boolean),
-      connected: {
-        tasks: false,
-        goals: false,
-        sessions: false,
-        projectAreas: false,
-        dreams: false,
-        signals: false,
-        telegram: Boolean(telegramBotToken),
-      },
+      connected: { tasks: false, goals: false, sessions: false, projectAreas: false, dreams: false, signals: false, telegram: Boolean(telegramBotToken) },
     },
   };
 }
@@ -80,14 +72,7 @@ function makeMockResponse(reason) {
 function cleanUiWarnings(snapshot) {
   const warnings = snapshot.meta?.warnings || [];
   const criticalWarnings = warnings.filter((message) => /Tasks DB|NOTION_TOKEN|NOTION_TASKS_DB_ID/i.test(message));
-  return {
-    ...snapshot,
-    meta: {
-      ...(snapshot.meta || {}),
-      warnings: criticalWarnings,
-      notices: warnings.filter((message) => !criticalWarnings.includes(message)),
-    },
-  };
+  return { ...snapshot, meta: { ...(snapshot.meta || {}), warnings: criticalWarnings, notices: warnings.filter((message) => !criticalWarnings.includes(message)) } };
 }
 
 function computePlanning(tasks = []) {
@@ -102,44 +87,27 @@ function computePlanning(tasks = []) {
   }, { onTrack: 0, next: 0, waiting: 0, overdue: 0, done: 0 });
 }
 
-function withComputedPlanning(snapshot) {
-  return { ...snapshot, planning: computePlanning(snapshot.tasks || []) };
-}
+function withComputedPlanning(snapshot) { return { ...snapshot, planning: computePlanning(snapshot.tasks || []) }; }
 
 function uniqueSignals(signals = []) {
-  const seen = new Set();
-  return signals.filter((signal) => {
-    const key = signal.id || `${signal.title}:${signal.capturedAt}`;
-    if (!key || seen.has(key)) return false;
-    seen.add(key);
-    return true;
+  const byKey = new Map();
+  signals.forEach((signal) => {
+    const key = signal.sourceUrl || signal.id || `${signal.title}:${signal.capturedAt}`;
+    const existing = byKey.get(key);
+    const score = String(signal.summary || '').length + String(signal.assistantNote || '').length + (signal.sourceUrl ? 500 : 0);
+    const existingScore = existing ? String(existing.summary || '').length + String(existing.assistantNote || '').length + (existing.sourceUrl ? 500 : 0) : -1;
+    if (!existing || score > existingScore) byKey.set(key, signal);
   });
+  return [...byKey.values()];
 }
 
 function withLocalSignals(snapshot) {
   const localSignals = readLocalSignals(50);
-  return {
-    ...snapshot,
-    signals: uniqueSignals([...localSignals, ...(snapshot.signals || [])]),
-    meta: {
-      ...(snapshot.meta || {}),
-      connected: {
-        ...(snapshot.meta?.connected || {}),
-        telegram: Boolean(telegramBotToken),
-        localTelegramInbox: Boolean(localSignals.length),
-      },
-    },
-  };
+  return { ...snapshot, signals: uniqueSignals([...localSignals, ...(snapshot.signals || [])]), meta: { ...(snapshot.meta || {}), connected: { ...(snapshot.meta?.connected || {}), telegram: Boolean(telegramBotToken), localTelegramInbox: Boolean(localSignals.length) } } };
 }
 
-function prepareSnapshot(snapshot) {
-  return withComputedPlanning(withLocalSignals(snapshot));
-}
-
-function telegramSecretOk(req) {
-  if (!telegramWebhookSecret) return true;
-  return req.get('X-Telegram-Bot-Api-Secret-Token') === telegramWebhookSecret;
-}
+function prepareSnapshot(snapshot) { return withComputedPlanning(withLocalSignals(snapshot)); }
+function telegramSecretOk(req) { if (!telegramWebhookSecret) return true; return req.get('X-Telegram-Bot-Api-Secret-Token') === telegramWebhookSecret; }
 
 function codespacesPublicUrl(targetPort = port) {
   if (process.env.TELEGRAM_WEBHOOK_URL) return process.env.TELEGRAM_WEBHOOK_URL;
@@ -152,10 +120,7 @@ function codespacesPublicUrl(targetPort = port) {
 function execGh(args = []) {
   return new Promise((resolve, reject) => {
     execFile('gh', args, { timeout: 15000 }, (error, stdout, stderr) => {
-      if (error) {
-        reject(new Error((stderr || stdout || error.message).trim()));
-        return;
-      }
+      if (error) { reject(new Error((stderr || stdout || error.message).trim())); return; }
       resolve((stdout || stderr || '').trim());
     });
   });
@@ -163,95 +128,60 @@ function execGh(args = []) {
 
 async function publishCodespacesPort() {
   if (process.env.CODESPACES !== 'true') return { skipped: true, reason: 'not-codespaces' };
-  try {
-    await execGh(['codespace', 'ports', 'visibility', `${port}:public`]);
-    return { ok: true, port: Number(port) };
-  } catch (error) {
-    console.warn(`LifeMap could not auto-public Codespaces port ${port}: ${error.message}`);
-    return { ok: false, error: error.message };
-  }
+  try { await execGh(['codespace', 'ports', 'visibility', `${port}:public`]); return { ok: true, port: Number(port) }; }
+  catch (error) { console.warn(`LifeMap could not auto-public Codespaces port ${port}: ${error.message}`); return { ok: false, error: error.message }; }
 }
 
 async function syncTelegramWebhook() {
   if (!telegramBotToken) return { skipped: true, reason: 'missing-bot-token' };
   const webhookUrl = codespacesPublicUrl(port) || telegramWebhookUrl;
   if (!webhookUrl) return { skipped: true, reason: 'missing-webhook-url' };
-  try {
-    const result = await setTelegramWebhook({ botToken: telegramBotToken, webhookUrl, secretToken: telegramWebhookSecret });
-    console.log(`LifeMap Telegram webhook synced: ${webhookUrl}`);
-    return { ok: true, webhookUrl, result };
-  } catch (error) {
-    console.warn(`LifeMap Telegram webhook sync failed: ${error.message}`);
-    return { ok: false, webhookUrl, error: error.message };
-  }
+  try { const result = await setTelegramWebhook({ botToken: telegramBotToken, webhookUrl, secretToken: telegramWebhookSecret }); console.log(`LifeMap Telegram webhook synced: ${webhookUrl}`); return { ok: true, webhookUrl, result }; }
+  catch (error) { console.warn(`LifeMap Telegram webhook sync failed: ${error.message}`); return { ok: false, webhookUrl, error: error.message }; }
 }
 
 app.get('/api/life-os/snapshot', async (_req, res) => {
   try {
     const notionSnapshot = await getNotionSnapshot({ notionToken, tasksDbId, goalsDbId, sessionsDbId, projectsDbId, dreamsDbId, signalsDbId });
-    if (notionSnapshot) {
-      res.json(prepareSnapshot(cleanUiWarnings(notionSnapshot)));
-      return;
-    }
-
+    if (notionSnapshot) { res.json(prepareSnapshot(cleanUiWarnings(notionSnapshot))); return; }
     res.json(prepareSnapshot(makeMockResponse('NOTION_TOKEN or NOTION_TASKS_DB_ID is missing. API is returning mock data.')));
   } catch (error) {
     console.error('LifeMap Notion API error:', error.message);
-    res.status(500).json({
-      error: 'Failed to build LifeMap snapshot',
-      details: error.message,
-      fallback: prepareSnapshot(makeMockResponse(error.message)),
-    });
+    res.status(500).json({ error: 'Failed to build LifeMap snapshot', details: error.message, fallback: prepareSnapshot(makeMockResponse(error.message)) });
   }
 });
 
 app.post('/api/life-os/sessions', async (req, res) => {
-  try {
-    const result = await createWorkSession({ notionToken, sessionsDbId, payload: req.body || {} });
-    res.status(201).json({ ok: true, session: result });
-  } catch (error) {
-    console.error('LifeMap create session error:', error.message);
-    res.status(500).json({ ok: false, error: error.message });
-  }
+  try { const result = await createWorkSession({ notionToken, sessionsDbId, payload: req.body || {} }); res.status(201).json({ ok: true, session: result }); }
+  catch (error) { console.error('LifeMap create session error:', error.message); res.status(500).json({ ok: false, error: error.message }); }
 });
 
 app.patch('/api/life-os/tasks/:id', async (req, res) => {
-  try {
-    const result = await updateTaskEvent({ notionToken, taskId: req.params.id, event: req.body || {} });
-    res.json({ ok: true, task: result });
-  } catch (error) {
-    console.error('LifeMap update task error:', error.message);
-    res.status(500).json({ ok: false, error: error.message });
-  }
+  try { const result = await updateTaskEvent({ notionToken, taskId: req.params.id, event: req.body || {} }); res.json({ ok: true, task: result }); }
+  catch (error) { console.error('LifeMap update task error:', error.message); res.status(500).json({ ok: false, error: error.message }); }
 });
 
 app.patch('/api/life-os/items/:id/title', async (req, res) => {
+  try { const result = await updateItemTitle({ notionToken, itemId: req.params.id, kind: req.body?.kind, title: req.body?.title }); res.json({ ok: true, item: result }); }
+  catch (error) { console.error('LifeMap update title error:', error.message); res.status(500).json({ ok: false, error: error.message }); }
+});
+
+app.post('/api/life-os/signals/dedupe', async (_req, res) => {
   try {
-    const result = await updateItemTitle({ notionToken, itemId: req.params.id, kind: req.body?.kind, title: req.body?.title });
-    res.json({ ok: true, item: result });
+    const result = await archiveDuplicateSignals({ notionToken, signalsDbId });
+    res.json({ ok: true, result });
   } catch (error) {
-    console.error('LifeMap update title error:', error.message);
+    console.error('LifeMap signal dedupe error:', error.message);
     res.status(500).json({ ok: false, error: error.message });
   }
 });
 
 app.post('/api/telegram/webhook', async (req, res) => {
-  if (!telegramSecretOk(req)) {
-    res.status(403).json({ ok: false, error: 'Bad Telegram webhook secret.' });
-    return;
-  }
-
-  const signal = buildSignalFromTelegramUpdate(req.body || {});
-  if (!signal) {
-    res.json({ ok: true, skipped: true });
-    return;
-  }
-
-  if (!allowedTelegramUser(signal, telegramAllowedUserIds)) {
-    console.warn(`LifeMap Telegram rejected message from ${signal.telegram?.userId || signal.telegram?.chatId || 'unknown user'}`);
-    res.json({ ok: true, rejected: true });
-    return;
-  }
+  if (!telegramSecretOk(req)) { res.status(403).json({ ok: false, error: 'Bad Telegram webhook secret.' }); return; }
+  const baseSignal = buildSignalFromTelegramUpdate(req.body || {});
+  if (!baseSignal) { res.json({ ok: true, skipped: true }); return; }
+  const signal = await enrichSignalWithTelegramDocument({ signal: baseSignal, botToken: telegramBotToken });
+  if (!allowedTelegramUser(signal, telegramAllowedUserIds)) { console.warn(`LifeMap Telegram rejected message from ${signal.telegram?.userId || signal.telegram?.chatId || 'unknown user'}`); res.json({ ok: true, rejected: true }); return; }
 
   let storage = 'local';
   let notionResult = null;
@@ -265,42 +195,20 @@ app.post('/api/telegram/webhook', async (req, res) => {
     console.warn(`LifeMap Telegram saved signal locally: ${error.message}`);
   }
 
-  sendTelegramMessage({
-    botToken: telegramBotToken,
-    chatId: signal.telegram?.chatId,
-    text: `Принял в LifeMap AI Inbox: ${signal.title}\nХранилище: ${storage}`,
-  }).catch((error) => console.warn(`LifeMap Telegram ack failed: ${error.message}`));
-
+  sendTelegramMessage({ botToken: telegramBotToken, chatId: signal.telegram?.chatId, text: `Принял в LifeMap AI Inbox: ${signal.title}\nХранилище: ${storage}` }).catch((error) => console.warn(`LifeMap Telegram ack failed: ${error.message}`));
   res.json({ ok: true, storage, signal: { id: signal.id, title: signal.title }, notion: notionResult });
 });
 
 app.post('/api/telegram/set-webhook', async (req, res) => {
-  try {
-    const webhookUrl = req.body?.url || telegramWebhookUrl || codespacesPublicUrl(port);
-    const result = await setTelegramWebhook({ botToken: telegramBotToken, webhookUrl, secretToken: telegramWebhookSecret });
-    res.json({ ok: true, webhookUrl, result });
-  } catch (error) {
-    console.error('LifeMap set Telegram webhook error:', error.message);
-    res.status(500).json({ ok: false, error: error.message });
-  }
+  try { const webhookUrl = req.body?.url || telegramWebhookUrl || codespacesPublicUrl(port); const result = await setTelegramWebhook({ botToken: telegramBotToken, webhookUrl, secretToken: telegramWebhookSecret }); res.json({ ok: true, webhookUrl, result }); }
+  catch (error) { console.error('LifeMap set Telegram webhook error:', error.message); res.status(500).json({ ok: false, error: error.message }); }
 });
 
 app.get('/api/telegram/status', async (_req, res) => {
   try {
     const webhook = telegramBotToken ? await getTelegramWebhookInfo(telegramBotToken) : null;
-    res.json({
-      ok: true,
-      configured: Boolean(telegramBotToken),
-      hasSecret: Boolean(telegramWebhookSecret),
-      allowedUsersLocked: Boolean(telegramAllowedUserIds),
-      signalsDb: Boolean(signalsDbId),
-      localSignals: readLocalSignals(50).length,
-      computedWebhookUrl: codespacesPublicUrl(port) || telegramWebhookUrl || '',
-      webhook,
-    });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: error.message });
-  }
+    res.json({ ok: true, configured: Boolean(telegramBotToken), hasSecret: Boolean(telegramWebhookSecret), allowedUsersLocked: Boolean(telegramAllowedUserIds), signalsDb: Boolean(signalsDbId), localSignals: readLocalSignals(50).length, computedWebhookUrl: codespacesPublicUrl(port) || telegramWebhookUrl || '', webhook });
+  } catch (error) { res.status(500).json({ ok: false, error: error.message }); }
 });
 
 app.get('/api/life-os/health', (_req, res) => {
@@ -309,22 +217,9 @@ app.get('/api/life-os/health', (_req, res) => {
     service: 'lifemap-api',
     port: Number(port),
     envLoaded,
-    endpoints: ['GET /api/life-os/snapshot', 'POST /api/life-os/sessions', 'PATCH /api/life-os/tasks/:id', 'PATCH /api/life-os/items/:id/title', 'POST /api/telegram/webhook', 'POST /api/telegram/set-webhook', 'GET /api/telegram/status', 'GET /api/life-os/health'],
-    notion: {
-      token: Boolean(notionToken),
-      tasks: Boolean(tasksDbId),
-      goals: Boolean(goalsDbId),
-      sessions: Boolean(sessionsDbId),
-      projects: Boolean(projectsDbId),
-      dreams: Boolean(dreamsDbId),
-      signals: Boolean(signalsDbId),
-    },
-    telegram: {
-      token: Boolean(telegramBotToken),
-      secret: Boolean(telegramWebhookSecret),
-      allowedUsersLocked: Boolean(telegramAllowedUserIds),
-      webhookUrl: Boolean(telegramWebhookUrl || codespacesPublicUrl(port)),
-    },
+    endpoints: ['GET /api/life-os/snapshot', 'POST /api/life-os/sessions', 'PATCH /api/life-os/tasks/:id', 'PATCH /api/life-os/items/:id/title', 'POST /api/life-os/signals/dedupe', 'POST /api/telegram/webhook', 'POST /api/telegram/set-webhook', 'GET /api/telegram/status', 'GET /api/life-os/health'],
+    notion: { token: Boolean(notionToken), tasks: Boolean(tasksDbId), goals: Boolean(goalsDbId), sessions: Boolean(sessionsDbId), projects: Boolean(projectsDbId), dreams: Boolean(dreamsDbId), signals: Boolean(signalsDbId) },
+    telegram: { token: Boolean(telegramBotToken), secret: Boolean(telegramWebhookSecret), allowedUsersLocked: Boolean(telegramAllowedUserIds), webhookUrl: Boolean(telegramWebhookUrl || codespacesPublicUrl(port)) },
   });
 });
 
@@ -338,7 +233,6 @@ app.listen(port, async () => {
   console.log(projectsDbId ? 'NOTION_PROJECTS_DB_ID is available' : 'NOTION_PROJECTS_DB_ID is not set; project areas disabled');
   console.log(dreamsDbId ? 'NOTION_DREAMS_DB_ID is available' : 'NOTION_DREAMS_DB_ID is not set; dreams disabled');
   console.log(signalsDbId ? 'NOTION_SIGNALS_DB_ID is available' : 'NOTION_SIGNALS_DB_ID is not set; AI Inbox disabled');
-
   const portResult = await publishCodespacesPort();
   if (portResult?.ok) console.log(`LifeMap Codespaces port ${port} is public.`);
   await syncTelegramWebhook();
