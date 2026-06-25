@@ -28,6 +28,7 @@ import { SideList } from './components/SideList.jsx';
 import { DetailCard } from './components/DetailCard.jsx';
 import { UtilityPanel } from './components/UtilityPanel.jsx';
 import { ContextMenu } from './components/ContextMenu.jsx';
+import { AssistantPanel } from './components/AssistantPanel.jsx';
 
 const ROUTE_STORAGE_KEY = 'lifemap.route.v1';
 const SNAPSHOT_REFRESH_MS = 15000;
@@ -499,6 +500,7 @@ function App() {
       </AnimatePresence>
       <ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} onFocusNow={setFocusNow} onFocusNext={setFocusNext} onRename={beginRenameNode} onCreateObject={beginCreateObject} onDeleteObject={deleteObject} />
       <TextInputDialog editor={objectEditor} busy={editorBusy} onSubmit={submitObjectEditor} onClose={() => setObjectEditor(null)} />
+      <AssistantPanel currentMap={currentMap} activeFocus={activeFocus} snapshot={snapshot} />
       {toast ? <div className="toast">{toast}</div> : null}
     </main>
   );
