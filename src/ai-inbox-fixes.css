@@ -1,0 +1,104 @@
+.inlineTaskDetails.inboxDetails > div,
+.inlineTaskDetails.inboxDetails .inboxChips,
+.inlineTaskDetails.inboxDetails .inboxDetailActions,
+.inlineTaskDetails.inboxDetails .contextDocs,
+.inlineTaskDetails.inboxDetails .contextDocCard {
+  display: block !important;
+}
+
+.inlineTaskDetails.inboxDetails .inboxDetailActions {
+  display: flex !important;
+}
+
+.inboxSignalMain {
+  min-width: 0;
+}
+
+.inboxSignalMain > div {
+  min-width: 0;
+}
+
+.inboxSignalMain b {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.inboxCode {
+  min-width: 58px !important;
+  font-size: 10px !important;
+}
+
+.inboxItems {
+  padding-bottom: 86px;
+}
+
+.inboxCategoryTabs {
+  max-width: 100%;
+  padding-bottom: 12px;
+}
+
+.inboxCategoryTabs button {
+  flex: 0 0 auto;
+}
+
+.inboxFullText {
+  max-height: 280px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.contextDocs {
+  margin-top: 12px;
+  border-top: 1px solid rgba(103, 232, 249, 0.12);
+  padding-top: 12px;
+}
+
+.contextDocGrid {
+  display: grid !important;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.contextDocCard {
+  border: 1px solid rgba(103, 232, 249, 0.13);
+  border-radius: 14px;
+  padding: 10px;
+  background: rgba(103, 232, 249, 0.05);
+}
+
+.contextDocCard b {
+  display: block;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+}
+
+.contextDocCard p {
+  margin: 6px 0 0 !important;
+  font-size: 12px !important;
+  max-height: 120px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.contextDocCard button {
+  margin-top: 8px;
+}
+
+.inboxMissingText {
+  color: rgba(226, 246, 255, 0.58) !important;
+  font-style: italic;
+}
+
+@media (max-width: 900px) {
+  .inboxPanel {
+    width: min(92vw, 620px) !important;
+  }
+
+  .inboxActions .doneMini,
+  .inboxActions .archiveMini,
+  .inboxActions .restoreMini {
+    min-width: 58px;
+    padding: 0 8px;
+  }
+}
