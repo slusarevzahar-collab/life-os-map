@@ -32,6 +32,14 @@ export function apiCandidates(path) {
   const candidates = [path];
   const codespaceApiOrigin = origin.replace(/-\d+\.app\.github\.dev$/i, '-3001.app.github.dev');
   if (codespaceApiOrigin !== origin) candidates.push(`${codespaceApiOrigin}${path}`);
+
+  const localApiOrigins = ['http://localhost:3001', 'http://127.0.0.1:3001'];
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) {
+    localApiOrigins.forEach((apiOrigin) => {
+      if (apiOrigin !== origin) candidates.push(`${apiOrigin}${path}`);
+    });
+  }
+
   return [...new Set(candidates)];
 }
 
