@@ -16,7 +16,9 @@ LifeMap is the user's current main project. It is a web navigator / work operati
 
 Telegram is not a replacement for LifeMap. Telegram bot is an input channel for AI Inbox.
 
-Notion is the shared source of truth for data and handoffs.
+Notion is the live working source of truth for operational data and handoffs.
+
+Google Drive / AI Second Brain is a portable context mirror, archive, and cross-AI bridge. It must not replace Notion until the user explicitly decides to migrate a specific workflow.
 
 ## Claude naming clarification
 
@@ -59,9 +61,15 @@ Claude Code must not change backend files unless the user explicitly approves af
 
 ### Future Codex zone
 
-Codex should follow the shared Notion handoff page plus this local project file.
+Codex should follow:
+
+1. the shared Notion handoff page;
+2. this local project file;
+3. the Google Drive AI Second Brain index and relevant project docs when the task involves cross-AI context, project briefs, archives, or migration planning.
 
 Until direct Notion access for Codex is configured, this file is the local bridge between Notion and Codex.
+
+Codex should not treat Google Drive as the new live database for LifeMap. Drive is the portable mirror and archive; Notion remains the live operating layer, and GitHub remains the code layer.
 
 ## Commit rules
 
@@ -83,6 +91,24 @@ Preferred handoff format is a new bottom log entry with date, tool, work done, s
 
 If a tool cannot safely edit the existing table, append a new simple block at the bottom or add a page-level comment, then state clearly that it was not inserted into the original table.
 
+## Google Drive / AI Second Brain notes
+
+Google Drive contains the AI Second Brain hub. Its current role is context portability between different AI tools.
+
+Use Drive in this order:
+
+1. `README — AI Second Brain` for the hub purpose and folder structure.
+2. `AI Projects Master Map — Захар` for project priorities and active directions.
+3. `Notion Core Mirror` for summarized high-value Notion context.
+4. `Notion Mirror Control Panel` for export/mirror status and what still needs raw export.
+5. Project-specific docs in `02_Projects` when they exist.
+
+Accept the useful part of the Drive/Codex idea: keep a neutral, AI-readable mirror so ChatGPT, Claude, Gemini, Codex, and future agents can share context.
+
+Change or constrain the risky part: do not move live work away from Notion just because Drive exists. Notion remains the active workspace for tasks, goals, AI Inbox, and handoff. Drive should hold summaries, raw exports, project briefs, session logs, and audits.
+
+Before relying on a Drive summary, check whether raw export exists. Summaries are useful for orientation, but raw Markdown/CSV/HTML exports are needed for full fidelity.
+
 ## Working principles
 
 - Do not ask the user to act like a programmer when the agent can reason through the technical step.
@@ -99,6 +125,7 @@ If a tool cannot safely edit the existing table, append a new simple block at th
 - Telegram bot: sends posts, links, documents, prompts, tools, and ideas into AI Inbox.
 - AI Inbox: incoming signal triage layer, not a task list.
 - Future AI assistant: context-aware chat attached to tasks, projects, planets, and AI Inbox signals.
+- Google Drive: portable AI context hub, mirror, raw export archive, and audit layer.
 
 ## AI Inbox target behavior
 
