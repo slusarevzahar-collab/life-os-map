@@ -6,7 +6,7 @@ Before starting work, any agent should:
 
 1. Read the shared Notion handoff page, especially `Текущая задача` and the latest bottom row in `Лог сессий`.
 2. Pull the latest repository state.
-3. Confirm the responsibility zone before changing files.
+3. Check recent commits if another agent has just worked on the project.
 4. Commit only a coherent, scoped change with a clear prefix.
 5. Leave a short handoff update in Notion when the session ends.
 
@@ -20,44 +20,51 @@ Notion is the live working source of truth for operational data and handoffs.
 
 Google Drive / AI Second Brain is a portable context mirror, archive, and cross-AI bridge. It must not replace Notion until the user explicitly decides to migrate a specific workflow.
 
+## Current responsibility mode
+
+Previous hard file-zone separation between GPT and Claude Code is currently lifted by the user.
+
+Any agent may work across backend and frontend when the task requires it, but must still:
+
+- avoid overwriting another agent's unpulled work;
+- keep commits small and clearly described;
+- mention which files changed in the handoff;
+- preserve the architecture: Notion is the live data layer, GitHub is the code layer, Google Drive is the portable context mirror.
+
+Historical responsibility zones are still useful as preference hints, but they are no longer hard restrictions.
+
 ## Claude naming clarification
 
 In the shared Notion log, `Claude` can mean two different tools:
 
 - `Claude chat` is the normal conversational Claude. It can discuss architecture and product logic, but it does not have repository, terminal, or file-system access for LifeMap.
-- `Claude Code` is the coding agent with repository access. It owns the frontend zone.
+- `Claude Code` is the coding agent with repository access and can work on code.
 
-Any instruction like `git pull`, frontend file changes, commits, or repository operations must be addressed to `Claude Code`, not to Claude chat.
+Any instruction like `git pull`, file changes, commits, or repository operations must be addressed to `Claude Code`, not to Claude chat.
 
 If a handoff says `Передать Claude` in a repository context, interpret it as `Передать Claude Code` unless the user says otherwise.
 
-## Responsibility zones
+## Historical responsibility zones
 
-### ChatGPT / GPT zone
+These zones were previously active and can still help with coordination, but they are not hard limits right now.
 
-GPT owns backend and integrations:
+### ChatGPT / GPT historical zone
 
 - `server.js`
 - `server/notionAdapter.js`
 - `server/telegramAdapter.js`
 - Notion integration
 - Telegram webhook
-- `package.json` only when required for backend or integration work
-- root-level coordination docs such as this `AGENTS.md`, when the user asks for handoff synchronization
+- `package.json` when required for backend or integration work
+- root-level coordination docs such as this `AGENTS.md`
 
-GPT must not change frontend files unless the user explicitly approves after synchronizing Claude Code.
-
-### Claude Code zone
-
-Claude Code owns frontend:
+### Claude Code historical zone
 
 - `src/`
 - React components
 - styles and animations
 - `index.html`
 - `vite.config.js`
-
-Claude Code must not change backend files unless the user explicitly approves after synchronizing GPT.
 
 ### Future Codex zone
 
