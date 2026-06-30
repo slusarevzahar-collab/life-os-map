@@ -164,10 +164,9 @@ function assistantSystemPrompt() {
     'Отвечай по-русски, коротко, практично, без воды.',
     'Ты видишь контекст карты, текущий фокус, задачи, сигналы AI Inbox и выбранный объект.',
     'Ты можешь предлагать действия, но не должен самовольно превращать каждый входящий сигнал в задачу.',
-    'Frontend-зона принадлежит Claude Code: src/, стили, компоненты, index.html, vite.config.js. Если пользователь просит изменить интерфейс, предложи действие frontend_change_request для Claude Code, а не изменение backend.',
-    'Backend-зона GPT: server.js, server/notionAdapter.js, server/telegramAdapter.js, Notion, Telegram webhook.',
+    'Сейчас жёсткое разделение зон между GPT и Claude Code снято: можно предлагать backend_change_request, frontend_change_request или обычные LifeMap-действия по ситуации.',
     'Возвращай только JSON по схеме: reply, summary, proposedActions, warnings, nextStep.',
-    'proposedActions — массив действий с полями type, title, payload, requiresConfirmation, risk. Разрешённые исполняемые type: update_task, rename_item, create_session, create_signal, dedupe_signals. Неисполняемые плановые type: frontend_change_request, backend_change_request, research_request.',
+    'proposedActions — массив действий с полями type, title, payload, requiresConfirmation, risk. payload должен быть JSON-строкой, например "{}" или "{\"taskId\":\"...\"}". Разрешённые исполняемые type: update_task, rename_item, create_session, create_signal, dedupe_signals. Неисполняемые плановые type: frontend_change_request, backend_change_request, research_request.',
   ].join('\n');
 }
 
@@ -175,6 +174,7 @@ function assistantResponseSchema() {
   return {
     type: 'json_schema',
     name: 'lifemap_assistant_response',
+    strict: true,
     schema: {
       type: 'object',
       additionalProperties: false,
@@ -185,14 +185,15 @@ function assistantResponseSchema() {
           type: 'array',
           items: {
             type: 'object',
-            additionalProperties: true,
+            additionalProperties: false,
             properties: {
               type: { type: 'string' },
               title: { type: 'string' },
-              payload: { type: 'object', additionalProperties: true },
+              payload: { type: 'string' },
               requiresConfirmation: { type: 'boolean' },
               risk: { type: 'string' },
             },
+            required: ['type', 'title', 'payload', 'requiresConfirmation', 'risk'],
           },
         },
         warnings: { type: 'array', items: { type: 'string' } },
@@ -226,12 +227,22 @@ function parseAssistantJson(text = '') {
   }
 }
 
+function normalizePayload(payload = {}) {
+  if (typeof payload === 'string') {
+    const trimmed = payload.trim();
+    if (!trimmed) return {};
+    try { return JSON.parse(trimmed); }
+    catch (_error) { return { note: trimmed }; }
+  }
+  return payload && typeof payload === 'object' ? payload : {};
+}
+
 async function callOpenAiAssistant({ message, messages = [], target = {}, clientContext = {}, snapshot }) {
   if (!openaiApiKey) {
     return {
       reply: 'AI-ключ ещё не подключён. Добавь OPENAI_API_KEY в .env, перезапусти API, и этот чат начнёт отвечать как настоящий помощник LifeMap.',
       summary: 'OpenAI API key missing.',
-      proposedActions: [{ type: 'backend_change_request', title: 'Добавить OPENAI_API_KEY в .env', payload: { env: 'OPENAI_API_KEY' }, requiresConfirmation: true, risk: 'needs-secret' }],
+      proposedActions: [{ type: 'backend_change_request', title: 'Добавить OPENAI_API_KEY в .env', payload: '{"env":"OPENAI_API_KEY"}', requiresConfirmation: true, risk: 'needs-secret' }],
       warnings: ['OPENAI_API_KEY is missing.'],
       nextStep: 'Добавить OPENAI_API_KEY и перезапустить npm run api.',
       mode: 'mock-missing-openai-key',
@@ -255,7 +266,14 @@ async function callOpenAiAssistant({ message, messages = [], target = {}, client
 }
 
 function normalizeAction(action = {}) {
-  return { type: action.type || action.name || '', title: action.title || action.type || 'LifeMap action', payload: action.payload || {}, requiresConfirmation: action.requiresConfirmation !== false, risk: action.risk || 'medium' };
+  return {
+    type: action.type || action.name || '',
+    title: action.title || action.type || 'LifeMap action',
+    payload: normalizePayload(action.payload),
+    requiresConfirmation: action.requiresConfirmation !== false,
+    confirmed: action.confirmed === true,
+    risk: action.risk || 'medium',
+  };
 }
 
 async function executeAssistantAction(action) {
@@ -278,7 +296,7 @@ async function executeAssistantAction(action) {
   if (normalized.type === 'dedupe_signals') {
     return { action: normalized, result: await archiveDuplicateSignals({ notionToken, signalsDbId }) };
   }
-  return { action: normalized, skipped: true, reason: 'Action is not executable by GPT backend or belongs to Claude Code/planning zone.' };
+  return { action: normalized, skipped: true, reason: 'Action is not executable by backend yet or is a planning/code request.' };
 }
 
 async function executeAssistantActions({ actions = [], req }) {
