@@ -180,28 +180,218 @@
   font-weight: 900 !important;
 }
 
-.assistantChatMock {
+.assistantPanelChat {
   display: grid;
+  grid-template-rows: auto auto auto 1fr auto auto;
   gap: 10px;
-  margin: 10px 0 12px;
 }
 
-.assistantMessage {
+.assistantStatusBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.assistantStatusBar span {
+  border: 1px solid rgba(103, 232, 249, 0.13);
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: rgba(226, 246, 255, 0.72);
+  background: rgba(255, 255, 255, 0.045);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.assistantStatusBar .ok {
+  color: rgba(187, 247, 208, 0.95);
+  border-color: rgba(74, 222, 128, 0.24);
+  background: rgba(74, 222, 128, 0.08);
+}
+
+.assistantStatusBar .warn {
+  color: rgba(253, 224, 71, 0.95);
+  border-color: rgba(253, 224, 71, 0.24);
+  background: rgba(253, 224, 71, 0.08);
+}
+
+.compactAssistantContext {
+  margin-top: 0 !important;
+  padding: 12px !important;
+}
+
+.compactAssistantContext .assistantChips {
+  max-height: 74px;
+  overflow: auto;
+}
+
+.assistantTargetText {
+  margin: 9px 0 0;
+  max-height: 95px;
+  overflow: auto;
+  color: rgba(236, 248, 255, 0.68);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.assistantChatThread {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-height: 220px;
+  overflow: auto;
+  padding: 3px 2px 8px;
+}
+
+.assistantMessage,
+.assistantMessageBubble {
   border: 1px solid rgba(103, 232, 249, 0.13);
   border-radius: 18px;
   padding: 12px 14px;
   background: rgba(103, 232, 249, 0.06);
 }
 
+.assistantMessageBubble.user {
+  margin-left: 38px;
+  border-color: rgba(96, 165, 250, 0.22);
+  background: rgba(96, 165, 250, 0.12);
+}
+
+.assistantMessageBubble.assistant {
+  margin-right: 26px;
+}
+
+.assistantMessageBubble.error {
+  border-color: rgba(248, 113, 113, 0.3);
+  background: rgba(248, 113, 113, 0.08);
+}
+
+.assistantMessageBubble small,
+.assistantMessage small,
+.assistantActionCard small {
+  display: block;
+  margin-bottom: 5px;
+  color: rgba(103, 232, 249, 0.8);
+  font-size: 10px;
+  font-weight: 1000;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.assistantMessageBubble p,
+.assistantMessage p {
+  margin: 0;
+  color: rgba(236, 248, 255, 0.82);
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.assistantMessageBubble details {
+  margin-top: 8px;
+}
+
+.assistantMessageBubble pre {
+  max-height: 140px;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: rgba(226, 246, 255, 0.7);
+  font-size: 11px;
+}
+
+.assistantWarnings,
+.assistantActions {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.assistantWarnings span,
+.assistantNextStep {
+  border-radius: 12px;
+  padding: 8px 10px;
+  color: rgba(254, 240, 138, 0.95);
+  background: rgba(253, 224, 71, 0.08);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.assistantActionCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid rgba(103, 232, 249, 0.12);
+  border-radius: 16px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.assistantActionCard b {
+  display: block;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+}
+
+.assistantActionCard p {
+  margin-top: 4px;
+  color: rgba(226, 246, 255, 0.56);
+  font-size: 11px;
+}
+
+.assistantPlanBadge {
+  flex: 0 0 auto;
+  border: 1px solid rgba(103, 232, 249, 0.18);
+  border-radius: 999px;
+  padding: 7px 9px;
+  color: rgba(103, 232, 249, 0.9);
+  background: rgba(103, 232, 249, 0.08);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.assistantPlanBadge.executable {
+  color: rgba(187, 247, 208, 0.94);
+  border-color: rgba(74, 222, 128, 0.22);
+  background: rgba(74, 222, 128, 0.08);
+}
+
+.assistantInlineError {
+  border: 1px solid rgba(248, 113, 113, 0.26);
+  border-radius: 14px;
+  padding: 9px 11px;
+  color: rgba(254, 202, 202, 0.95);
+  background: rgba(248, 113, 113, 0.08);
+  font-size: 12px;
+}
+
+.assistantChatInput {
+  margin-top: 0 !important;
+}
+
+.assistantChatInput textarea {
+  min-height: 78px !important;
+}
+
+.assistantInputFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.assistantInputFooter button {
+  width: auto;
+}
+
+.assistantChatMock {
+  display: grid;
+  gap: 10px;
+  margin: 10px 0 12px;
+}
+
 .assistantMessage b {
   display: block;
   margin-bottom: 5px;
-}
-
-.assistantMessage p {
-  margin: 0;
-  color: rgba(236, 248, 255, 0.78);
-  line-height: 1.45;
 }
 
 .assistantContextMessage {
@@ -232,6 +422,10 @@
 @media (max-width: 900px) {
   .inboxPanel {
     width: min(92vw, 620px) !important;
+  }
+
+  .assistantPanelChat {
+    width: min(96vw, 620px) !important;
   }
 
   .inboxActions .doneMini,
