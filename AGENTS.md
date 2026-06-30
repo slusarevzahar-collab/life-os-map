@@ -18,6 +18,17 @@ Telegram is not a replacement for LifeMap. Telegram bot is an input channel for 
 
 Notion is the shared source of truth for data and handoffs.
 
+## Claude naming clarification
+
+In the shared Notion log, `Claude` can mean two different tools:
+
+- `Claude chat` is the normal conversational Claude. It can discuss architecture and product logic, but it does not have repository, terminal, or file-system access for LifeMap.
+- `Claude Code` is the coding agent with repository access. It owns the frontend zone.
+
+Any instruction like `git pull`, frontend file changes, commits, or repository operations must be addressed to `Claude Code`, not to Claude chat.
+
+If a handoff says `Передать Claude` in a repository context, interpret it as `Передать Claude Code` unless the user says otherwise.
+
 ## Responsibility zones
 
 ### ChatGPT / GPT zone
@@ -63,6 +74,14 @@ Use clear commit prefixes:
 After one agent commits, the user tells the other agent:
 
 `GPT/Claude/Codex закоммитил, сделай git pull`
+
+## Notion handoff notes
+
+Old Notion log entries must not be rewritten.
+
+Preferred handoff format is a new bottom log entry with date, tool, work done, status, and next step.
+
+If a tool cannot safely edit the existing table, append a new simple block at the bottom or add a page-level comment, then state clearly that it was not inserted into the original table.
 
 ## Working principles
 
