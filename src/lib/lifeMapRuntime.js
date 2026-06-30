@@ -35,61 +35,76 @@ export function apiCandidates(path) {
   return [...new Set(candidates)];
 }
 
-export async function fetchSnapshot() {
+async function requestJson(path, options = {}) {
   const errors = [];
-  for (const url of apiCandidates('/api/life-os/snapshot')) {
+  for (const url of apiCandidates(path)) {
     try {
-      const response = await fetch(url, { headers: { Accept: 'application/json' } });
-      if (!response.ok) throw new Error(`API ${response.status}`);
-      const data = await response.json();
-      return { ...data, meta: { ...(data.meta || {}), apiUrl: url } };
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          Accept: 'application/json',
+          ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+          ...(options.headers || {}),
+        },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.ok === false) throw new Error(data.error || data.details || `API ${response.status}`);
+      return data;
     } catch (error) {
       errors.push(`${url}: ${error.message}`);
     }
   }
   throw new Error(errors.join(' | '));
+}
+
+export async function fetchSnapshot() {
+  const data = await requestJson('/api/life-os/snapshot');
+  return { ...data, meta: { ...(data.meta || {}), apiUrl: data.meta?.apiUrl || '/api/life-os/snapshot' } };
 }
 
 export async function patchTask(taskId, payload) {
-  const errors = [];
-  for (const url of apiCandidates(`/api/life-os/tasks/${taskId}`)) {
-    try {
-      const response = await fetch(url, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || data.ok === false) throw new Error(data.error || `API ${response.status}`);
-      return data;
-    } catch (error) {
-      errors.push(`${url}: ${error.message}`);
-    }
-  }
-  throw new Error(errors.join(' | '));
+  return requestJson(`/api/life-os/tasks/${taskId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+function notionSignalStatus(status = 'Inbox') {
+  if (status === 'New') return 'Inbox';
+  if (status === 'Reviewed') return 'Processed';
+  if (status === 'Archived') return 'Processed';
+  return status || 'Inbox';
 }
 
 export async function patchSignal(signalId, payload) {
-  return patchTask(signalId, { status: payload.status });
+  return patchTask(signalId, { status: notionSignalStatus(payload.status) });
 }
 
 export async function patchItemTitle(node, title) {
-  const errors = [];
-  for (const url of apiCandidates(`/api/life-os/items/${node.sourceId}/title`)) {
-    try {
-      const response = await fetch(url, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ kind: node.kind, title }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || data.ok === false) throw new Error(data.error || `API ${response.status}`);
-      return data;
-    } catch (error) {
-      errors.push(`${url}: ${error.message}`);
-    }
-  }
-  throw new Error(errors.join(' | '));
+  return requestJson(`/api/life-os/items/${node.sourceId}/title`, {
+    method: 'PATCH',
+    body: JSON.stringify({ kind: node.kind, title }),
+  });
+}
+
+export async function fetchAssistantStatus() {
+  return requestJson('/api/life-os/assistant/status');
+}
+
+export async function postAssistantChat({ message, messages = [], target = null, context = {}, executeActions = false, secret = '' }) {
+  return requestJson('/api/life-os/assistant/chat', {
+    method: 'POST',
+    headers: secret ? { 'X-LifeMap-Assistant-Secret': secret } : {},
+    body: JSON.stringify({ message, messages, target, context, executeActions }),
+  });
+}
+
+export async function executeAssistantActions({ actions = [], secret = '' }) {
+  return requestJson('/api/life-os/assistant/actions', {
+    method: 'POST',
+    headers: secret ? { 'X-LifeMap-Assistant-Secret': secret } : {},
+    body: JSON.stringify({ actions }),
+  });
 }
 
 export function dataState(snapshot, apiState) {
