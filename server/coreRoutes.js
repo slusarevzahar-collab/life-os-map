@@ -4,6 +4,16 @@ import {
   updateItemTitle,
   updateTaskEvent,
 } from './notionAdapter.js';
+import { EXECUTABLE_ACTIONS } from './lifemapAiPolicy.js';
+
+const EXECUTABLE = new Set(EXECUTABLE_ACTIONS);
+
+function enforceActionConfirmation(actions = []) {
+  return actions.map((action) => {
+    const type = String(action?.type || action?.name || '');
+    return EXECUTABLE.has(type) ? { ...action, requiresConfirmation: true } : action;
+  });
+}
 
 export function registerCoreRoutes(app, runtime) {
   const { config, ai, buildLiveSnapshot, executeActions, makeMockResponse, prepareSnapshot } = runtime;
@@ -91,10 +101,11 @@ export function registerCoreRoutes(app, runtime) {
         clientContext: req.body?.context || {},
         snapshot,
       });
+      const actions = enforceActionConfirmation(assistant.proposedActions || []);
       const executedActions = req.body?.executeActions === true
-        ? await executeActions({ actions: assistant.proposedActions || [], req })
+        ? await executeActions({ actions, req })
         : [];
-      res.json({ ok: true, assistant, executedActions, snapshotMeta: snapshot.meta });
+      res.json({ ok: true, assistant: { ...assistant, proposedActions: actions }, executedActions, snapshotMeta: snapshot.meta });
     } catch (error) {
       res.status(500).json({ ok: false, error: error.message });
     }
@@ -102,7 +113,8 @@ export function registerCoreRoutes(app, runtime) {
 
   app.post('/api/life-os/assistant/actions', async (req, res) => {
     try {
-      const executedActions = await executeActions({ actions: req.body?.actions || [], req });
+      const actions = enforceActionConfirmation(req.body?.actions || []);
+      const executedActions = await executeActions({ actions, req });
       res.json({ ok: true, executedActions });
     } catch (error) {
       res.status(500).json({ ok: false, error: error.message });
