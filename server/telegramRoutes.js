@@ -1,4 +1,4 @@
-import { createSignal } from './notionAdapter.js';
+import { createAiSignal } from './aiSignalStore.js';
 import {
   allowedTelegramUser,
   appendLocalSignal,
@@ -49,7 +49,7 @@ export function registerTelegramRoutes(app, runtime, { codespacesPublicUrl }) {
     let notionResult = null;
     try {
       if (!config.notionToken || !config.signalsDbId) throw new Error('Notion signal storage is not configured.');
-      notionResult = await createSignal({
+      notionResult = await createAiSignal({
         notionToken: config.notionToken,
         signalsDbId: config.signalsDbId,
         payload: signal,
