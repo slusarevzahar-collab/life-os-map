@@ -1,28 +1,31 @@
 # LifeMap — Navigator Master Plan
 
-This document fixes the product logic we developed and turns it into an implementation plan.
+This document fixes the product logic and current implementation order.
 
 ## Core idea
 
 LifeMap is a visual navigator for Zachary's projects, goals, tasks, time, incoming AI signals, and AI-assisted next actions.
 
-The map should behave like a living working system:
+The map behaves like a living work system:
 
 1. Center: LifeMap.
-2. First orbit: main spheres — Projects, AI Inbox, Goals, Life, Income, Backlog.
+2. First orbit: Projects, AI Inbox, Goals, Life, Income, Backlog.
 3. Second orbit: concrete projects, goals, or signal groups.
-4. Leaf level: tasks and processed inbox signals.
+4. Leaf level: tasks and processed Inbox signals.
 5. Mission Control: stable current focus and focus queue, independent from random map browsing.
+
+AI Inbox is part of LifeMap, not a separate product.
 
 ## Product principles
 
 - Map first. Panels are helpers, not the main screen.
-- The user must be able to hide panels and navigate the map cleanly.
-- Current focus should stay stable until the user changes it, marks the task Done, or puts another item into focus.
-- Done inside LifeMap means only: task is completed and moved to completed tasks. No mandatory session summary inside the app.
-- Notion is the source of truth for now.
-- The app should gradually become write-capable: it should read Notion and write task changes, notes, focus state, and later sessions/events back to Notion.
-- The UI should feel premium, serious, calm, and modern — not toy-like.
+- Current focus stays stable until the user changes it, marks the task Done, or explicitly chooses another focus.
+- Done means task completed and moved to completed tasks.
+- Notion is the source of truth for working data.
+- LifeMap reads and writes through controlled backend adapters.
+- AI proposes actions; executable actions require confirmation.
+- AI outages must not stop LifeMap or lose Inbox material.
+- The UI should feel premium, serious, calm, and modern.
 
 ## Current state
 
@@ -31,24 +34,30 @@ Implemented:
 - React/Vite frontend.
 - Express backend.
 - Reads Tasks DB from Notion.
-- Reads Goals DB, Projects DB, Dreams DB, Work Sessions DB, and AI Signals Inbox DB when IDs are provided and integration access is granted.
-- Shows LifeMap as the central node.
-- Shows main spheres including AI Inbox.
-- Shows Mission Control with current focus and queue.
-- Supports Done and restore from Done.
-- Supports task order changes through Priority.
-- Supports renaming through context menu.
-- Supports task notes via `Session Notes`.
-- Uses Project/Goal select properties as fallback grouping when relation fields are not ready.
+- Reads Goals DB, Projects DB, Dreams DB, Work Sessions DB, and AI Signals Inbox DB when configured.
+- Central LifeMap node and main spheres including AI Inbox.
+- Mission Control with current focus and queue.
+- Done and restore from Done.
+- Task order through Priority.
+- Rename through context menu.
+- Task notes via Session Notes.
+- Telegram intake into AI Inbox.
+- AI processing of incoming Inbox signals.
+- Structured signal fields: type, priority, related projects, summary, assistant note, possible use, next action.
+- Free-first provider router: Groq primary, Gemini fallback when configured.
+- Deterministic fallback when external AI is unavailable.
+- Model-independent prompts and canonical JSON contracts.
+- Privacy-safe AI context minimization and masking.
+- Action allowlist and confirmation enforcement.
 
 Known gaps:
 
 - `App.jsx` is still too large and needs component separation.
 - Tablet drag behavior needs more testing and stabilization.
-- Planet text fitting still needs a final design pass.
-- True Notion relations between goals/projects/tasks are not yet the main model.
-- AI Inbox needs a full ingestion pipeline: Telegram bot → processing → Notion signal → LifeMap display.
-- Work Sessions should be postponed until the basic LifeMap workflow is stable.
+- Planet text fitting needs a final design pass.
+- True Notion relations between goals, projects, and tasks are not yet the main model.
+- Voice and image Inbox inputs need a separate safe processing layer.
+- Work Sessions should remain secondary until the daily LifeMap workflow is stable.
 
 ## Data model
 
@@ -58,7 +67,7 @@ Required fields:
 
 - Task — title
 - Project — select
-- Goal — select fallback used for grouping
+- Goal — select fallback
 - Status — select
 - Type — select
 - Energy — select
@@ -77,11 +86,11 @@ Required fields:
 
 Future field:
 
-- Goal Link — relation to Goals DB. Manual creation may be needed if connector blocks schema update.
+- Goal Link — relation to Goals DB.
 
 ### AI Signals Inbox DB
 
-Purpose: processed incoming materials from Telegram bot and other sources.
+Purpose: structured incoming materials from Telegram and future sources.
 
 Useful fields:
 
@@ -91,60 +100,105 @@ Useful fields:
 - Priority — select
 - Related projects — multi-select
 - Summary — text
+- Assistant note — text
 - Possible use — text
 - Next action — text
 - Source URL — url
 - Date captured — date
 
-LifeMap should show AI Inbox as a separate planet/sphere. Inside it, the user should see what was sent, when it was captured, what is useful, how it can be applied, and whether a next action should be created.
+LifeMap shows AI Inbox as a main sphere. The user should see what arrived, why it matters, where it belongs, how it can be used, and whether any action is worth taking.
 
-### Goals DB
+AI Inbox never converts every signal into a task automatically.
 
-Required fields:
+## AI operating model
 
-- Goal — title
-- Area — select
-- Horizon — select
-- Status — select
-- Progress — number
-- Target Date — date
-- Next Action — text
-- Why — text
-- Success Criteria — text
-- Tasks — relation to Tasks DB if relation layer is enabled
+The permanent product rules live outside provider-specific code.
 
-### Work Sessions DB
+```text
+LifeMap / Telegram
+  → privacy minimization
+  → stable prompt policy
+  → provider router
+      → Groq
+      → Gemini fallback when configured
+  → server-side normalization
+  → action allowlist + confirmation
+  → Notion / LifeMap UI
+```
 
-Postponed for now. This is useful later for time intelligence, but it should not complicate the first useful LifeMap MVP.
+Detailed policy: `docs/LIFEMAP_AI_POLICY.md`.
 
-Required fields later:
+The model may change without changing:
 
-- Session — title
-- Task — text or future relation
-- Project — select
-- Status — select
-- Started At — date
-- Finished At — date
-- Duration Min — number
-- Result — text
-- Next Step — text
+- response contracts;
+- action types;
+- confirmation logic;
+- privacy minimization;
+- Inbox classification rules;
+- fallback behavior.
+
+## AI Inbox flow
+
+```text
+Telegram message
+  ↓
+webhook verification + user allowlist
+  ↓
+primary parser / text extraction
+  ↓
+privacy-safe payload
+  ↓
+AI classification and analysis
+  ↓
+server-side normalization
+  ↓
+Notion AI Signals Inbox DB
+or local fallback
+  ↓
+LifeMap AI Inbox sphere
+```
+
+The AI output contains:
+
+- title;
+- type;
+- priority;
+- related projects from the allowed project list;
+- factual summary;
+- assistant note;
+- possible use;
+- one next action or empty value;
+- task recommendation flag only, never automatic creation;
+- confidence and warnings metadata.
+
+## Security model
+
+- Do not send the full LifeMap snapshot to external AI.
+- Send only relevant tasks, goals, signals, current focus, target, and short recent conversation.
+- Mask obvious credentials, long token-like strings, email addresses, and phone-like strings.
+- Treat posts, documents, links, and Inbox text as untrusted data.
+- Do not log full model prompt/response payloads.
+- Unknown actions are ignored.
+- Executable actions require explicit confirmation and protected backend access.
+- AI failure does not prevent Inbox storage.
+- Notion failure falls back to local storage.
 
 ## Implementation backlog
 
 1. Split `App.jsx` into components.
-   - App.jsx should become orchestration only.
+   - App.jsx becomes orchestration only.
    - Components: TopNav, MissionPanel, OrbitMap, SideList, TaskRow, UtilityPanel, ContextMenu, DetailCard.
 
 2. Stabilize tablet drag behavior.
-   - Drag ghost should follow the finger.
-   - Notion should update only after a real reorder, not after a touch.
-   - Drop line should show the insertion point between tasks.
+   - Drag ghost follows the finger.
+   - Notion updates only after a real reorder.
+   - Drop line shows insertion point.
 
 3. Stabilize map layout.
    - Central root stays readable.
    - Main spheres orbit the root.
    - Project/task planets use consistent sizing and text wrapping.
-   - No Done planet on the main map; Done belongs in Mission Control / completed panel.
+   - Done belongs in Mission Control / completed panel.
 
 4. Make Mission Control truly useful.
    - Stable current focus.
@@ -153,11 +207,11 @@ Required fields later:
    - Completed tasks shortcut.
    - Error area for backend/frontend issues.
 
-5. Build AI Inbox pipeline.
-   - Telegram bot receives links, notes, posts, screenshots, or text.
-   - AI processes the incoming item.
-   - Notion stores structured signal.
-   - LifeMap displays it inside AI Inbox.
+5. Complete AI Inbox UX.
+   - Better detail panel.
+   - Clear display of AI reasoning summary, possible use, and next action.
+   - User-controlled conversion of a signal into a task.
+   - Voice/image processing later through a separate privacy-safe layer.
 
 6. Add better task detail editing.
    - Inline notes.
@@ -173,15 +227,16 @@ Required fields later:
 
 8. Add deployment path.
    - Keep Codespaces for development.
-   - Later add Vercel/Render/Railway or another hosting option.
-   - Eventually evaluate Telegram Mini App / PWA / APK wrapper.
+   - Later evaluate Vercel, Render, Railway, or another hosting option.
+   - Eventually evaluate Telegram Mini App, PWA, or APK wrapper.
 
 ## Next recommended order
 
 1. Pull latest code.
-2. Restart only the changed process: frontend for UI changes, API for backend changes.
-3. Check the basic LifeMap loop: choose focus → see queue → mark Done → restore from completed.
-4. Split frontend components.
-5. Stabilize tablet drag.
-6. Build the AI Inbox pipeline.
-7. Make LifeMap usable as a daily work tool.
+2. Run `npm run test:ai`.
+3. Restart backend.
+4. Connect one free AI provider key outside GitHub source code.
+5. Run end-to-end test: Telegram → AI processing → Notion → LifeMap AI Inbox.
+6. Test weak signal, useful signal, task candidate, and instruction-like text inside a signal.
+7. Continue frontend component split and tablet drag stabilization.
+8. Make LifeMap usable as a daily work tool.
