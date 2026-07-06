@@ -8,6 +8,7 @@ export function sanitizeTextForAi(value = '', limit = 6000) {
   let text = String(value ?? '');
   text = text.replace(/\bBearer\s+\S+/gi, 'Bearer [REDACTED]');
   text = text.replace(/\b([A-Z][A-Z0-9_]*(?:TOKEN|KEY|SECRET|PASSWORD)[A-Z0-9_]*)\s*=\s*([^\s"']+)/g, '$1=[REDACTED]');
+  text = text.replace(/\b[A-Za-z0-9_-]{36,}\b/g, '[LONG_TOKEN]');
   text = text.replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[EMAIL]');
   text = text.replace(/(?<!\w)(?:\+?\d[\d\s().-]{8,}\d)(?!\w)/g, '[PHONE]');
   return clip(text, limit);
