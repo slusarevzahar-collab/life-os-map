@@ -7,6 +7,7 @@ function providerConfigs(env = process.env) {
       apiKey: env.GROQ_API_KEY || '',
       model: env.GROQ_MODEL || 'llama-3.3-70b-versatile',
       url: 'https://api.groq.com/openai/v1/chat/completions',
+      useJsonObjectMode: true,
       authHeader: (key) => ({ Authorization: `Bearer ${key}` }),
     },
     gemini: {
@@ -14,6 +15,7 @@ function providerConfigs(env = process.env) {
       apiKey: env.GEMINI_API_KEY || '',
       model: env.GEMINI_MODEL || 'gemini-3.1-flash-lite',
       url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+      useJsonObjectMode: false,
       authHeader: (key) => ({ Authorization: `Bearer ${key}` }),
     },
   };
@@ -38,22 +40,24 @@ async function callProvider({ config, systemPrompt, userPayload, maxTokens, temp
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
+    const body = {
+      model: config.model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: JSON.stringify(userPayload) },
+      ],
+      max_tokens: maxTokens,
+      temperature,
+    };
+    if (config.useJsonObjectMode) body.response_format = { type: 'json_object' };
+
     const response = await fetch(config.url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...config.authHeader(config.apiKey),
       },
-      body: JSON.stringify({
-        model: config.model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: JSON.stringify(userPayload) },
-        ],
-        response_format: { type: 'json_object' },
-        max_tokens: maxTokens,
-        temperature,
-      }),
+      body: JSON.stringify(body),
       signal: controller.signal,
     });
 
