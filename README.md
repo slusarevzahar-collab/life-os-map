@@ -4,206 +4,167 @@
 
 ## Что это
 
-LifeMap — не просто dashboard. Это рабочая карта, которая помогает не теряться в проектах и задачах:
+LifeMap — рабочая карта:
 
 ```text
-цели → проекты → задачи → очередь фокуса → Done / возврат в работу
+цели → проекты → задачи → текущий фокус → Done / возврат в работу
 ```
 
-Главный смысл LifeMap — видеть систему целиком и быстро понимать: над чем я работаю сейчас, что дальше, какие проекты двигают меня к доходу и какие входящие сигналы стоит обработать.
+AI Inbox является частью LifeMap. Входящий материал из Telegram проходит первичный разбор, безопасную подготовку, AI-анализ и структурированное сохранение.
 
-## Логика процентов
+## Работает сейчас
 
-Процент выполнения считается от количества выполненных задач внутри ветки:
+- React/Vite frontend и Express backend.
+- Live-чтение Tasks, Goals, Projects, Dreams и AI Signals Inbox из Notion.
+- Карта сфер LifeMap и Mission Control.
+- Done / restore, переименование, заметки и drag-reorder задач.
+- Telegram webhook intake с allowlist и локальным fallback.
+- AI-разбор Inbox: тип, приоритет, связанные проекты, summary, assistant note, possible use и next action.
+- Модель-независимый AI Provider Router: Groq primary и Gemini fallback при наличии ключа.
+- Детерминированный fallback: LifeMap продолжает работать без внешнего AI.
+- Минимизация контекста перед AI-вызовом и маскирование очевидных секретных и контактных данных.
+- Серверная нормализация ответов модели.
+- Allowlist действий и обязательное подтверждение исполняемых AI-действий.
+
+Подробная политика: `docs/LIFEMAP_AI_POLICY.md`.
+
+## AI-архитектура
 
 ```text
-прогресс = выполненные задачи / все задачи * 100
+LifeMap / Telegram
+  ↓
+privacy minimization
+  ↓
+stable prompt policy
+  ↓
+AI Provider Router
+  ├─ Groq primary
+  └─ Gemini fallback when configured
+  ↓
+server-side normalization
+  ↓
+action allowlist + confirmation
+  ↓
+Notion / LifeMap UI
 ```
 
-Если у цели 10 задач, каждая закрытая задача добавляет 10%. Если у проекта 100 задач, каждая закрытая задача добавляет 1%. Эта логика применяется к проектам, целям, сферам и корневому LifeMap.
+LifeMap не требует OpenAI API.
 
-## Текущий статус
-
-Работает:
-
-- React/Vite frontend.
-- Express backend.
-- Live-чтение Notion Tasks DB.
-- Live-чтение Goals DB, Projects DB, Dreams DB и AI Signals Inbox DB, если переданы ID и интеграции есть доступ.
-- Карта сфер: LifeMap → Проекты / AI Inbox / Цели / Жизнь / Доход / Идеи.
-- Отдельная планета AI Inbox для входящих материалов из Telegram-бота и других источников.
-- Telegram webhook intake: сообщение боту → первичная классификация → AI Inbox signal → Notion или локальный fallback.
-- Mission Control с текущим фокусом и очередью.
-- Done / возврат задачи из выполненных.
-- Переименование через контекстное меню.
-- Заметки к задаче через раскрытие карточки.
-- Drag-перестановка задач в списке с записью порядка в Notion через Priority.
-- Визуальный прогресс на планетах и в списках веток.
-- Notion adapter вынесен в `server/notionAdapter.js`.
-- Telegram adapter вынесен в `server/telegramAdapter.js`.
-- Архитектурный план хранится в `docs/NAVIGATOR_MASTER_PLAN.md`.
-- Логика процентов отдельно описана в `docs/LIFEMAP_PROGRESS_LOGIC.md`.
-
-## Простая схема
+## AI Inbox
 
 ```text
 Telegram Bot
-  ↓ webhook
+  ↓
 server/telegramAdapter.js
   ↓
-server.js: /api/telegram/webhook
+server/lifemapAi.js
   ↓
-Notion AI Signals Inbox DB или .data/telegram-inbox.jsonl
+server/aiProviderRouter.js
   ↓
-server.js: /api/life-os/snapshot
+server/telegramRoutes.js
   ↓
-LifeMap UI → планета AI Inbox
-```
-
-```text
-Notion DBs
-  ↓
-server/notionAdapter.js
-  ↓
-server.js: /api/life-os/snapshot
-  ↓
-React frontend
+Notion AI Signals Inbox DB
+или local fallback
   ↓
 LifeMap UI
 ```
 
-## Как запускать в Codespaces
+ИИ не создаёт задачу автоматически из каждого сигнала. Он может определить `Task candidate` и рекомендовать следующий шаг, но изменение рабочих данных проходит отдельно.
 
-Нужно два терминала.
+## Бесплатный AI-режим
 
-### Терминал 1 — API / backend
+Достаточно одного бесплатного provider key:
 
-Это сервер, который читает Notion и принимает Telegram webhook. Он работает на порту `3001`.
+- Groq — основной вариант;
+- Gemini — резервный вариант;
+- при наличии двух провайдеров router переключается на следующий при ошибке или timeout.
+
+Порядок, модель и timeout задаются через локальное окружение. Секреты нельзя коммитить в GitHub или присылать в чат.
+
+## Приватность
+
+LifeMap не отправляет внешней модели весь snapshot.
+
+Assistant получает ограниченный контекст: текущий фокус, выбранный объект, до 16 релевантных задач, до 10 целей, до 8 сигналов и последние 8 коротких сообщений.
+
+AI Inbox получает только текст конкретного сигнала, текущий фокус, список допустимых проектов и hostname источника. Полные prompt/response payload не выводятся в серверные логи.
+
+## AI action safety
+
+Исполняемые действия:
+
+```text
+update_task
+rename_item
+create_session
+create_signal
+dedupe_signals
+```
+
+Плановые действия:
+
+```text
+frontend_change_request
+backend_change_request
+research_request
+```
+
+Исполняемые действия требуют подтверждения и защищённого action secret. Неизвестные типы действий отбрасываются.
+
+## Запуск
+
+Backend:
 
 ```bash
 npm run api
 ```
 
-Токены нельзя присылать в чат и нельзя коммитить в GitHub. Лучше хранить значения в `.env`.
-
-Если всё хорошо, увидишь:
-
-```text
-LifeMap API listening on http://localhost:3001
-NOTION_TOKEN is set
-NOTION_TASKS_DB_ID is set
-```
-
-Этот терминал не закрывать.
-
-### Терминал 2 — frontend / сайт
-
-Это интерфейс карты. Он обычно работает на `5173` или `5174`.
+Frontend:
 
 ```bash
 npm run dev
 ```
 
-Открывать сайт нужно через вкладку Ports / Порты или через всплывающее окно Codespaces.
+Backend по умолчанию работает на порту `3001`.
 
-## Telegram → LifeMap AI Inbox
+## Проверка
 
-### Что нужно в `.env`
-
-```env
-TELEGRAM_BOT_TOKEN=токен_из_BotFather
-TELEGRAM_WEBHOOK_SECRET=любой_длинный_секретный_текст
-TELEGRAM_ALLOWED_USER_IDS=твой_telegram_user_id
-NOTION_SIGNALS_DB_ID=id_базы_AI_Signals_Inbox
-```
-
-`NOTION_SIGNALS_DB_ID` желателен, но не обязателен для первого теста. Если база не подключена, входящие сообщения сохраняются локально в `.data/telegram-inbox.jsonl` и всё равно попадают в snapshot LifeMap как локальные сигналы.
-
-### Как подключить webhook
-
-Порт API `3001` должен быть публичным в Codespaces Ports. После этого возьми публичный HTTPS URL порта `3001` и выполни:
+После запуска полезно проверить:
 
 ```bash
-curl -X POST http://localhost:3001/api/telegram/set-webhook \
-  -H "Content-Type: application/json" \
-  -d '{"url":"https://ТВОЙ-АДРЕС-3001.app.github.dev/api/telegram/webhook"}'
-```
-
-Проверка статуса:
-
-```bash
+curl http://localhost:3001/api/life-os/assistant/status
 curl http://localhost:3001/api/telegram/status
+curl http://localhost:3001/api/life-os/health
 ```
 
-После этого можно написать боту в Telegram. Он должен ответить, что принял сообщение в LifeMap AI Inbox.
+Если AI provider не настроен, status покажет `configured: false`, но LifeMap и сохранение AI Inbox продолжат работать.
 
-## Как обновлять код
-
-Если ассистент внёс правки в GitHub:
+## Обновление кода
 
 ```bash
 git pull
 ```
 
-Потом перезапусти только тот процесс, который реально менялся.
+После обновления перезапусти только изменившийся процесс.
 
-Для frontend:
+## Документы
 
-```bash
-npm run dev
-```
-
-Для API:
-
-```bash
-npm run api
-```
-
-## Частые ошибки
-
-### EADDRINUSE / port 3001 already in use
-
-API уже запущен в другом терминале. Найди старый терминал с `LifeMap API listening...` и останови его вручную, либо не запускай второй API.
-
-### `api offline` в интерфейсе
-
-Frontend не видит API или API не запущен. Проверь терминал API и перезагрузи сайт.
-
-### `connected`, но нет Goals/Projects/Signals
-
-Проверь, что:
-
-- в `.env` переданы нужные `NOTION_*_DB_ID`;
-- Notion integration `LifeMap Backend` подключена к этим базам;
-- в базах есть записи.
-
-### Telegram webhook не принимает сообщения
-
-Проверь, что:
-
-- `TELEGRAM_BOT_TOKEN` есть в `.env`;
-- API-порт `3001` публичный;
-- webhook URL ведёт именно на `/api/telegram/webhook`;
-- `TELEGRAM_WEBHOOK_SECRET` в `.env` совпадает с тем, который передан через `/api/telegram/set-webhook`;
-- если задан `TELEGRAM_ALLOWED_USER_IDS`, твой Telegram user ID есть в списке.
-
-### Порт 5173/5174 меняется
-
-Это нормально. Vite берёт свободный порт. Смотри актуальную ссылку в Ports / Порты.
+- `docs/NAVIGATOR_MASTER_PLAN.md` — архитектурный план.
+- `docs/LIFEMAP_PROGRESS_LOGIC.md` — логика процентов.
+- `docs/LIFEMAP_AI_POLICY.md` — правила Assistant, AI Inbox, privacy, actions и смены моделей.
 
 ## Ближайший roadmap
 
-1. Протестировать Telegram → AI Inbox на реальном боте.
-2. Подключить AI Signals Inbox DB в Notion и проверить запись сигналов.
-3. Добавить обработку голосовых/файлов/пересланных постов как отдельный слой.
-4. Подключить AI-разбор: краткое summary, польза, связанный проект, возможная задача.
-5. Добавить нормальные окна/панели для деталей задач и сигналов.
-6. Добавить базовую аналитику времени и прогресса.
-7. Усилить визуальный стиль до premium / serious tool.
+1. Подключить один бесплатный provider key и провести сквозной тест.
+2. Проверить Telegram → AI analysis → Notion → LifeMap UI на разных типах сигналов.
+3. Добавить voice/image processing отдельным privacy-safe слоем.
+4. Добавить более сильные detail panels для задач и сигналов.
+5. Добавить базовую аналитику времени и прогресса.
+6. Усилить visual style до premium serious tool.
 
 ## Важная логика продукта
 
-Не превращать карту в обычный список задач. Список задач полезен, но главный смысл LifeMap — видеть систему целиком:
+LifeMap не должен превращаться в обычный список задач. Главная цепочка:
 
 ```text
 куда я иду → какой проект активен → какая задача сейчас → что дальше → что уже сделано
