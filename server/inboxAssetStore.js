@@ -52,6 +52,10 @@ function multiSelectProperty(values = []) {
   return unique.length ? { multi_select: unique.map((name) => ({ name })) } : { multi_select: [] };
 }
 
+function selectProperty(value = '') {
+  return value ? { select: { name: String(value) } } : undefined;
+}
+
 function safeParseAssets(value = '') {
   if (Array.isArray(value)) return value;
   const raw = String(value || '').trim();
@@ -121,4 +125,19 @@ export async function persistSignalAnalysis({ notionToken, signalId, analysis = 
   };
   await notion.pages.update({ page_id: signalId, properties });
   return { id: signalId, updated: true, assets: assets.length };
+}
+
+export async function updateInboxSignalStatus({ notionToken, signalId, status, nextAction = '' }) {
+  if (!notionToken) throw new Error('NOTION_TOKEN is missing.');
+  if (!signalId) throw new Error('Signal id is missing.');
+  const normalizedStatus = status === 'New' ? 'Inbox' : status === 'Reviewed' ? 'Processed' : status || 'Inbox';
+  const notion = new Client({ auth: notionToken });
+  await notion.pages.update({
+    page_id: signalId,
+    properties: {
+      Status: selectProperty(normalizedStatus),
+      'Next action': textProperty(nextAction || ''),
+    },
+  });
+  return { id: signalId, updated: true, status: normalizedStatus };
 }
