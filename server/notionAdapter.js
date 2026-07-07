@@ -282,7 +282,7 @@ export async function createSignal({ notionToken, signalsDbId, payload = {} }) {
   if (!signalsDbId) throw new Error('NOTION_SIGNALS_DB_ID is missing.');
   const notion = new Client({ auth: notionToken });
   const title = payload.title || 'Telegram signal';
-  const fullText = payload.summary || payload.rawText || '';
+  const fullText = payload.rawText || payload.summary || '';
   const baseProperties = {
     Signal: titleProperty(title),
     Type: selectProperty(payload.type || 'Telegram'),
@@ -290,14 +290,14 @@ export async function createSignal({ notionToken, signalsDbId, payload = {} }) {
     Priority: selectProperty(payload.priority || 'Normal'),
     'Related projects': multiSelectProperty(payload.relatedProjects || []),
     Summary: textProperty(fullText),
-    'Assistant note': textProperty(fullText),
+    'Assistant note': textProperty(payload.assistantNote || payload.summary || fullText),
     'Next action': textProperty(payload.nextAction || ''),
     'Possible use': textProperty(payload.possibleUse || ''),
     'Source URL': urlProperty(payload.sourceUrl || ''),
     'Date captured': dateProperty(payload.capturedAt || new Date().toISOString()),
   };
   const richProperties = cleanProperties(baseProperties);
-  const minimalProperties = cleanProperties({ Signal: titleProperty(title), Summary: textProperty(fullText), 'Assistant note': textProperty(fullText), 'Source URL': urlProperty(payload.sourceUrl || ''), 'Date captured': dateProperty(payload.capturedAt || new Date().toISOString()) });
+  const minimalProperties = cleanProperties({ Signal: titleProperty(title), Summary: textProperty(fullText), 'Assistant note': textProperty(payload.assistantNote || payload.summary || fullText), 'Source URL': urlProperty(payload.sourceUrl || ''), 'Date captured': dateProperty(payload.capturedAt || new Date().toISOString()) });
 
   try { const page = await notion.pages.create({ parent: { database_id: signalsDbId }, properties: richProperties }); return { id: page.id, created: true, mode: 'rich' }; }
   catch (error) {
@@ -329,10 +329,10 @@ export async function archiveDuplicateSignals({ notionToken, signalsDbId }) {
   const duplicates = [];
   [...groups.values()].filter((group) => group.length > 1).forEach((group) => {
     const sorted = [...group].sort((a, b) => signalQuality(b.signal) - signalQuality(a.signal));
-    duplicates.push(...sorted.slice(1));
+    sorted.slice(1).forEach((row) => duplicates.push(row.page.id));
   });
-  await Promise.all(duplicates.map(({ page }) => notion.pages.update({ page_id: page.id, properties: cleanProperties({ Status: selectProperty('Processed'), Decision: selectProperty('Archive'), 'Next action': textProperty('Дубль скрыт через LifeMap: оставлена более полная версия сигнала.') }) })));
-  return { scanned: rows.length, archived: duplicates.length, duplicateGroups: [...groups.values()].filter((group) => group.length > 1).length };
+  for (const pageId of duplicates) await notion.pages.update({ page_id: pageId, properties: { Status: selectProperty('Archived') } });
+  return { archived: duplicates.length };
 }
 
 export async function updateItemTitle({ notionToken, itemId, kind, title }) {
@@ -340,8 +340,8 @@ export async function updateItemTitle({ notionToken, itemId, kind, title }) {
   if (!itemId) throw new Error('Item id is missing.');
   if (!title) throw new Error('Title is missing.');
   const notion = new Client({ auth: notionToken });
-  const propertyByKind = { task: 'Task', goal: 'Goal', projectArea: 'Name', dream: 'Goal / Dream', signal: 'Signal', session: 'Session' };
-  const prop = propertyByKind[kind] || 'Name';
-  await notion.pages.update({ page_id: itemId, properties: { [prop]: titleProperty(title) } });
+  const property = kind === 'task' ? 'Task' : kind === 'goal' ? 'Goal' : kind === 'dream' ? 'Goal / Dream' : kind === 'project' ? 'Name' : kind === 'signal' ? 'Signal' : null;
+  if (!property) throw new Error(`Unsupported item kind: ${kind}`);
+  await notion.pages.update({ page_id: itemId, properties: { [property]: titleProperty(title) } });
   return { id: itemId, updated: true, title };
 }
