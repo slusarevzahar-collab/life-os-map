@@ -11,7 +11,7 @@ import {
 } from './notionAdapter.js';
 import { readLocalSignals } from './telegramAdapter.js';
 import { createLifeMapAiService } from './lifemapAi.js';
-import { listInboxSignalRecords, persistSignalAnalysis } from './inboxAssetStore.js';
+import { getInboxSignalRecord, listInboxSignalRecords, persistSignalAnalysis } from './inboxAssetStore.js';
 
 export function loadLocalEnv() {
   const envPath = path.resolve(process.cwd(), '.env');
@@ -63,6 +63,19 @@ function normalizePayload(payload = {}) {
   return payload && typeof payload === 'object' ? payload : {};
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function signalAnalysisKey(signal = {}) {
+  if (signal.sourceUrl) return `url:${signal.sourceUrl}`;
+  return `${String(signal.title || '').trim().toLowerCase()}|${String(signal.summary || '').trim().toLowerCase().slice(0, 700)}`;
+}
+
+function publicJob(job) {
+  return JSON.parse(JSON.stringify(job));
+}
+
 export function createLifeMapRuntime({ envLoaded = false } = {}) {
   const config = {
     port: Number(process.env.API_PORT || 3001),
@@ -78,9 +91,23 @@ export function createLifeMapRuntime({ envLoaded = false } = {}) {
     telegramAllowedUserIds: process.env.TELEGRAM_ALLOWED_USER_IDS || '',
     telegramWebhookUrl: process.env.TELEGRAM_WEBHOOK_URL,
     assistantSecret: process.env.LIFEMAP_ASSISTANT_API_SECRET || '',
+    inboxReprocessDelayMs: Math.max(1500, Number(process.env.INBOX_REPROCESS_DELAY_MS || 4500)),
     envLoaded,
   };
   const ai = createLifeMapAiService(process.env);
+  let reprocessJob = {
+    id: '',
+    status: 'idle',
+    scanned: 0,
+    total: 0,
+    processed: 0,
+    failed: 0,
+    reused: 0,
+    current: '',
+    startedAt: '',
+    finishedAt: '',
+    results: [],
+  };
 
   function makeMockResponse(reason) {
     return {
@@ -144,42 +171,104 @@ export function createLifeMapRuntime({ envLoaded = false } = {}) {
     return listInboxSignalRecords({ notionToken: config.notionToken, signalsDbId: config.signalsDbId });
   }
 
-  async function reprocessInboxSignals({ limit = 30, onlyMissing = true } = {}) {
-    if (!ai.status().configured) throw new Error('AI provider is not configured.');
-    const snapshot = await buildLiveSnapshot();
-    const records = await listInboxAssets();
-    const candidates = records
-      .filter((signal) => !onlyMissing || !Array.isArray(signal.assets) || signal.assets.length === 0)
-      .slice(0, Math.max(1, Math.min(Number(limit) || 30, 50)));
+  async function inboxSignal(signalId) {
+    return getInboxSignalRecord({ notionToken: config.notionToken, signalsDbId: config.signalsDbId, signalId });
+  }
 
-    const results = [];
-    for (const signal of candidates) {
+  async function analyzeWithRetry(signal, snapshot, maxAttempts = 5) {
+    let lastError;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
-        const analysis = await ai.analyzeInboxSignal({
+        return await ai.analyzeInboxSignal({
           signal: {
             ...signal,
             rawText: signal.summary || signal.assistantNote || signal.possibleUse || '',
           },
           snapshot,
         });
-        const stored = await persistSignalAnalysis({
-          notionToken: config.notionToken,
-          signalId: signal.id,
-          analysis,
-        });
-        results.push({ id: signal.id, title: signal.title, ok: true, assets: stored.assets });
       } catch (error) {
-        results.push({ id: signal.id, title: signal.title, ok: false, error: error.message });
+        lastError = error;
+        if (attempt >= maxAttempts) break;
+        const waitMs = error.retryAfterMs || (error.status === 429 ? 12000 : Math.min(12000, 2500 * attempt));
+        await sleep(waitMs + 500);
       }
     }
+    throw lastError;
+  }
 
-    return {
-      scanned: records.length,
-      attempted: candidates.length,
-      processed: results.filter((item) => item.ok).length,
-      failed: results.filter((item) => !item.ok).length,
-      results,
+  async function runReprocessJob(jobId, { onlyMissing = true } = {}) {
+    try {
+      if (!ai.status().configured) throw new Error('AI provider is not configured.');
+      const snapshot = await buildLiveSnapshot();
+      const records = await listInboxAssets();
+      if (reprocessJob.id !== jobId) return;
+      const candidates = records.filter((signal) => !onlyMissing || !signal.aiProcessingVersion);
+      const cache = new Map();
+      records.filter((signal) => signal.aiProcessingVersion).forEach((signal) => {
+        cache.set(signalAnalysisKey(signal), {
+          ...signal,
+          assets: Array.isArray(signal.assets) ? signal.assets : [],
+          aiProcessing: { policyVersion: signal.aiProcessingVersion },
+        });
+      });
+      reprocessJob.scanned = records.length;
+      reprocessJob.total = candidates.length;
+
+      for (const signal of candidates) {
+        if (reprocessJob.id !== jobId || reprocessJob.status !== 'running') return;
+        reprocessJob.current = signal.title;
+        const key = signalAnalysisKey(signal);
+        try {
+          let analysis = cache.get(key);
+          if (analysis) {
+            reprocessJob.reused += 1;
+          } else {
+            analysis = await analyzeWithRetry(signal, snapshot);
+            cache.set(key, analysis);
+          }
+          const stored = await persistSignalAnalysis({ notionToken: config.notionToken, signalId: signal.id, analysis });
+          reprocessJob.processed += 1;
+          reprocessJob.results.push({ id: signal.id, title: signal.title, ok: true, assets: stored.assets, reused: cache.get(key) !== analysis ? true : false });
+        } catch (error) {
+          reprocessJob.failed += 1;
+          reprocessJob.results.push({ id: signal.id, title: signal.title, ok: false, error: error.message, status: error.status || 0 });
+        }
+        if (reprocessJob.processed + reprocessJob.failed < reprocessJob.total) await sleep(config.inboxReprocessDelayMs);
+      }
+      reprocessJob.status = reprocessJob.failed ? 'completed_with_errors' : 'completed';
+      reprocessJob.current = '';
+      reprocessJob.finishedAt = new Date().toISOString();
+    } catch (error) {
+      if (reprocessJob.id !== jobId) return;
+      reprocessJob.status = 'failed';
+      reprocessJob.current = '';
+      reprocessJob.finishedAt = new Date().toISOString();
+      reprocessJob.results.push({ ok: false, error: error.message });
+    }
+  }
+
+  async function startInboxReprocessJob({ onlyMissing = true } = {}) {
+    if (reprocessJob.status === 'running') return publicJob(reprocessJob);
+    const jobId = `inbox-${Date.now()}`;
+    reprocessJob = {
+      id: jobId,
+      status: 'running',
+      scanned: 0,
+      total: 0,
+      processed: 0,
+      failed: 0,
+      reused: 0,
+      current: '',
+      startedAt: new Date().toISOString(),
+      finishedAt: '',
+      results: [],
     };
+    runReprocessJob(jobId, { onlyMissing }).catch((error) => console.warn(`LifeMap Inbox reprocess job failed: ${error.message}`));
+    return publicJob(reprocessJob);
+  }
+
+  function inboxReprocessJobStatus() {
+    return publicJob(reprocessJob);
   }
 
   async function executeAction(action = {}) {
@@ -216,7 +305,9 @@ export function createLifeMapRuntime({ envLoaded = false } = {}) {
     telegramSecretOk,
     assistantSecretOk,
     listInboxAssets,
-    reprocessInboxSignals,
+    inboxSignal,
+    startInboxReprocessJob,
+    inboxReprocessJobStatus,
     executeActions,
   };
 }
