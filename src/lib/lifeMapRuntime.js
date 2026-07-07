@@ -71,24 +71,15 @@ export async function fetchSnapshot() {
 }
 
 export async function patchTask(taskId, payload) {
-  return requestJson(`/api/life-os/tasks/${taskId}`, {
-    method: 'PATCH',
-    body: JSON.stringify(payload),
-  });
+  return requestJson(`/api/life-os/tasks/${taskId}`, { method: 'PATCH', body: JSON.stringify(payload) });
 }
 
 export async function patchSignal(signalId, payload) {
-  return requestJson(`/api/life-os/signals/${signalId}`, {
-    method: 'PATCH',
-    body: JSON.stringify(payload),
-  });
+  return requestJson(`/api/life-os/signals/${signalId}`, { method: 'PATCH', body: JSON.stringify(payload) });
 }
 
 export async function patchItemTitle(node, title) {
-  return requestJson(`/api/life-os/items/${node.sourceId}/title`, {
-    method: 'PATCH',
-    body: JSON.stringify({ kind: node.kind, title }),
-  });
+  return requestJson(`/api/life-os/items/${node.sourceId}/title`, { method: 'PATCH', body: JSON.stringify({ kind: node.kind, title }) });
 }
 
 export async function fetchInboxAssets() {
@@ -96,12 +87,20 @@ export async function fetchInboxAssets() {
   return Array.isArray(data.signals) ? data.signals : [];
 }
 
-export async function reprocessInboxSignals({ secret = '', limit = 30, onlyMissing = true } = {}) {
+export async function reprocessInboxSignals({ secret = '', onlyMissing = true } = {}) {
   return requestJson('/api/life-os/inbox/reprocess', {
     method: 'POST',
     headers: secret ? { 'X-LifeMap-Assistant-Secret': secret } : {},
-    body: JSON.stringify({ limit, onlyMissing }),
+    body: JSON.stringify({ onlyMissing }),
   });
+}
+
+export async function fetchInboxReprocessStatus() {
+  return requestJson('/api/life-os/inbox/reprocess/status');
+}
+
+export function attachmentDownloadUrl(signalId) {
+  return `/api/life-os/inbox/files/${encodeURIComponent(signalId)}`;
 }
 
 export async function fetchAssistantStatus() {
