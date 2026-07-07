@@ -92,14 +92,23 @@ function fallbackAssistant() {
   };
 }
 
+function providerLabel(provider = '') {
+  if (provider === 'groq') return 'Groq';
+  if (provider === 'gemini') return 'Gemini';
+  return provider;
+}
+
 export function createLifeMapAiService(env = process.env) {
   const router = createAiProviderRouter(env);
 
   function status() {
     const providerStatus = router.status();
-    const configured = providerStatus.providers.some((provider) => provider.configured);
+    const activeProvider = providerStatus.providers.find((provider) => provider.configured) || null;
+    const configured = Boolean(activeProvider);
     return {
       configured,
+      provider: activeProvider?.provider || '',
+      model: activeProvider ? `${providerLabel(activeProvider.provider)} · ${activeProvider.model}` : '',
       policyVersion: AI_POLICY_VERSION,
       providerOrder: providerStatus.order,
       providers: providerStatus.providers,
