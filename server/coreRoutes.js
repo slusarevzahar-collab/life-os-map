@@ -17,6 +17,7 @@ function enforceActionConfirmation(actions = []) {
 }
 
 function trustedLifeMapUi(req) {
+  if (String(req.get('Sec-Fetch-Site') || '').toLowerCase() === 'same-origin') return true;
   const candidates = [req.get('Origin'), req.get('Referer')].filter(Boolean);
   if (!candidates.length) return false;
   const codespaceName = process.env.CODESPACE_NAME;
