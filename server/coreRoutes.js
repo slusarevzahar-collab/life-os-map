@@ -16,7 +16,17 @@ function enforceActionConfirmation(actions = []) {
 }
 
 export function registerCoreRoutes(app, runtime) {
-  const { config, ai, buildLiveSnapshot, executeActions, makeMockResponse, prepareSnapshot } = runtime;
+  const {
+    config,
+    ai,
+    buildLiveSnapshot,
+    executeActions,
+    makeMockResponse,
+    prepareSnapshot,
+    assistantSecretOk,
+    listInboxAssets,
+    reprocessInboxSignals,
+  } = runtime;
 
   app.get('/api/life-os/snapshot', async (_req, res) => {
     try {
@@ -75,6 +85,31 @@ export function registerCoreRoutes(app, runtime) {
       const result = await archiveDuplicateSignals({
         notionToken: config.notionToken,
         signalsDbId: config.signalsDbId,
+      });
+      res.json({ ok: true, result });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.get('/api/life-os/inbox/assets', async (_req, res) => {
+    try {
+      const signals = await listInboxAssets();
+      res.json({ ok: true, signals });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.post('/api/life-os/inbox/reprocess', async (req, res) => {
+    if (!assistantSecretOk(req)) {
+      res.status(403).json({ ok: false, error: 'Reprocessing requires LifeMap assistant secret.' });
+      return;
+    }
+    try {
+      const result = await reprocessInboxSignals({
+        limit: req.body?.limit ?? 30,
+        onlyMissing: req.body?.onlyMissing !== false,
       });
       res.json({ ok: true, result });
     } catch (error) {
