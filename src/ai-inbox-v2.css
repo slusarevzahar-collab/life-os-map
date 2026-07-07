@@ -1,9 +1,22 @@
+.inboxV2Head { display: flex !important; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.reprocessButton { border: 1px solid rgba(103,232,249,.24); border-radius: 999px; padding: 8px 12px; color: #dffbff; background: rgba(103,232,249,.08); font-weight: 900; cursor: pointer; }
 .assetSubtabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 12px; }
-.assetSubtabs button { border-radius: 999px; padding: 8px 12px; }
+.assetSubtabs button { flex: 0 0 auto; border: 1px solid rgba(148,163,184,.16); border-radius: 999px; padding: 8px 12px; color: rgba(226,246,255,.72); background: rgba(255,255,255,.035); }
+.assetSubtabs button.active { border-color: rgba(103,232,249,.35); color: #dffbff; background: rgba(103,232,249,.12); }
+.assetSubtabs button span { margin-left: 6px; opacity: .62; }
 .assetGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; overflow: auto; padding-bottom: 80px; }
-.inboxAssetCard, .inboxSourceCard { border: 1px solid rgba(103,232,249,.14); border-radius: 18px; padding: 14px; background: rgba(8,17,29,.86); }
+.inboxAssetCard, .inboxSourceCard { display: flex; flex-direction: column; gap: 10px; border: 1px solid rgba(103,232,249,.14); border-radius: 18px; padding: 14px; background: rgba(8,17,29,.86); }
+.inboxAssetCard h3, .inboxSourceCard h3 { margin: 0; color: rgba(255,255,255,.95); }
+.inboxAssetCard p, .inboxSourceCard p { color: rgba(226,246,255,.72); line-height: 1.45; }
+.assetCardTopline, .sourceCardTopline { display: flex; justify-content: space-between; gap: 10px; }
+.assetCardTopline span, .sourceCardTopline span { color: #8cecff; font-weight: 900; }
+.assetSourceLine { color: rgba(203,225,235,.5); font-size: 11px; }
 .assetCardActions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.assetCardActions button, .assetModalActions button, .assetModalHead button { border: 1px solid rgba(148,163,184,.18); border-radius: 999px; padding: 8px 11px; color: rgba(226,246,255,.82); background: rgba(255,255,255,.04); cursor: pointer; }
+.primaryAssetButton { border-color: rgba(103,232,249,.3) !important; color: #07131e !important; background: linear-gradient(135deg,#68c6ff,#5ce1e6) !important; }
 .assetSuggestion, .sourceAiNote { margin-top: 10px; border-radius: 13px; padding: 10px; background: rgba(253,224,71,.055); }
-.assetModalBackdrop { position: fixed; top: 0; right: 0; bottom: 0; left: 0; display: grid; place-items: center; padding: 24px; background: rgba(2,7,14,.76); }
-.assetModal { width: min(900px, 92vw); max-height: 86vh; overflow: auto; border-radius: 24px; padding: 18px; background: #07111d; }
-.promptCopyBox { white-space: pre-wrap; word-break: break-word; padding: 16px; }
+.assetModalBackdrop { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 2000; display: grid; place-items: center; padding: 24px; background: rgba(2,7,14,.82); }
+.assetModal { width: min(900px, 92vw); max-height: 86vh; overflow: auto; border: 1px solid rgba(103,232,249,.2); border-radius: 24px; padding: 18px; background: #07111d; }
+.assetModalHead, .assetModalActions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.promptCopyBox { white-space: pre-wrap; word-break: break-word; padding: 16px; border-radius: 14px; color: rgba(235,251,255,.9); background: rgba(255,255,255,.035); }
+@media (max-width: 900px) { .inboxV2Head { align-items: stretch; flex-direction: column; } .assetGrid { grid-template-columns: 1fr; } }
