@@ -4,6 +4,7 @@ import {
   updateItemTitle,
   updateTaskEvent,
 } from './notionAdapter.js';
+import { telegramApi } from './telegramAdapter.js';
 import { EXECUTABLE_ACTIONS } from './lifemapAiPolicy.js';
 
 const EXECUTABLE = new Set(EXECUTABLE_ACTIONS);
@@ -29,6 +30,10 @@ function trustedLifeMapUi(req) {
   }
 }
 
+function safeFilename(value = 'attachment') {
+  return String(value || 'attachment').replace(/[\r\n"\\/]/g, '_').slice(0, 180) || 'attachment';
+}
+
 export function registerCoreRoutes(app, runtime) {
   const {
     config,
@@ -39,7 +44,9 @@ export function registerCoreRoutes(app, runtime) {
     prepareSnapshot,
     assistantSecretOk,
     listInboxAssets,
-    reprocessInboxSignals,
+    inboxSignal,
+    startInboxReprocessJob,
+    inboxReprocessJobStatus,
   } = runtime;
 
   app.get('/api/life-os/snapshot', async (_req, res) => {
@@ -86,9 +93,41 @@ export function registerCoreRoutes(app, runtime) {
       return;
     }
     try {
-      const result = await reprocessInboxSignals({ limit: req.body?.limit ?? 30, onlyMissing: req.body?.onlyMissing !== false });
-      res.json({ ok: true, result });
+      const job = await startInboxReprocessJob({ onlyMissing: req.body?.onlyMissing !== false });
+      res.status(202).json({ ok: true, job });
     } catch (error) { res.status(500).json({ ok: false, error: error.message }); }
+  });
+
+  app.get('/api/life-os/inbox/reprocess/status', (_req, res) => {
+    res.json({ ok: true, job: inboxReprocessJobStatus() });
+  });
+
+  app.get('/api/life-os/inbox/files/:signalId', async (req, res) => {
+    if (!trustedLifeMapUi(req) && !assistantSecretOk(req)) {
+      res.status(403).json({ ok: false, error: 'Attachment access is allowed only from LifeMap UI.' });
+      return;
+    }
+    try {
+      if (!config.telegramBotToken) throw new Error('TELEGRAM_BOT_TOKEN is missing.');
+      const signal = await inboxSignal(req.params.signalId);
+      const attachment = signal?.attachment;
+      if (!attachment?.fileId) {
+        res.status(404).json({ ok: false, error: 'Direct download is unavailable for this old attachment. Open the original Telegram post instead.' });
+        return;
+      }
+      const fileInfo = await telegramApi(config.telegramBotToken, 'getFile', { file_id: attachment.fileId });
+      const filePath = fileInfo?.result?.file_path;
+      if (!filePath) throw new Error('Telegram did not return a file path.');
+      const upstream = await fetch(`https://api.telegram.org/file/bot${config.telegramBotToken}/${filePath}`);
+      if (!upstream.ok) throw new Error(`Telegram file download failed: ${upstream.status}`);
+      const buffer = Buffer.from(await upstream.arrayBuffer());
+      res.setHeader('Content-Type', attachment.mimeType || upstream.headers.get('content-type') || 'application/octet-stream');
+      res.setHeader('Content-Length', String(buffer.length));
+      res.setHeader('Content-Disposition', `attachment; filename="${safeFilename(attachment.fileName)}"`);
+      res.send(buffer);
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
   });
 
   app.get('/api/life-os/assistant/status', (_req, res) => {
@@ -123,6 +162,7 @@ export function registerCoreRoutes(app, runtime) {
       },
       telegram: { token: Boolean(config.telegramBotToken), secret: Boolean(config.telegramWebhookSecret), allowedUsersLocked: Boolean(config.telegramAllowedUserIds) },
       assistant: { ...ai.status(), actionSecret: Boolean(config.assistantSecret) },
+      inboxReprocess: inboxReprocessJobStatus(),
     });
   });
 }
