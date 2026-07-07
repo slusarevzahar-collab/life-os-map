@@ -51,6 +51,10 @@ function signalScore(signal = {}, target = {}) {
   return score;
 }
 
+function activeTask(task = {}) {
+  return !/done|готово|заверш|archived|архив/i.test(String(task.status || ''));
+}
+
 export function projectNamesFromSnapshot(snapshot = {}) {
   return [...new Set([
     ...(snapshot.projectAreas || []).map((item) => item.name),
@@ -111,22 +115,39 @@ export function compactForAssistant(snapshot = {}, target = {}) {
 
 export function buildSafeInboxPayload(signal = {}, snapshot = {}) {
   const document = signal.telegram?.document || signal.attachment || null;
+  const focusProject = String(snapshot.currentFocus?.project || '').toLowerCase();
+  const activeWork = [...(snapshot.tasks || [])]
+    .filter(activeTask)
+    .sort((a, b) => {
+      const aFocus = focusProject && String(a.project || '').toLowerCase() === focusProject ? 1 : 0;
+      const bFocus = focusProject && String(b.project || '').toLowerCase() === focusProject ? 1 : 0;
+      if (aFocus !== bFocus) return bFocus - aFocus;
+      return Number(a.priority || 999) - Number(b.priority || 999);
+    })
+    .slice(0, 6)
+    .map((task) => ({
+      title: safeText(task.title, 180),
+      project: safeText(task.project, 100),
+      nextAction: safeText(task.nextAction, 260),
+    }));
+
   return {
     availableProjects: projectNamesFromSnapshot(snapshot),
     currentFocus: snapshot.currentFocus ? {
-      title: safeText(snapshot.currentFocus.title, 240),
-      project: safeText(snapshot.currentFocus.project, 160),
-      nextAction: safeText(snapshot.currentFocus.nextAction, 500),
+      title: safeText(snapshot.currentFocus.title, 220),
+      project: safeText(snapshot.currentFocus.project, 140),
+      nextAction: safeText(snapshot.currentFocus.nextAction, 360),
     } : null,
+    activeWork,
     signal: {
-      title: safeText(signal.title, 260),
-      heuristicType: safeText(signal.type, 80),
-      heuristicPriority: safeText(signal.priority, 40),
-      text: safeText(signal.rawText || signal.summary, 7000),
+      title: safeText(signal.title, 220),
+      heuristicType: safeText(signal.type, 60),
+      heuristicPriority: safeText(signal.priority, 30),
+      text: safeText(signal.rawText || signal.summary, 5000),
       sourceHost: (() => { try { return new URL(signal.sourceUrl || '').hostname; } catch { return ''; } })(),
       attachment: document ? {
-        fileName: safeText(document.fileName || document.file_name, 240),
-        mimeType: safeText(document.mimeType || document.mime_type, 120),
+        fileName: safeText(document.fileName || document.file_name, 220),
+        mimeType: safeText(document.mimeType || document.mime_type, 100),
         size: Number(document.fileSize || document.file_size || 0),
         textCaptured: document.textCaptured === true,
       } : null,
