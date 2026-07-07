@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { compactForAssistant, sanitizeTextForAi } from '../server/aiPrivacy.js';
+import { buildSafeInboxPayload, compactForAssistant, sanitizeTextForAi } from '../server/aiPrivacy.js';
 import { buildAssistantSystemPrompt, buildInboxSystemPrompt } from '../server/aiPrompts.js';
 import { createLifeMapAiService } from '../server/lifemapAi.js';
 import { AI_POLICY_VERSION } from '../server/lifemapAiPolicy.js';
@@ -30,8 +30,25 @@ assert(assistantPrompt.includes(`POLICY_VERSION=${AI_POLICY_VERSION}`));
 
 const inboxPrompt = buildInboxSystemPrompt(['LifeMap']);
 assert(inboxPrompt.includes('ИЗВЛЕЧЕНИЕ ASSETS'));
-assert(inboxPrompt.includes('Prompt|Tool|Workflow|Task|Research|Idea|Reference'));
+assert(inboxPrompt.includes('Prompt, Tool, Workflow, Task, Research, Idea, Reference, News, Instruction, File, Other'));
 assert(inboxPrompt.includes('Один входящий пост может содержать несколько разных сущностей'));
+assert(inboxPrompt.includes('Любая полезная информация должна либо попасть в точный kind, либо в Other'));
+
+const safeInbox = buildSafeInboxPayload({
+  title: 'PDF guide',
+  rawText: 'Описание материала',
+  telegram: {
+    document: {
+      fileId: 'secret-telegram-file-id',
+      fileName: 'guide.pdf',
+      mimeType: 'application/pdf',
+      fileSize: 42000,
+    },
+  },
+}, snapshot);
+assert.equal(safeInbox.signal.attachment.fileName, 'guide.pdf');
+assert.equal(safeInbox.signal.attachment.mimeType, 'application/pdf');
+assert(!JSON.stringify(safeInbox).includes('secret-telegram-file-id'));
 
 const ai = createLifeMapAiService({});
 assert.equal(ai.status().configured, false);
