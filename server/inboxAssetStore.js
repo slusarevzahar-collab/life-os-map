@@ -95,6 +95,8 @@ function assetTypes(assets = []) {
 
 function mapSignalPage(page) {
   const props = page.properties || {};
+  const storedAiProcessingVersion = richText(props['AI processing version']);
+  const currentAnalysis = storedAiProcessingVersion === AI_POLICY_VERSION;
   return {
     id: page.id,
     title: titleText(props.Signal) || 'Untitled signal',
@@ -109,7 +111,9 @@ function mapSignalPage(page) {
     sourceUrl: urlValue(props['Source URL']),
     capturedAt: dateStart(props['Date captured']),
     assets: safeParseAssets(richText(props['Extracted assets'])),
-    aiProcessingVersion: richText(props['AI processing version']),
+    aiProcessingVersion: currentAnalysis ? storedAiProcessingVersion : '',
+    storedAiProcessingVersion,
+    needsReprocessing: !currentAnalysis,
     attachment: safeParseJson(richText(props['Attachment metadata']), null),
     assetTypes: multiSelectNames(props['Asset type']),
   };
