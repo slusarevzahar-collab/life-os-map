@@ -62,6 +62,8 @@ function InlineTitleEditor({ value, onChange, onSubmit, onCancel }) {
 
 export function SideList({
   map,
+  snapshot,
+  activeFocus,
   viewMode,
   setViewMode,
   onComplete,
@@ -91,7 +93,7 @@ export function SideList({
     }
   }, [highlightedItemId, visibleItems.length]);
 
-  if (inboxMode) return <AIInboxV2 map={map} highlightedItemId={highlightedItemId} />;
+  if (inboxMode) return <AIInboxV2 map={map} snapshot={snapshot} activeFocus={activeFocus} highlightedItemId={highlightedItemId} />;
 
   return (
     <aside className="sideList" onClick={(event) => event.stopPropagation()}>
