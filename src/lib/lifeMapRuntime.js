@@ -77,15 +77,11 @@ export async function patchTask(taskId, payload) {
   });
 }
 
-function notionSignalStatus(status = 'Inbox') {
-  if (status === 'New') return 'Inbox';
-  if (status === 'Reviewed') return 'Processed';
-  if (status === 'Archived') return 'Processed';
-  return status || 'Inbox';
-}
-
 export async function patchSignal(signalId, payload) {
-  return patchTask(signalId, { status: notionSignalStatus(payload.status) });
+  return requestJson(`/api/life-os/signals/${signalId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function patchItemTitle(node, title) {
