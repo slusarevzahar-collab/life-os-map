@@ -95,6 +95,19 @@ export async function patchItemTitle(node, title) {
   });
 }
 
+export async function fetchInboxAssets() {
+  const data = await requestJson('/api/life-os/inbox/assets');
+  return Array.isArray(data.signals) ? data.signals : [];
+}
+
+export async function reprocessInboxSignals({ secret = '', limit = 30, onlyMissing = true } = {}) {
+  return requestJson('/api/life-os/inbox/reprocess', {
+    method: 'POST',
+    headers: secret ? { 'X-LifeMap-Assistant-Secret': secret } : {},
+    body: JSON.stringify({ limit, onlyMissing }),
+  });
+}
+
 export async function fetchAssistantStatus() {
   return requestJson('/api/life-os/assistant/status');
 }
