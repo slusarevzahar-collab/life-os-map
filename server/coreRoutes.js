@@ -17,17 +17,19 @@ function enforceActionConfirmation(actions = []) {
 }
 
 function trustedLifeMapUi(req) {
-  const origin = String(req.get('Origin') || '');
-  if (!origin) return false;
-  try {
-    const url = new URL(origin);
-    if (['localhost', '127.0.0.1'].includes(url.hostname)) return true;
-    const codespaceName = process.env.CODESPACE_NAME;
-    const domain = process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN || 'app.github.dev';
-    return Boolean(codespaceName) && url.hostname === `${codespaceName}-3000.${domain}`;
-  } catch {
-    return false;
-  }
+  const candidates = [req.get('Origin'), req.get('Referer')].filter(Boolean);
+  if (!candidates.length) return false;
+  const codespaceName = process.env.CODESPACE_NAME;
+  const domain = process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN || 'app.github.dev';
+  return candidates.some((candidate) => {
+    try {
+      const url = new URL(candidate);
+      if (['localhost', '127.0.0.1'].includes(url.hostname)) return true;
+      return Boolean(codespaceName) && url.hostname === `${codespaceName}-3000.${domain}`;
+    } catch {
+      return false;
+    }
+  });
 }
 
 function safeFilename(value = 'attachment') {
