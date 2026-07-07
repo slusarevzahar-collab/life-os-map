@@ -1,16 +1,42 @@
 const DEFAULT_TIMEOUT_MS = 22000;
 
-function providerConfigs(env = process.env) {
+function groqConfig({ name, model, apiKey }) {
   return {
-    groq: {
-      provider: 'groq',
-      apiKey: env.GROQ_API_KEY || '',
+    name,
+    provider: 'groq',
+    apiKey,
+    model,
+    url: 'https://api.groq.com/openai/v1/chat/completions',
+    useJsonObjectMode: true,
+    authHeader: (key) => ({ Authorization: `Bearer ${key}` }),
+  };
+}
+
+function providerConfigs(env = process.env) {
+  const groqKey = env.GROQ_API_KEY || '';
+  return {
+    groq_scout: groqConfig({
+      name: 'groq_scout',
+      apiKey: groqKey,
+      model: env.GROQ_SCOUT_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
+    }),
+    groq_qwen: groqConfig({
+      name: 'groq_qwen',
+      apiKey: groqKey,
+      model: env.GROQ_QWEN_MODEL || 'qwen/qwen3-32b',
+    }),
+    groq_instant: groqConfig({
+      name: 'groq_instant',
+      apiKey: groqKey,
+      model: env.GROQ_INSTANT_MODEL || 'llama-3.1-8b-instant',
+    }),
+    groq_70b: groqConfig({
+      name: 'groq_70b',
+      apiKey: groqKey,
       model: env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-      url: 'https://api.groq.com/openai/v1/chat/completions',
-      useJsonObjectMode: true,
-      authHeader: (key) => ({ Authorization: `Bearer ${key}` }),
-    },
+    }),
     gemini: {
+      name: 'gemini',
       provider: 'gemini',
       apiKey: env.GEMINI_API_KEY || '',
       model: env.GEMINI_MODEL || 'gemini-3.1-flash-lite',
@@ -21,12 +47,26 @@ function providerConfigs(env = process.env) {
   };
 }
 
-function providerOrder(env = process.env) {
-  const requested = String(env.AI_PROVIDER_ORDER || 'groq,gemini')
+const DEFAULT_ORDERS = {
+  inbox: ['groq_scout', 'groq_instant', 'groq_qwen', 'gemini'],
+  chat: ['groq_qwen', 'groq_scout', 'groq_70b', 'groq_instant', 'gemini'],
+};
+
+function expandAlias(name, profile) {
+  if (name !== 'groq') return [name];
+  return DEFAULT_ORDERS[profile].filter((item) => item.startsWith('groq_'));
+}
+
+function profileOrder(env = process.env, profile = 'chat') {
+  const specific = profile === 'inbox' ? env.AI_INBOX_PROVIDER_ORDER : env.AI_CHAT_PROVIDER_ORDER;
+  const generic = env.AI_PROVIDER_ORDER;
+  const raw = specific || generic || DEFAULT_ORDERS[profile].join(',');
+  const requested = String(raw)
     .split(',')
     .map((name) => name.trim().toLowerCase())
-    .filter(Boolean);
-  return [...new Set(requested)].filter((name) => ['groq', 'gemini'].includes(name));
+    .filter(Boolean)
+    .flatMap((name) => expandAlias(name, profile));
+  return [...new Set(requested)].filter((name) => [...DEFAULT_ORDERS.inbox, ...DEFAULT_ORDERS.chat].includes(name));
 }
 
 function extractText(data = {}) {
@@ -39,6 +79,12 @@ function extractText(data = {}) {
 function retryAfterMs(response) {
   const raw = Number(response.headers.get('retry-after') || 0);
   return Number.isFinite(raw) && raw > 0 ? Math.ceil(raw * 1000) : 0;
+}
+
+function shortProviderError(config, response, data) {
+  if (response.status === 429) return `${config.provider}/${config.model}: rate limit`;
+  const message = String(data.error?.message || `HTTP ${response.status}`).replace(/\s+/g, ' ').slice(0, 220);
+  return `${config.provider}/${config.model}: ${message}`;
 }
 
 async function callProvider({ config, systemPrompt, userPayload, maxTokens, temperature, timeoutMs }) {
@@ -68,58 +114,101 @@ async function callProvider({ config, systemPrompt, userPayload, maxTokens, temp
 
     const data = await response.json().catch(() => ({}));
     if (!response.ok || data.error) {
-      const message = data.error?.message || `HTTP ${response.status}`;
-      const error = new Error(`${config.provider}: ${message}`);
+      const error = new Error(shortProviderError(config, response, data));
       error.provider = config.provider;
+      error.model = config.model;
       error.status = response.status;
       error.retryAfterMs = retryAfterMs(response);
       throw error;
     }
     const text = extractText(data);
-    if (!text) throw new Error(`${config.provider}: empty response`);
+    if (!text) {
+      const error = new Error(`${config.provider}/${config.model}: empty response`);
+      error.provider = config.provider;
+      error.model = config.model;
+      throw error;
+    }
     return { text, provider: config.provider, model: data.model || config.model };
   } finally {
     clearTimeout(timer);
   }
 }
 
+function soonestRetry(errors = []) {
+  const values = errors.map((item) => Number(item.retryAfterMs || 0)).filter((value) => value > 0);
+  return values.length ? Math.min(...values) : 0;
+}
+
 export function createAiProviderRouter(env = process.env) {
   const configs = providerConfigs(env);
-  const order = providerOrder(env);
   const timeoutMs = Number(env.AI_REQUEST_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
+  const blockedUntil = new Map();
+
+  function orderFor(profile = 'chat') {
+    return profileOrder(env, profile);
+  }
 
   function status() {
+    const uniqueNames = [...new Set([...orderFor('chat'), ...orderFor('inbox')])];
     return {
-      order,
-      providers: order.map((name) => ({
-        provider: name,
+      order: orderFor('chat'),
+      profiles: { chat: orderFor('chat'), inbox: orderFor('inbox') },
+      providers: uniqueNames.map((name) => ({
+        name,
+        provider: configs[name]?.provider || name,
         configured: Boolean(configs[name]?.apiKey),
         model: configs[name]?.model || '',
+        blockedForMs: Math.max(0, Number(blockedUntil.get(name) || 0) - Date.now()),
       })),
     };
   }
 
-  async function completeJson({ systemPrompt, userPayload, maxTokens = 1800, temperature = 0.15 }) {
+  async function completeJson({ systemPrompt, userPayload, maxTokens = 1800, temperature = 0.15, profile = 'chat' }) {
     const errors = [];
+    const order = orderFor(profile);
+
     for (const name of order) {
       const config = configs[name];
       if (!config?.apiKey) continue;
+      const blockedMs = Math.max(0, Number(blockedUntil.get(name) || 0) - Date.now());
+      if (blockedMs > 0) {
+        errors.push({ provider: config.provider, model: config.model, message: `${name}: cooling down`, status: 429, retryAfterMs: blockedMs });
+        continue;
+      }
+
       try {
         return await callProvider({ config, systemPrompt, userPayload, maxTokens, temperature, timeoutMs });
       } catch (error) {
         if (error.name === 'AbortError') {
-          errors.push({ provider: name, message: `${name}: timeout`, status: 408, retryAfterMs: 0 });
-        } else {
-          errors.push({ provider: name, message: error.message, status: Number(error.status || 0), retryAfterMs: Number(error.retryAfterMs || 0) });
+          errors.push({ provider: config.provider, model: config.model, message: `${name}: timeout`, status: 408, retryAfterMs: 0 });
+          continue;
+        }
+        const item = {
+          provider: config.provider,
+          model: config.model,
+          message: error.message,
+          status: Number(error.status || 0),
+          retryAfterMs: Number(error.retryAfterMs || 0),
+        };
+        errors.push(item);
+        if (item.status === 429) {
+          const cooldown = item.retryAfterMs > 0 ? item.retryAfterMs : 60000;
+          blockedUntil.set(name, Date.now() + cooldown);
         }
       }
     }
+
     const configured = order.filter((name) => Boolean(configs[name]?.apiKey));
     if (!configured.length) throw new Error('No free AI provider is configured. Add GROQ_API_KEY or GEMINI_API_KEY.');
-    const error = new Error(`All configured AI providers failed: ${errors.map((item) => item.message).join(' | ')}`);
+
+    const rateLimited = errors.length > 0 && errors.every((item) => item.status === 429);
+    const retryMs = soonestRetry(errors);
+    const error = new Error(rateLimited
+      ? `AI capacity is temporarily exhausted across the configured model pool.${retryMs ? ` Retry in about ${Math.max(1, Math.ceil(retryMs / 60000))} min.` : ''}`
+      : `All configured AI routes failed (${errors.map((item) => `${item.provider}/${item.model}: ${item.status || 'error'}`).join(', ')}).`);
     error.providerErrors = errors;
-    error.status = errors.some((item) => item.status === 429) ? 429 : errors[0]?.status || 500;
-    error.retryAfterMs = Math.max(0, ...errors.map((item) => item.retryAfterMs || 0));
+    error.status = rateLimited ? 429 : errors[0]?.status || 500;
+    error.retryAfterMs = retryMs;
     throw error;
   }
 
