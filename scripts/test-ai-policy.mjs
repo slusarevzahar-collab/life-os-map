@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { compactForAssistant, sanitizeTextForAi } from '../server/aiPrivacy.js';
+import { buildAssistantSystemPrompt, buildInboxSystemPrompt } from '../server/aiPrompts.js';
 import { createLifeMapAiService } from '../server/lifemapAi.js';
+import { AI_POLICY_VERSION } from '../server/lifemapAiPolicy.js';
 
 const masked = sanitizeTextForAi('EMAIL=test@example.com PHONE=+7 999 123-45-67 ACCESS_TOKEN=very-secret-value');
 assert(!masked.includes('test@example.com'));
@@ -20,6 +22,16 @@ const compact = compactForAssistant(snapshot, { project: 'LifeMap' });
 assert(compact.tasks.length <= 16);
 assert(compact.goals.length <= 10);
 assert(compact.signals.length <= 8);
+
+const assistantPrompt = buildAssistantSystemPrompt();
+assert(assistantPrompt.includes('Обращайся к Захару на «ты»'));
+assert(assistantPrompt.includes('Не повторяй одну и ту же сводку'));
+assert(assistantPrompt.includes(`POLICY_VERSION=${AI_POLICY_VERSION}`));
+
+const inboxPrompt = buildInboxSystemPrompt(['LifeMap']);
+assert(inboxPrompt.includes('ИЗВЛЕЧЕНИЕ ASSETS'));
+assert(inboxPrompt.includes('Prompt|Tool|Workflow|Task|Research|Idea|Reference'));
+assert(inboxPrompt.includes('Один входящий пост может содержать несколько разных сущностей'));
 
 const ai = createLifeMapAiService({});
 assert.equal(ai.status().configured, false);
