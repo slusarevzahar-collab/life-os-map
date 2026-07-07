@@ -1,29 +1,465 @@
-.inboxV2Head { display: flex !important; align-items: center; justify-content: space-between; gap: 12px; }
-.reprocessButton { border: 1px solid rgba(103,232,249,.24); border-radius: 999px; padding: 7px 11px; color: #dffbff; background: rgba(103,232,249,.08); font-weight: 900; cursor: pointer; white-space: nowrap; }
-.assetSubtabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 10px; }
-.assetSubtabs button { flex: 0 0 auto; border: 1px solid rgba(148,163,184,.16); border-radius: 999px; padding: 7px 11px; color: rgba(226,246,255,.72); background: rgba(255,255,255,.035); }
-.assetSubtabs button.active { border-color: rgba(103,232,249,.35); color: #dffbff; background: rgba(103,232,249,.12); }
-.assetSubtabs button span { margin-left: 6px; opacity: .62; }
-.compactInboxList { display: grid; align-content: start; gap: 7px; overflow-y: auto; overflow-x: hidden; min-height: 0; padding: 1px 2px 72px; }
-.compactInboxRow { border: 1px solid rgba(103,232,249,.12); border-radius: 14px; background: rgba(8,17,29,.78); overflow: hidden; transform-origin: top center; }
-.compactInboxRow.expanded { border-color: rgba(103,232,249,.26); background: rgba(8,20,33,.9); }
-.compactInboxMain { width: 100%; min-height: 58px; display: grid; grid-template-columns: minmax(72px,auto) minmax(0,1fr) 28px; align-items: center; gap: 12px; padding: 9px 12px; border: 0; color: inherit; background: transparent; text-align: left; cursor: pointer; }
-.compactInboxBadge { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid rgba(103,232,249,.16); border-radius: 999px; padding: 5px 8px; color: #8cecff; background: rgba(103,232,249,.06); font-size: 10px; font-weight: 900; text-align: center; }
-.compactInboxText { min-width: 0; display: grid; gap: 4px; }
-.compactInboxText b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgba(255,255,255,.94); font-size: 14px; }
-.compactInboxText small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgba(203,225,235,.54); font-size: 11px; }
-.compactInboxDetails { display: grid; gap: 12px; padding: 2px 14px 14px 98px; }
-.compactInboxDetails > div > small { display: block; margin-bottom: 5px; color: rgba(103,232,249,.78); font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }
-.compactInboxDetails p { margin: 0; color: rgba(226,246,255,.72); font-size: 13px; line-height: 1.48; white-space: pre-wrap; }
-.fullSignalText { max-height: 340px; overflow: auto; padding-right: 6px; }
-.compactInboxSource { color: rgba(203,225,235,.48); font-size: 11px; }
-.assetCardActions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
-.assetCardActions button, .assetModalActions button, .assetModalHead button { border: 1px solid rgba(148,163,184,.18); border-radius: 999px; padding: 8px 11px; color: rgba(226,246,255,.82); background: rgba(255,255,255,.04); cursor: pointer; }
-.primaryAssetButton { border-color: rgba(103,232,249,.3) !important; color: #07131e !important; background: linear-gradient(135deg,#68c6ff,#5ce1e6) !important; }
-.assetModalBackdrop { position: fixed; inset: 0; z-index: 2000; display: grid; place-items: center; padding: 24px; background: rgba(2,7,14,.82); }
-.assetModal { width: min(900px,92vw); max-height: 86vh; overflow: auto; border: 1px solid rgba(103,232,249,.2); border-radius: 24px; padding: 18px; background: #07111d; }
-.assetModalHead, .assetModalActions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.promptCopyBox { white-space: pre-wrap; word-break: break-word; padding: 16px; border-radius: 14px; color: rgba(235,251,255,.9); background: rgba(255,255,255,.035); }
-.inboxEntering { animation: inboxEnter .55s cubic-bezier(.2,.8,.2,1) both; }
-@keyframes inboxEnter { from { opacity: 0; transform: translateY(-16px) scale(.985); max-height: 0; } to { opacity: 1; transform: translateY(0) scale(1); max-height: 500px; } }
-@media (max-width: 900px) { .inboxV2Head { align-items: stretch; flex-direction: column; } .compactInboxMain { grid-template-columns: minmax(62px,90px) minmax(0,1fr) 24px; } .compactInboxDetails { padding-left: 14px; } }
+.inboxV2Panel {
+  display: grid;
+  grid-template-rows: auto auto auto auto minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.inboxV2Head {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding-bottom: 10px !important;
+}
+
+.inboxV2Head > div {
+  min-width: 0;
+}
+
+.inboxV2Head strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reprocessButton {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  min-width: 154px;
+  height: 40px;
+  border: 1px solid rgba(103, 232, 249, .28);
+  border-radius: 999px;
+  padding: 0 15px;
+  color: #dffbff;
+  background: rgba(103, 232, 249, .09);
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.reprocessButton:disabled {
+  opacity: .78;
+  cursor: wait;
+}
+
+.inboxV2Panel .inboxCategoryTabs.inboxV2Tabs {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+  padding: 4px 0 12px !important;
+  margin: 0 !important;
+  overflow: visible !important;
+}
+
+.inboxV2Panel .inboxCategoryTabs.inboxV2Tabs button {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 10px !important;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1.05;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.inboxV2Tabs .tabLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.inboxV2Tabs .tabCount {
+  flex: 0 0 auto;
+  min-width: 23px;
+  height: 23px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0 6px;
+  background: rgba(255, 255, 255, .055);
+  font-size: 11px;
+}
+
+.inboxV2Panel .assetSubtabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 7px;
+  max-height: 82px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0 2px 10px 0;
+}
+
+.inboxV2Panel .assetSubtabs button {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  height: 34px;
+  min-height: 34px;
+  border: 1px solid rgba(148, 163, 184, .16);
+  border-radius: 999px;
+  padding: 0 11px;
+  color: rgba(226, 246, 255, .72);
+  background: rgba(255, 255, 255, .035);
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.inboxV2Panel .assetSubtabs button.active {
+  border-color: rgba(103, 232, 249, .35);
+  color: #dffbff;
+  background: rgba(103, 232, 249, .12);
+}
+
+.inboxV2Panel .assetSubtabs button span {
+  margin-left: 6px;
+  opacity: .62;
+}
+
+.inboxJobProgress {
+  position: relative;
+  height: 4px;
+  margin: 0 0 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(103, 232, 249, .08);
+}
+
+.inboxJobProgress span {
+  display: block;
+  height: 100%;
+  min-width: 3px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #68c6ff, #5ce1e6);
+  transition: width .45s ease;
+}
+
+.inboxV2Panel .inboxNotice,
+.inboxV2Panel .inboxError {
+  box-sizing: border-box;
+  margin: 0 0 9px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.compactInboxList {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 1px 3px 72px 1px;
+  scrollbar-gutter: stable;
+}
+
+.compactInboxRow {
+  position: relative;
+  z-index: 0;
+  flex: 0 0 auto;
+  min-height: 58px;
+  border: 1px solid rgba(103, 232, 249, .14);
+  border-radius: 14px;
+  background: rgba(8, 17, 29, .82);
+  overflow: hidden;
+  transform-origin: top center;
+}
+
+.compactInboxRow:hover {
+  z-index: 1;
+  border-color: rgba(103, 232, 249, .23);
+  background: rgba(10, 22, 36, .9);
+}
+
+.compactInboxRow.expanded {
+  border-color: rgba(103, 232, 249, .3);
+  background: rgba(8, 20, 33, .94);
+}
+
+.compactInboxMain {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: minmax(78px, 118px) minmax(0, 1fr) 26px;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border: 0;
+  color: rgba(236, 248, 255, .95);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.compactInboxBadge {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 1px solid rgba(103, 232, 249, .18);
+  border-radius: 999px;
+  padding: 6px 8px;
+  color: #8cecff;
+  background: rgba(103, 232, 249, .065);
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 900;
+  text-align: center;
+}
+
+.compactInboxText {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.compactInboxText b {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, .95) !important;
+  font-size: 14px;
+  line-height: 1.25;
+  font-weight: 800;
+}
+
+.compactInboxText small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(203, 225, 235, .57) !important;
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.compactInboxDetails {
+  display: grid;
+  gap: 12px;
+  padding: 4px 14px 14px 104px;
+}
+
+.compactInboxDetails > div > small {
+  display: block;
+  margin-bottom: 5px;
+  color: rgba(103, 232, 249, .78);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.compactInboxDetails p {
+  margin: 0;
+  color: rgba(226, 246, 255, .74);
+  font-size: 13px;
+  line-height: 1.48;
+  white-space: pre-wrap;
+}
+
+.fullSignalText {
+  max-height: 340px;
+  overflow: auto;
+  padding-right: 6px;
+}
+
+.compactInboxSource {
+  color: rgba(203, 225, 235, .5);
+  font-size: 11px;
+}
+
+.inboxAttachmentBlock {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid rgba(103, 232, 249, .14);
+  border-radius: 13px;
+  padding: 9px 10px;
+  background: rgba(103, 232, 249, .05);
+}
+
+.attachmentMeta {
+  min-width: 0;
+  display: flex !important;
+  align-items: center;
+  gap: 9px;
+}
+
+.attachmentMeta > span:last-child {
+  min-width: 0;
+}
+
+.attachmentMeta b,
+.attachmentMeta small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachmentMeta b {
+  color: rgba(255, 255, 255, .9);
+  font-size: 12px;
+}
+
+.attachmentMeta small {
+  margin-top: 3px;
+  color: rgba(203, 225, 235, .52);
+  font-size: 10px;
+}
+
+.attachmentIcon {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 28px;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: #8cecff;
+  background: rgba(103, 232, 249, .09);
+  font-size: 9px;
+  font-weight: 1000;
+}
+
+.inboxAttachmentBlock button,
+.assetCardActions button,
+.assetModalActions button,
+.assetModalHead button {
+  box-sizing: border-box;
+  height: 36px;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(148, 163, 184, .2);
+  border-radius: 999px;
+  padding: 0 12px;
+  color: rgba(226, 246, 255, .84);
+  background: rgba(255, 255, 255, .045);
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.assetCardActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.primaryAssetButton {
+  border-color: rgba(103, 232, 249, .3) !important;
+  color: #07131e !important;
+  background: linear-gradient(135deg, #68c6ff, #5ce1e6) !important;
+}
+
+.assetModalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(2, 7, 14, .84);
+  backdrop-filter: blur(8px);
+}
+
+.assetModal {
+  box-sizing: border-box;
+  width: min(900px, 92vw);
+  max-height: 86vh;
+  overflow: auto;
+  border: 1px solid rgba(103, 232, 249, .2);
+  border-radius: 24px;
+  padding: 18px;
+  background: #07111d;
+}
+
+.assetModalHead,
+.assetModalActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.promptCopyBox {
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 16px;
+  border-radius: 14px;
+  color: rgba(235, 251, 255, .9);
+  background: rgba(255, 255, 255, .035);
+}
+
+.inboxEntering {
+  animation: inboxEnter .55s cubic-bezier(.2, .8, .2, 1) both;
+}
+
+@keyframes inboxEnter {
+  from { opacity: 0; transform: translateY(-16px) scale(.985); max-height: 0; }
+  to { opacity: 1; transform: translateY(0) scale(1); max-height: 600px; }
+}
+
+@media (max-width: 1100px) {
+  .inboxV2Panel .inboxCategoryTabs.inboxV2Tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .inboxV2Head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .reprocessButton {
+    width: 100%;
+  }
+
+  .inboxV2Panel .inboxCategoryTabs.inboxV2Tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .compactInboxMain {
+    grid-template-columns: minmax(66px, 92px) minmax(0, 1fr) 24px;
+  }
+
+  .compactInboxDetails {
+    padding-left: 14px;
+  }
+
+  .inboxAttachmentBlock {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
