@@ -11,6 +11,7 @@ import {
 } from './notionAdapter.js';
 import { readLocalSignals } from './telegramAdapter.js';
 import { createLifeMapAiService } from './lifemapAi.js';
+import { listInboxSignalRecords, persistSignalAnalysis } from './inboxAssetStore.js';
 
 export function loadLocalEnv() {
   const envPath = path.resolve(process.cwd(), '.env');
@@ -139,6 +140,48 @@ export function createLifeMapRuntime({ envLoaded = false } = {}) {
     return req.get('X-LifeMap-Assistant-Secret') === config.assistantSecret;
   }
 
+  async function listInboxAssets() {
+    return listInboxSignalRecords({ notionToken: config.notionToken, signalsDbId: config.signalsDbId });
+  }
+
+  async function reprocessInboxSignals({ limit = 30, onlyMissing = true } = {}) {
+    if (!ai.status().configured) throw new Error('AI provider is not configured.');
+    const snapshot = await buildLiveSnapshot();
+    const records = await listInboxAssets();
+    const candidates = records
+      .filter((signal) => !onlyMissing || !Array.isArray(signal.assets) || signal.assets.length === 0)
+      .slice(0, Math.max(1, Math.min(Number(limit) || 30, 50)));
+
+    const results = [];
+    for (const signal of candidates) {
+      try {
+        const analysis = await ai.analyzeInboxSignal({
+          signal: {
+            ...signal,
+            rawText: signal.summary || signal.assistantNote || signal.possibleUse || '',
+          },
+          snapshot,
+        });
+        const stored = await persistSignalAnalysis({
+          notionToken: config.notionToken,
+          signalId: signal.id,
+          analysis,
+        });
+        results.push({ id: signal.id, title: signal.title, ok: true, assets: stored.assets });
+      } catch (error) {
+        results.push({ id: signal.id, title: signal.title, ok: false, error: error.message });
+      }
+    }
+
+    return {
+      scanned: records.length,
+      attempted: candidates.length,
+      processed: results.filter((item) => item.ok).length,
+      failed: results.filter((item) => !item.ok).length,
+      results,
+    };
+  }
+
   async function executeAction(action = {}) {
     const type = action.type || action.name || '';
     const payload = normalizePayload(action.payload);
@@ -164,5 +207,16 @@ export function createLifeMapRuntime({ envLoaded = false } = {}) {
     return results;
   }
 
-  return { config, ai, buildLiveSnapshot, makeMockResponse, prepareSnapshot, telegramSecretOk, executeActions };
+  return {
+    config,
+    ai,
+    buildLiveSnapshot,
+    makeMockResponse,
+    prepareSnapshot,
+    telegramSecretOk,
+    assistantSecretOk,
+    listInboxAssets,
+    reprocessInboxSignals,
+    executeActions,
+  };
 }
