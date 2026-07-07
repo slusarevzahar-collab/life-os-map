@@ -7,7 +7,7 @@ const ALL_ACTIONS = new Set([...EXECUTABLE_ACTIONS, ...PLANNING_ACTIONS]);
 const EXECUTABLE = new Set(EXECUTABLE_ACTIONS);
 const SIGNAL_TYPES = new Set(['Idea', 'Tool', 'Research', 'News', 'Reference', 'Task candidate', 'Personal note', 'Telegram']);
 const PRIORITIES = new Set(['High', 'Normal', 'Low']);
-const ASSET_KINDS = new Set(['Prompt', 'Tool', 'Workflow', 'Task', 'Research', 'Idea', 'Reference']);
+const ASSET_KINDS = new Set(['Prompt', 'Tool', 'Workflow', 'Task', 'Research', 'Idea', 'Reference', 'News', 'Instruction', 'File', 'Other']);
 
 function parseJson(value) {
   if (value && typeof value === 'object') return value;
@@ -84,7 +84,7 @@ function normalizeAssets(rawAssets = []) {
       seen.add(identity);
       return true;
     })
-    .slice(0, 20);
+    .slice(0, 40);
 }
 
 function normalizeInboxAnalysis(rawValue, availableProjects = [], meta = {}) {
@@ -192,7 +192,7 @@ export function createLifeMapAiService(env = process.env) {
     const result = await router.completeJson({
       systemPrompt: buildInboxSystemPrompt(safePayload.availableProjects),
       userPayload: safePayload,
-      maxTokens: 3000,
+      maxTokens: 3200,
       temperature: 0.1,
     });
     const analysis = normalizeInboxAnalysis(result.text, safePayload.availableProjects, result);
