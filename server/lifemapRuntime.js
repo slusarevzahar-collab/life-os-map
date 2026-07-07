@@ -91,7 +91,7 @@ export function createLifeMapRuntime({ envLoaded = false } = {}) {
     telegramAllowedUserIds: process.env.TELEGRAM_ALLOWED_USER_IDS || '',
     telegramWebhookUrl: process.env.TELEGRAM_WEBHOOK_URL,
     assistantSecret: process.env.LIFEMAP_ASSISTANT_API_SECRET || '',
-    inboxReprocessDelayMs: Math.max(1500, Number(process.env.INBOX_REPROCESS_DELAY_MS || 4500)),
+    inboxReprocessDelayMs: Math.max(1200, Number(process.env.INBOX_REPROCESS_DELAY_MS || 3000)),
     envLoaded,
   };
   const ai = createLifeMapAiService(process.env);
@@ -104,6 +104,7 @@ export function createLifeMapRuntime({ envLoaded = false } = {}) {
     failed: 0,
     reused: 0,
     current: '',
+    resumeAfter: '',
     startedAt: '',
     finishedAt: '',
     results: [],
@@ -175,7 +176,7 @@ export function createLifeMapRuntime({ envLoaded = false } = {}) {
     return getInboxSignalRecord({ notionToken: config.notionToken, signalsDbId: config.signalsDbId, signalId });
   }
 
-  async function analyzeWithRetry(signal, snapshot, maxAttempts = 5) {
+  async function analyzeWithRetry(signal, snapshot, maxAttempts = 3) {
     let lastError;
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
@@ -188,9 +189,10 @@ export function createLifeMapRuntime({ envLoaded = false } = {}) {
         });
       } catch (error) {
         lastError = error;
+        if (error.status === 429 && Number(error.retryAfterMs || 0) > 60000) break;
         if (attempt >= maxAttempts) break;
-        const waitMs = error.retryAfterMs || (error.status === 429 ? 12000 : Math.min(12000, 2500 * attempt));
-        await sleep(waitMs + 500);
+        const waitMs = error.retryAfterMs || (error.status === 429 ? 12000 : Math.min(10000, 2000 * attempt));
+        await sleep(Math.min(waitMs + 500, 30000));
       }
     }
     throw lastError;
@@ -214,13 +216,18 @@ export function createLifeMapRuntime({ envLoaded = false } = {}) {
       reprocessJob.scanned = records.length;
       reprocessJob.total = candidates.length;
 
-      for (const signal of candidates) {
-        if (reprocessJob.id !== jobId || reprocessJob.status !== 'running') return;
+      for (let index = 0; index < candidates.length; index += 1) {
+        const signal = candidates[index];
+        if (reprocessJob.id !== jobId || !['running', 'waiting_rate_limit'].includes(reprocessJob.status)) return;
+        reprocessJob.status = 'running';
+        reprocessJob.resumeAfter = '';
         reprocessJob.current = signal.title;
         const key = signalAnalysisKey(signal);
+
         try {
           let analysis = cache.get(key);
-          if (analysis) {
+          const wasReused = Boolean(analysis);
+          if (wasReused) {
             reprocessJob.reused += 1;
           } else {
             analysis = await analyzeWithRetry(signal, snapshot);
@@ -228,27 +235,43 @@ export function createLifeMapRuntime({ envLoaded = false } = {}) {
           }
           const stored = await persistSignalAnalysis({ notionToken: config.notionToken, signalId: signal.id, analysis });
           reprocessJob.processed += 1;
-          reprocessJob.results.push({ id: signal.id, title: signal.title, ok: true, assets: stored.assets, reused: cache.get(key) !== analysis ? true : false });
+          reprocessJob.results.push({ id: signal.id, title: signal.title, ok: true, assets: stored.assets, reused: wasReused });
         } catch (error) {
+          const retryMs = Number(error.retryAfterMs || 0);
+          if (error.status === 429 && retryMs > 60000) {
+            reprocessJob.status = 'waiting_rate_limit';
+            reprocessJob.resumeAfter = new Date(Date.now() + retryMs).toISOString();
+            reprocessJob.current = signal.title;
+            await sleep(retryMs + 1000);
+            if (reprocessJob.id !== jobId) return;
+            reprocessJob.status = 'running';
+            reprocessJob.resumeAfter = '';
+            index -= 1;
+            continue;
+          }
           reprocessJob.failed += 1;
           reprocessJob.results.push({ id: signal.id, title: signal.title, ok: false, error: error.message, status: error.status || 0 });
         }
+
         if (reprocessJob.processed + reprocessJob.failed < reprocessJob.total) await sleep(config.inboxReprocessDelayMs);
       }
+
       reprocessJob.status = reprocessJob.failed ? 'completed_with_errors' : 'completed';
       reprocessJob.current = '';
+      reprocessJob.resumeAfter = '';
       reprocessJob.finishedAt = new Date().toISOString();
     } catch (error) {
       if (reprocessJob.id !== jobId) return;
       reprocessJob.status = 'failed';
       reprocessJob.current = '';
+      reprocessJob.resumeAfter = '';
       reprocessJob.finishedAt = new Date().toISOString();
       reprocessJob.results.push({ ok: false, error: error.message });
     }
   }
 
   async function startInboxReprocessJob({ onlyMissing = true } = {}) {
-    if (reprocessJob.status === 'running') return publicJob(reprocessJob);
+    if (['running', 'waiting_rate_limit'].includes(reprocessJob.status)) return publicJob(reprocessJob);
     const jobId = `inbox-${Date.now()}`;
     reprocessJob = {
       id: jobId,
@@ -259,6 +282,7 @@ export function createLifeMapRuntime({ envLoaded = false } = {}) {
       failed: 0,
       reused: 0,
       current: '',
+      resumeAfter: '',
       startedAt: new Date().toISOString(),
       finishedAt: '',
       results: [],
