@@ -9,6 +9,10 @@ const ASSET_TYPE_MAP = {
   Research: 'Source',
   Idea: 'Idea',
   Reference: 'Source',
+  News: 'Source',
+  Instruction: 'Instruction',
+  File: 'Source',
+  Other: 'Source',
 };
 
 function plainText(items = []) {
@@ -56,20 +60,33 @@ function selectProperty(value = '') {
   return value ? { select: { name: String(value) } } : undefined;
 }
 
-function safeParseAssets(value = '') {
-  if (Array.isArray(value)) return value;
+function safeParseJson(value = '', fallback = null) {
+  if (value && typeof value === 'object') return value;
   const raw = String(value || '').trim();
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  if (!raw) return fallback;
+  try { return JSON.parse(raw); } catch { return fallback; }
+}
+
+function safeParseAssets(value = '') {
+  const parsed = safeParseJson(value, []);
+  return Array.isArray(parsed) ? parsed : [];
 }
 
 function serializeAssets(assets = []) {
   return JSON.stringify(Array.isArray(assets) ? assets : []);
+}
+
+function normalizeAttachment(analysis = {}) {
+  const document = analysis.telegram?.document || analysis.attachment || null;
+  if (!document) return null;
+  return {
+    fileId: document.fileId || document.file_id || '',
+    fileUniqueId: document.fileUniqueId || document.file_unique_id || '',
+    fileName: document.fileName || document.file_name || '',
+    mimeType: document.mimeType || document.mime_type || '',
+    fileSize: Number(document.fileSize || document.file_size || 0),
+    textCaptured: document.textCaptured === true,
+  };
 }
 
 function assetTypes(assets = []) {
@@ -93,6 +110,7 @@ function mapSignalPage(page) {
     capturedAt: dateStart(props['Date captured']),
     assets: safeParseAssets(richText(props['Extracted assets'])),
     aiProcessingVersion: richText(props['AI processing version']),
+    attachment: safeParseJson(richText(props['Attachment metadata']), null),
     assetTypes: multiSelectNames(props['Asset type']),
   };
 }
@@ -110,11 +128,18 @@ export async function listInboxSignalRecords({ notionToken, signalsDbId }) {
   return results.sort((a, b) => String(b.capturedAt || '').localeCompare(String(a.capturedAt || '')));
 }
 
+export async function getInboxSignalRecord({ notionToken, signalsDbId, signalId }) {
+  if (!notionToken || !signalsDbId || !signalId) return null;
+  const records = await listInboxSignalRecords({ notionToken, signalsDbId });
+  return records.find((signal) => signal.id === signalId) || null;
+}
+
 export async function persistSignalAnalysis({ notionToken, signalId, analysis = {} }) {
   if (!notionToken) throw new Error('NOTION_TOKEN is missing.');
   if (!signalId) throw new Error('Signal id is missing.');
   const notion = new Client({ auth: notionToken });
   const assets = Array.isArray(analysis.assets) ? analysis.assets : [];
+  const attachment = normalizeAttachment(analysis);
   const properties = {
     'Assistant note': textProperty(analysis.assistantNote || ''),
     'Possible use': textProperty(analysis.possibleUse || ''),
@@ -123,6 +148,7 @@ export async function persistSignalAnalysis({ notionToken, signalId, analysis = 
     'AI processing version': textProperty(analysis.aiProcessing?.policyVersion || AI_POLICY_VERSION),
     'Asset type': multiSelectProperty(assetTypes(assets)),
   };
+  if (attachment) properties['Attachment metadata'] = textProperty(JSON.stringify(attachment));
   await notion.pages.update({ page_id: signalId, properties });
   return { id: signalId, updated: true, assets: assets.length };
 }
