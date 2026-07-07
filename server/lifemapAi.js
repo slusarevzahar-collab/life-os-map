@@ -137,12 +137,18 @@ export function createLifeMapAiService(env = process.env) {
     const providerStatus = router.status();
     const activeProvider = providerStatus.providers.find((provider) => provider.configured) || null;
     const configured = Boolean(activeProvider);
+    const groqModels = providerStatus.providers.filter((provider) => provider.configured && provider.provider === 'groq').length;
     return {
       configured,
       provider: activeProvider?.provider || '',
-      model: activeProvider ? `${providerLabel(activeProvider.provider)} · ${activeProvider.model}` : '',
+      model: activeProvider
+        ? groqModels > 1
+          ? `Groq pool · ${groqModels} модели`
+          : `${providerLabel(activeProvider.provider)} · ${activeProvider.model}`
+        : '',
       policyVersion: AI_POLICY_VERSION,
       providerOrder: providerStatus.order,
+      providerProfiles: providerStatus.profiles,
       providers: providerStatus.providers,
       privacy: {
         minimalContext: true,
@@ -157,12 +163,12 @@ export function createLifeMapAiService(env = process.env) {
 
   async function chat({ message, messages = [], target = {}, clientContext = {}, snapshot = {} }) {
     if (!status().configured) return fallbackAssistant();
-    const safeHistory = messages.slice(-8).map((item) => ({
+    const safeHistory = messages.slice(-6).map((item) => ({
       role: item.role === 'assistant' ? 'assistant' : 'user',
-      content: sanitizeTextForAi(item.content || item.text || '', 1200),
+      content: sanitizeTextForAi(item.content || item.text || '', 900),
     }));
     const userPayload = {
-      message: sanitizeTextForAi(message, 4000),
+      message: sanitizeTextForAi(message, 3200),
       recentConversation: safeHistory,
       clientContext: {
         screen: sanitizeTextForAi(clientContext.screen, 120),
@@ -171,9 +177,10 @@ export function createLifeMapAiService(env = process.env) {
       lifemap: compactForAssistant(snapshot, target),
     };
     const result = await router.completeJson({
+      profile: 'chat',
       systemPrompt: buildAssistantSystemPrompt(),
       userPayload,
-      maxTokens: 1800,
+      maxTokens: 1200,
       temperature: 0.2,
     });
     return normalizeAssistantResponse(result.text, result);
@@ -190,9 +197,10 @@ export function createLifeMapAiService(env = process.env) {
     }
     const safePayload = buildSafeInboxPayload(signal, snapshot);
     const result = await router.completeJson({
+      profile: 'inbox',
       systemPrompt: buildInboxSystemPrompt(safePayload.availableProjects),
       userPayload: safePayload,
-      maxTokens: 3200,
+      maxTokens: 1800,
       temperature: 0.1,
     });
     const analysis = normalizeInboxAnalysis(result.text, safePayload.availableProjects, result);
