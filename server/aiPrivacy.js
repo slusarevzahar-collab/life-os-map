@@ -110,6 +110,7 @@ export function compactForAssistant(snapshot = {}, target = {}) {
 }
 
 export function buildSafeInboxPayload(signal = {}, snapshot = {}) {
+  const document = signal.telegram?.document || signal.attachment || null;
   return {
     availableProjects: projectNamesFromSnapshot(snapshot),
     currentFocus: snapshot.currentFocus ? {
@@ -123,6 +124,12 @@ export function buildSafeInboxPayload(signal = {}, snapshot = {}) {
       heuristicPriority: safeText(signal.priority, 40),
       text: safeText(signal.rawText || signal.summary, 7000),
       sourceHost: (() => { try { return new URL(signal.sourceUrl || '').hostname; } catch { return ''; } })(),
+      attachment: document ? {
+        fileName: safeText(document.fileName || document.file_name, 240),
+        mimeType: safeText(document.mimeType || document.mime_type, 120),
+        size: Number(document.fileSize || document.file_size || 0),
+        textCaptured: document.textCaptured === true,
+      } : null,
     },
   };
 }
