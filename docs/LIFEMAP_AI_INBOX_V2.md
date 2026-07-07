@@ -6,6 +6,8 @@ The first Inbox UI treated the same source post as the item in every thematic ta
 
 A second problem appeared during migration: bulk reprocessing ran dozens of provider calls inside one synchronous HTTP request. Temporary rate limits caused partial runs and forced the user to click reprocess repeatedly.
 
+A third problem was decision quality: generic AI notes such as “useful for automation” did not help decide what deserves attention now. AI Inbox therefore needs both better grounded commentary and a live relevance layer tied to current work.
+
 ## Core model
 
 A **Signal** is the incoming source container. An **Asset** is a useful concrete object extracted from that source.
@@ -44,6 +46,38 @@ Rules:
 - dedupe assets inside a signal;
 - useful information must map to the most precise kind or `Other`;
 - an empty test message or noise may legitimately produce zero assets.
+
+## Decision-grade AI commentary
+
+`assistantNote` must help make a decision, not repeat the summary.
+
+A useful note should add at least one of these:
+
+- exact connection to the current focus or active work;
+- a concrete limitation or risk;
+- what the material can replace, shorten, or accelerate;
+- why it can safely be postponed;
+- what must be verified before adoption.
+
+Generic statements such as “useful tool”, “may help automate tasks”, and “can be used in projects” are explicitly disallowed.
+
+`possibleUse` and asset `suggestedUse` should name a concrete project, task, or work scenario from the provided LifeMap context. When no grounded connection exists, these fields should remain empty instead of inventing usefulness.
+
+## Live relevance score
+
+Every visible Signal and Asset receives a local `0–100` relevance score. This score is dynamic and does not spend AI tokens.
+
+The current heuristic considers:
+
+- keyword overlap with the current focus;
+- direct match with the current focus project;
+- number of active tasks that the material can plausibly match;
+- source priority;
+- recency.
+
+Rows are sorted by relevance. The compact row shows `Акт. N`; the expanded row explains the strongest reasons behind the score.
+
+This layer is intentionally local and recalculates when LifeMap focus or active tasks change. AI classification and relevance ranking are separate concerns: the model structures the material once, while LifeMap can reprioritize it repeatedly without paying for another model call.
 
 ## Main tabs
 
@@ -120,6 +154,27 @@ The backend proxies file downloads so the browser never sees the Telegram bot to
 
 Old attachment signals created before attachment metadata persistence may not support direct download. Their fallback is the original Telegram source post.
 
+## Budget-aware model routing
+
+LifeMap no longer pins all work to one large Groq model.
+
+There are separate routing profiles:
+
+- Inbox: Scout → Instant → Qwen → optional Gemini;
+- Chat: Qwen → Scout → 70B → Instant → optional Gemini.
+
+The same Groq API key can address the configured Groq models. When one model returns `429`, that route enters a local cooldown and the router tries the next available model.
+
+Token use is also reduced structurally:
+
+- Inbox prompt is shorter;
+- Inbox input text is clipped to a smaller safe window;
+- only current focus plus up to six active work items are passed for Inbox decision context;
+- Inbox output budget is smaller;
+- chat history and output budget are smaller.
+
+The goal is not to pretend free APIs are unlimited. The goal is graceful degradation: use an efficient model pool, avoid wasting tokens, skip cooling routes, and pause/resume automatically when all currently available free routes are exhausted.
+
 ## Background reprocessing queue
 
 ### `POST /api/life-os/inbox/reprocess`
@@ -132,8 +187,10 @@ The worker:
 
 - processes records sequentially;
 - adds pacing between provider calls;
-- retries temporary failures;
+- retries short temporary failures;
 - respects provider `retry-after` when available;
+- enters `waiting_rate_limit` for long quota waits;
+- stores `resumeAfter` and automatically retries the same signal when the wait expires;
 - reuses existing analysis for duplicate source signals where possible;
 - stores progress in an in-memory job state.
 
@@ -146,11 +203,20 @@ The frontend displays:
 - processed + failed / total;
 - current signal title;
 - a visual progress bar;
+- quota wait state and planned resume time;
 - final processed, reused, and failed counts.
 
 ### `GET /api/life-os/inbox/files/:signalId`
 
 Securely proxies a stored Telegram attachment from the trusted LifeMap UI.
+
+## Frontend interaction rules
+
+- prompt modal is portaled to `document.body` and constrained to the current viewport;
+- long prompt text scrolls inside the modal;
+- chat `Enter` sends;
+- chat `Shift+Enter` inserts a newline;
+- provider errors shown to the user are concise and do not expose raw organization identifiers or billing URLs.
 
 ## Frontend acceptance tests
 
@@ -183,3 +249,12 @@ Given a new Telegram PDF attachment:
 - AI may create a `File` asset without inventing PDF contents;
 - the file is downloadable from AI Inbox through the backend proxy;
 - the bot token is never exposed to the browser.
+
+### Relevance
+
+Given a current focus in LifeMap and a set of active tasks:
+
+- Inbox rows are sorted by relevance descending;
+- each row displays a 0–100 relevance score;
+- expanding the row shows grounded reasons for the score;
+- changing focus can change order without another AI request.
