@@ -1,5 +1,9 @@
 const DEFAULT_TIMEOUT_MS = 22000;
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function groqConfig({ name, model, apiKey }) {
   return {
     name,
@@ -143,9 +147,23 @@ export function createAiProviderRouter(env = process.env) {
   const configs = providerConfigs(env);
   const timeoutMs = Number(env.AI_REQUEST_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
   const blockedUntil = new Map();
+  const lastProfileCallAt = new Map();
+  const minGapMs = {
+    inbox: Math.max(5000, Number(env.AI_INBOX_MIN_GAP_MS || 12000)),
+    chat: Math.max(0, Number(env.AI_CHAT_MIN_GAP_MS || 0)),
+  };
 
   function orderFor(profile = 'chat') {
     return profileOrder(env, profile);
+  }
+
+  async function pace(profile) {
+    const gap = Number(minGapMs[profile] || 0);
+    if (!gap) return;
+    const last = Number(lastProfileCallAt.get(profile) || 0);
+    const waitMs = Math.max(0, last + gap - Date.now());
+    if (waitMs > 0) await sleep(waitMs);
+    lastProfileCallAt.set(profile, Date.now());
   }
 
   function status() {
@@ -153,6 +171,7 @@ export function createAiProviderRouter(env = process.env) {
     return {
       order: orderFor('chat'),
       profiles: { chat: orderFor('chat'), inbox: orderFor('inbox') },
+      pacingMs: minGapMs,
       providers: uniqueNames.map((name) => ({
         name,
         provider: configs[name]?.provider || name,
@@ -164,6 +183,7 @@ export function createAiProviderRouter(env = process.env) {
   }
 
   async function completeJson({ systemPrompt, userPayload, maxTokens = 1800, temperature = 0.15, profile = 'chat' }) {
+    await pace(profile);
     const errors = [];
     const order = orderFor(profile);
 
