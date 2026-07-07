@@ -1,0 +1,3 @@
+.assistantMessageBubble.assistant > details {
+  display: none;
+}
