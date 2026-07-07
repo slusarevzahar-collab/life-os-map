@@ -36,6 +36,11 @@ function extractText(data = {}) {
   return '';
 }
 
+function retryAfterMs(response) {
+  const raw = Number(response.headers.get('retry-after') || 0);
+  return Number.isFinite(raw) && raw > 0 ? Math.ceil(raw * 1000) : 0;
+}
+
 async function callProvider({ config, systemPrompt, userPayload, maxTokens, temperature, timeoutMs }) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -64,7 +69,11 @@ async function callProvider({ config, systemPrompt, userPayload, maxTokens, temp
     const data = await response.json().catch(() => ({}));
     if (!response.ok || data.error) {
       const message = data.error?.message || `HTTP ${response.status}`;
-      throw new Error(`${config.provider}: ${message}`);
+      const error = new Error(`${config.provider}: ${message}`);
+      error.provider = config.provider;
+      error.status = response.status;
+      error.retryAfterMs = retryAfterMs(response);
+      throw error;
     }
     const text = extractText(data);
     if (!text) throw new Error(`${config.provider}: empty response`);
@@ -98,12 +107,20 @@ export function createAiProviderRouter(env = process.env) {
       try {
         return await callProvider({ config, systemPrompt, userPayload, maxTokens, temperature, timeoutMs });
       } catch (error) {
-        errors.push(error.name === 'AbortError' ? `${name}: timeout` : error.message);
+        if (error.name === 'AbortError') {
+          errors.push({ provider: name, message: `${name}: timeout`, status: 408, retryAfterMs: 0 });
+        } else {
+          errors.push({ provider: name, message: error.message, status: Number(error.status || 0), retryAfterMs: Number(error.retryAfterMs || 0) });
+        }
       }
     }
     const configured = order.filter((name) => Boolean(configs[name]?.apiKey));
     if (!configured.length) throw new Error('No free AI provider is configured. Add GROQ_API_KEY or GEMINI_API_KEY.');
-    throw new Error(`All configured AI providers failed: ${errors.join(' | ')}`);
+    const error = new Error(`All configured AI providers failed: ${errors.map((item) => item.message).join(' | ')}`);
+    error.providerErrors = errors;
+    error.status = errors.some((item) => item.status === 429) ? 429 : errors[0]?.status || 500;
+    error.retryAfterMs = Math.max(0, ...errors.map((item) => item.retryAfterMs || 0));
+    throw error;
   }
 
   return { status, completeJson };
