@@ -1,0 +1,9 @@
+.assetSubtabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 12px; }
+.assetSubtabs button { border-radius: 999px; padding: 8px 12px; }
+.assetGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; overflow: auto; padding-bottom: 80px; }
+.inboxAssetCard, .inboxSourceCard { border: 1px solid rgba(103,232,249,.14); border-radius: 18px; padding: 14px; background: rgba(8,17,29,.86); }
+.assetCardActions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.assetSuggestion, .sourceAiNote { margin-top: 10px; border-radius: 13px; padding: 10px; background: rgba(253,224,71,.055); }
+.assetModalBackdrop { position: fixed; top: 0; right: 0; bottom: 0; left: 0; display: grid; place-items: center; padding: 24px; background: rgba(2,7,14,.76); }
+.assetModal { width: min(900px, 92vw); max-height: 86vh; overflow: auto; border-radius: 24px; padding: 18px; background: #07111d; }
+.promptCopyBox { white-space: pre-wrap; word-break: break-word; padding: 16px; }
