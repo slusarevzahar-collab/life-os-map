@@ -17,6 +17,5 @@
       "visibility": "public"
     }
   },
-  "postStartCommand": "bash .devcontainer/set-public-ports.sh || true",
-  "postAttachCommand": "bash .devcontainer/set-public-ports.sh || true"
+  "postStartCommand": "bash .devcontainer/set-public-ports.sh >/tmp/lifemap-public-ports-start.log 2>&1 || true"
 }
