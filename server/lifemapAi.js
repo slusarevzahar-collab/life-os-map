@@ -7,6 +7,7 @@ const ALL_ACTIONS = new Set([...EXECUTABLE_ACTIONS, ...PLANNING_ACTIONS]);
 const EXECUTABLE = new Set(EXECUTABLE_ACTIONS);
 const SIGNAL_TYPES = new Set(['Idea', 'Tool', 'Research', 'News', 'Reference', 'Task candidate', 'Personal note', 'Telegram']);
 const PRIORITIES = new Set(['High', 'Normal', 'Low']);
+const ASSET_KINDS = new Set(['Prompt', 'Tool', 'Workflow', 'Task', 'Research', 'Idea', 'Reference']);
 
 function parseJson(value) {
   if (value && typeof value === 'object') return value;
@@ -46,7 +47,7 @@ function normalizeAssistantResponse(rawValue, meta = {}) {
 
   return {
     reply: sanitizeTextForAi(raw.reply || 'Не удалось сформировать содержательный ответ.', 4000),
-    summary: sanitizeTextForAi(raw.summary || raw.reply || '', 1000),
+    summary: sanitizeTextForAi(raw.summary || '', 1000),
     proposedActions,
     warnings: (Array.isArray(raw.warnings) ? raw.warnings : []).map((item) => sanitizeTextForAi(item, 400)).filter(Boolean).slice(0, 8),
     nextStep: sanitizeTextForAi(raw.nextStep || '', 800),
@@ -54,6 +55,36 @@ function normalizeAssistantResponse(rawValue, meta = {}) {
     model: meta.model || '',
     policyVersion: AI_POLICY_VERSION,
   };
+}
+
+function assetIdentity(asset = {}) {
+  return [asset.kind, asset.category, asset.title, asset.url, asset.content].map((value) => String(value || '').trim().toLowerCase()).join('|');
+}
+
+function normalizeAssets(rawAssets = []) {
+  const seen = new Set();
+  return (Array.isArray(rawAssets) ? rawAssets : [])
+    .map((asset) => {
+      const kind = ASSET_KINDS.has(String(asset?.kind || '')) ? String(asset.kind) : '';
+      if (!kind) return null;
+      return {
+        kind,
+        category: sanitizeTextForAi(asset.category || 'Другое', 80) || 'Другое',
+        title: sanitizeTextForAi(asset.title || kind, 140),
+        description: sanitizeTextForAi(asset.description || '', 900),
+        content: sanitizeTextForAi(asset.content || '', 6000),
+        url: sanitizeTextForAi(asset.url || '', 1200),
+        suggestedUse: sanitizeTextForAi(asset.suggestedUse || '', 900),
+      };
+    })
+    .filter(Boolean)
+    .filter((asset) => {
+      const identity = assetIdentity(asset);
+      if (seen.has(identity)) return false;
+      seen.add(identity);
+      return true;
+    })
+    .slice(0, 20);
 }
 
 function normalizeInboxAnalysis(rawValue, availableProjects = [], meta = {}) {
@@ -73,6 +104,7 @@ function normalizeInboxAnalysis(rawValue, availableProjects = [], meta = {}) {
     shouldCreateTask: raw.shouldCreateTask === true,
     confidence: Number.isFinite(confidence) ? Math.min(1, Math.max(0, confidence)) : 0,
     warnings: (Array.isArray(raw.warnings) ? raw.warnings : []).map((item) => sanitizeTextForAi(item, 400)).filter(Boolean).slice(0, 6),
+    assets: normalizeAssets(raw.assets),
     provider: meta.provider || 'none',
     model: meta.model || '',
     policyVersion: AI_POLICY_VERSION,
@@ -82,7 +114,7 @@ function normalizeInboxAnalysis(rawValue, availableProjects = [], meta = {}) {
 function fallbackAssistant() {
   return {
     reply: 'AI-провайдер пока не подключён. LifeMap продолжает работать без AI. Для бесплатного режима достаточно добавить GROQ_API_KEY или GEMINI_API_KEY и перезапустить API.',
-    summary: 'LifeMap работает в детерминированном fallback-режиме без внешней модели.',
+    summary: '',
     proposedActions: [],
     warnings: ['AI provider is not configured.'],
     nextStep: 'Подключить один бесплатный API-ключ: Groq или Gemini.',
@@ -142,7 +174,7 @@ export function createLifeMapAiService(env = process.env) {
       systemPrompt: buildAssistantSystemPrompt(),
       userPayload,
       maxTokens: 1800,
-      temperature: 0.15,
+      temperature: 0.2,
     });
     return normalizeAssistantResponse(result.text, result);
   }
@@ -151,6 +183,7 @@ export function createLifeMapAiService(env = process.env) {
     if (!status().configured) {
       return {
         ...signal,
+        assets: Array.isArray(signal.assets) ? signal.assets : [],
         assistantNote: signal.assistantNote || 'Сигнал сохранён без внешнего AI-разбора. Эвристическая классификация сохранена.',
         aiProcessing: { provider: 'deterministic-fallback', policyVersion: AI_POLICY_VERSION },
       };
@@ -159,7 +192,7 @@ export function createLifeMapAiService(env = process.env) {
     const result = await router.completeJson({
       systemPrompt: buildInboxSystemPrompt(safePayload.availableProjects),
       userPayload: safePayload,
-      maxTokens: 1400,
+      maxTokens: 3000,
       temperature: 0.1,
     });
     const analysis = normalizeInboxAnalysis(result.text, safePayload.availableProjects, result);
@@ -174,6 +207,7 @@ export function createLifeMapAiService(env = process.env) {
       possibleUse: analysis.possibleUse || signal.possibleUse,
       nextAction: analysis.nextAction || '',
       taskRecommendation: analysis.shouldCreateTask,
+      assets: analysis.assets,
       aiProcessing: {
         provider: analysis.provider,
         model: analysis.model,
