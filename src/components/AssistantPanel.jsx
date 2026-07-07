@@ -39,6 +39,17 @@ function itemSummary(item) {
   return safeText(item.raw?.summary || item.summary || item.raw?.possibleUse || item.raw?.nextAction || item.raw?.sessionNotes || '');
 }
 
+function friendlyAssistantError(error) {
+  const message = String(error?.message || error || 'Неизвестная ошибка');
+  if (/capacity|rate limit|429|quota|resource_exhausted/i.test(message)) {
+    return 'Бесплатный AI-пул временно исчерпал доступную квоту. LifeMap автоматически переключает модели; если закончились все доступные маршруты, чат продолжит работать после обновления квоты.';
+  }
+  if (/failed to fetch|network|load failed/i.test(message)) {
+    return 'Не удалось связаться с LifeMap API. Проверь, что backend на порту 3001 запущен.';
+  }
+  return message.length > 320 ? `${message.slice(0, 319)}…` : message;
+}
+
 function assistantContext(map, focus, snapshot, target, targetContext = {}) {
   const source = snapshot?.meta?.source || 'unknown';
   const connected = snapshot?.meta?.connected || {};
@@ -148,6 +159,8 @@ function MessageBubble({ message, onExecute, actionBusy, actionsDisabled }) {
 }
 
 export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
+  if (typeof window !== 'undefined') window.__lifemapContext = { snapshot, activeFocus };
+
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState('');
   const [target, setTarget] = useState(null);
@@ -193,7 +206,7 @@ export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
 
   useEffect(() => {
     if (!open) return;
-    fetchAssistantStatus().then(setStatus).catch((err) => setStatus({ ok: false, configured: false, error: err.message }));
+    fetchAssistantStatus().then(setStatus).catch((err) => setStatus({ ok: false, configured: false, error: friendlyAssistantError(err) }));
   }, [open]);
 
   useEffect(() => { setMessages(readChat(chatKey)); }, [chatKey]);
@@ -226,14 +239,15 @@ export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
     setBusy(true);
     setError('');
     try {
-      const history = [...messages, userMessage].slice(-14).map((item) => ({ role: item.role, text: item.text }));
+      const history = [...messages, userMessage].slice(-12).map((item) => ({ role: item.role, text: item.text }));
       const response = await postAssistantChat({ message: text, messages: history, target, context: { ...targetContext, screen: currentMap?.title, contextChips: context, snapshotStats } });
       const assistant = response.assistant || {};
       appendMessages([{ role: 'assistant', text: assistant.reply || 'Ответ пустой.', summary: assistant.summary, proposedActions: assistant.proposedActions || [], warnings: assistant.warnings || [], nextStep: assistant.nextStep, createdAt: new Date().toISOString() }]);
       if (assistant.proposedActions?.length) setTab('actions');
     } catch (err) {
-      setError(err.message);
-      appendMessages([{ role: 'assistant', text: `Не получилось получить ответ: ${err.message}`, warnings: [err.message], createdAt: new Date().toISOString(), error: true }]);
+      const friendly = friendlyAssistantError(err);
+      setError(friendly);
+      appendMessages([{ role: 'assistant', text: friendly, createdAt: new Date().toISOString(), error: true }]);
     } finally {
       setBusy(false);
     }
@@ -254,8 +268,9 @@ export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
       const response = await executeAssistantActions({ actions: [{ ...action, confirmed: true, requiresConfirmation: false }], secret });
       appendMessages([{ role: 'system', text: `Действие выполнено: ${action.title || action.type}`, summary: JSON.stringify(response.executedActions || response, null, 2), createdAt: new Date().toISOString() }]);
     } catch (err) {
-      setError(err.message);
-      appendMessages([{ role: 'system', text: `Действие не выполнено: ${err.message}`, createdAt: new Date().toISOString(), error: true }]);
+      const friendly = friendlyAssistantError(err);
+      setError(friendly);
+      appendMessages([{ role: 'system', text: `Действие не выполнено: ${friendly}`, createdAt: new Date().toISOString(), error: true }]);
     } finally {
       setActionBusy('');
     }
@@ -266,6 +281,12 @@ export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
     if (!ok) return;
     writeChat(chatKey, []);
     setMessages([]);
+  };
+
+  const handleDraftKeyDown = (event) => {
+    if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent?.isComposing) return;
+    event.preventDefault();
+    sendMessage(event);
   };
 
   return (
@@ -284,7 +305,7 @@ export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
               <header className="assistantWorkspaceHeader"><div><small>{target ? `${itemKindLabel(target)} · ${itemCode(target)}` : 'Глобальный режим'}</small><h1>{target ? safeText(target.title) : 'Чат с AI по LifeMap'}</h1></div><div className="assistantHeaderActions"><button type="button" onClick={() => setWideContext((value) => !value)}>{wideContext ? 'Скрыть контекст' : 'Показать контекст'}</button><button type="button" onClick={clearChat}>Очистить</button><button type="button" onClick={() => setOpen(false)}>Закрыть</button></div></header>
               <div className="assistantChatThread fullScreenThread" ref={scrollRef}>{!messages.length ? <div className="assistantMessage assistantSystemMessage"><b>Контекстный чат готов.</b><p>Задай вопрос по текущей карте, задаче или сигналу. Ассистент получает live-контекст из LifeMap и Notion через backend.</p></div> : null}{messages.map((message, index) => <MessageBubble key={`${message.createdAt}-${index}`} message={message} onExecute={runAction} actionBusy={actionBusy} actionsDisabled={!status?.canExecuteActions} />)}{busy ? <div className="assistantMessageBubble assistant loading"><p>Думаю по контексту LifeMap…</p></div> : null}</div>
               {error ? <div className="assistantInlineError">{error}</div> : null}
-              <form className="assistantInput assistantWorkspaceInput" onSubmit={sendMessage}><textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={target ? 'Напиши команду или вопрос по этому объекту. Контекст уже прикреплён.' : 'Спроси о фокусе, очереди, AI Inbox, задачах или следующем шаге.'} /><button type="submit" disabled={busy || !draft.trim()}>{busy ? 'Отправляю…' : 'Отправить'}</button></form>
+              <form className="assistantInput assistantWorkspaceInput" onSubmit={sendMessage}><textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={handleDraftKeyDown} placeholder={target ? 'Напиши команду или вопрос по этому объекту. Контекст уже прикреплён.' : 'Спроси о фокусе, очереди, AI Inbox, задачах или следующем шаге.'} /><button type="submit" disabled={busy || !draft.trim()}>{busy ? 'Отправляю…' : 'Отправить'}</button></form>
             </main>
             {wideContext ? <aside className="assistantWorkspaceContext">{tab === 'context' ? <><section><small>Контекст объекта</small><div className="assistantContextList">{context.map((item) => <div key={`${item.label}-${item.value}`}><b>{item.label}</b><span>{item.value}</span></div>)}</div></section><section><small>Фрагмент материала</small><p className="assistantTargetText large">{targetText || 'Объект не выбран. Ассистент работает по глобальному контексту карты.'}</p></section></> : null}{tab === 'actions' ? <section><small>Предложенные действия</small>{latestActions.length ? <div className="assistantActions sideActions">{latestActions.map((action, index) => <ActionCard key={`${action.type}-${action.title}-${index}`} action={action} onExecute={runAction} busy={actionBusy === `${action.type}-${action.title}`} disabled={!status?.canExecuteActions} />)}</div> : <p className="assistantEmptyText">Пока нет действий. Спроси ассистента, что сделать дальше.</p>}</section> : null}{tab === 'settings' ? <section><small>Настройки ассистента</small><label className="assistantSecretField">Secret для выполнения действий<input type="password" value={secret} onChange={(event) => setSecret(event.target.value)} placeholder="LIFEMAP_ASSISTANT_API_SECRET" /></label><p className="assistantMutedText">Секрет хранится только в sessionStorage текущей вкладки. Без него ассистент предлагает действия, но не меняет Notion.</p><div className="assistantContextList"><div><b>API</b><span>{status?.ok ? 'доступен' : status?.error || 'проверяется'}</span></div><div><b>Модель</b><span>{status?.model || 'не задана'}</span></div><div><b>Write actions</b><span>{status?.canExecuteActions ? 'backend разрешает с secret' : 'выключены'}</span></div></div></section> : null}</aside> : null}
           </section>
