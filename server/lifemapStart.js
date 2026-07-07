@@ -3,6 +3,7 @@ import express from 'express';
 import { setTelegramWebhook } from './telegramAdapter.js';
 import { createLifeMapRuntime, loadLocalEnv } from './lifemapRuntime.js';
 import { registerCoreRoutes } from './coreRoutes.js';
+import { registerInboxRoutes } from './inboxRoutes.js';
 import { registerTelegramRoutes } from './telegramRoutes.js';
 
 function execGh(args = []) {
@@ -32,6 +33,7 @@ export function createLifeMapApp() {
   }
 
   registerCoreRoutes(app, runtime);
+  registerInboxRoutes(app, runtime);
   registerTelegramRoutes(app, runtime, { codespacesPublicUrl });
 
   async function publishCodespacesPort() {
