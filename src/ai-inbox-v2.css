@@ -1,22 +1,29 @@
-.inboxV2Head { display: flex !important; align-items: flex-end; justify-content: space-between; gap: 12px; }
-.reprocessButton { border: 1px solid rgba(103,232,249,.24); border-radius: 999px; padding: 8px 12px; color: #dffbff; background: rgba(103,232,249,.08); font-weight: 900; cursor: pointer; }
-.assetSubtabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 12px; }
-.assetSubtabs button { flex: 0 0 auto; border: 1px solid rgba(148,163,184,.16); border-radius: 999px; padding: 8px 12px; color: rgba(226,246,255,.72); background: rgba(255,255,255,.035); }
+.inboxV2Head { display: flex !important; align-items: center; justify-content: space-between; gap: 12px; }
+.reprocessButton { border: 1px solid rgba(103,232,249,.24); border-radius: 999px; padding: 7px 11px; color: #dffbff; background: rgba(103,232,249,.08); font-weight: 900; cursor: pointer; white-space: nowrap; }
+.assetSubtabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 10px; }
+.assetSubtabs button { flex: 0 0 auto; border: 1px solid rgba(148,163,184,.16); border-radius: 999px; padding: 7px 11px; color: rgba(226,246,255,.72); background: rgba(255,255,255,.035); }
 .assetSubtabs button.active { border-color: rgba(103,232,249,.35); color: #dffbff; background: rgba(103,232,249,.12); }
 .assetSubtabs button span { margin-left: 6px; opacity: .62; }
-.assetGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; overflow: auto; padding-bottom: 80px; }
-.inboxAssetCard, .inboxSourceCard { display: flex; flex-direction: column; gap: 10px; border: 1px solid rgba(103,232,249,.14); border-radius: 18px; padding: 14px; background: rgba(8,17,29,.86); }
-.inboxAssetCard h3, .inboxSourceCard h3 { margin: 0; color: rgba(255,255,255,.95); }
-.inboxAssetCard p, .inboxSourceCard p { color: rgba(226,246,255,.72); line-height: 1.45; }
-.assetCardTopline, .sourceCardTopline { display: flex; justify-content: space-between; gap: 10px; }
-.assetCardTopline span, .sourceCardTopline span { color: #8cecff; font-weight: 900; }
-.assetSourceLine { color: rgba(203,225,235,.5); font-size: 11px; }
-.assetCardActions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.compactInboxList { display: grid; align-content: start; gap: 7px; overflow-y: auto; overflow-x: hidden; min-height: 0; padding: 1px 2px 72px; }
+.compactInboxRow { border: 1px solid rgba(103,232,249,.12); border-radius: 14px; background: rgba(8,17,29,.78); overflow: hidden; transform-origin: top center; }
+.compactInboxRow.expanded { border-color: rgba(103,232,249,.26); background: rgba(8,20,33,.9); }
+.compactInboxMain { width: 100%; min-height: 58px; display: grid; grid-template-columns: minmax(72px,auto) minmax(0,1fr) 28px; align-items: center; gap: 12px; padding: 9px 12px; border: 0; color: inherit; background: transparent; text-align: left; cursor: pointer; }
+.compactInboxBadge { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid rgba(103,232,249,.16); border-radius: 999px; padding: 5px 8px; color: #8cecff; background: rgba(103,232,249,.06); font-size: 10px; font-weight: 900; text-align: center; }
+.compactInboxText { min-width: 0; display: grid; gap: 4px; }
+.compactInboxText b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgba(255,255,255,.94); font-size: 14px; }
+.compactInboxText small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgba(203,225,235,.54); font-size: 11px; }
+.compactInboxDetails { display: grid; gap: 12px; padding: 2px 14px 14px 98px; }
+.compactInboxDetails > div > small { display: block; margin-bottom: 5px; color: rgba(103,232,249,.78); font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }
+.compactInboxDetails p { margin: 0; color: rgba(226,246,255,.72); font-size: 13px; line-height: 1.48; white-space: pre-wrap; }
+.fullSignalText { max-height: 340px; overflow: auto; padding-right: 6px; }
+.compactInboxSource { color: rgba(203,225,235,.48); font-size: 11px; }
+.assetCardActions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
 .assetCardActions button, .assetModalActions button, .assetModalHead button { border: 1px solid rgba(148,163,184,.18); border-radius: 999px; padding: 8px 11px; color: rgba(226,246,255,.82); background: rgba(255,255,255,.04); cursor: pointer; }
 .primaryAssetButton { border-color: rgba(103,232,249,.3) !important; color: #07131e !important; background: linear-gradient(135deg,#68c6ff,#5ce1e6) !important; }
-.assetSuggestion, .sourceAiNote { margin-top: 10px; border-radius: 13px; padding: 10px; background: rgba(253,224,71,.055); }
-.assetModalBackdrop { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 2000; display: grid; place-items: center; padding: 24px; background: rgba(2,7,14,.82); }
-.assetModal { width: min(900px, 92vw); max-height: 86vh; overflow: auto; border: 1px solid rgba(103,232,249,.2); border-radius: 24px; padding: 18px; background: #07111d; }
+.assetModalBackdrop { position: fixed; inset: 0; z-index: 2000; display: grid; place-items: center; padding: 24px; background: rgba(2,7,14,.82); }
+.assetModal { width: min(900px,92vw); max-height: 86vh; overflow: auto; border: 1px solid rgba(103,232,249,.2); border-radius: 24px; padding: 18px; background: #07111d; }
 .assetModalHead, .assetModalActions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .promptCopyBox { white-space: pre-wrap; word-break: break-word; padding: 16px; border-radius: 14px; color: rgba(235,251,255,.9); background: rgba(255,255,255,.035); }
-@media (max-width: 900px) { .inboxV2Head { align-items: stretch; flex-direction: column; } .assetGrid { grid-template-columns: 1fr; } }
+.inboxEntering { animation: inboxEnter .55s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes inboxEnter { from { opacity: 0; transform: translateY(-16px) scale(.985); max-height: 0; } to { opacity: 1; transform: translateY(0) scale(1); max-height: 500px; } }
+@media (max-width: 900px) { .inboxV2Head { align-items: stretch; flex-direction: column; } .compactInboxMain { grid-template-columns: minmax(62px,90px) minmax(0,1fr) 24px; } .compactInboxDetails { padding-left: 14px; } }
