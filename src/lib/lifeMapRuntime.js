@@ -56,9 +56,15 @@ async function requestJson(path, options = {}) {
         },
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok || data.ok === false) throw new Error(data.error || data.details || `API ${response.status}`);
+      if (!response.ok || data.ok === false) {
+        const error = new Error(data.error || data.details || `API ${response.status}`);
+        error.apiResponse = true;
+        error.status = response.status;
+        throw error;
+      }
       return data;
     } catch (error) {
+      if (error.apiResponse) throw error;
       errors.push(`${url}: ${error.message}`);
     }
   }
