@@ -10,9 +10,9 @@ assert(!masked.includes('+7 999 123-45-67'));
 assert(!masked.includes('very-secret-value'));
 
 const snapshot = {
-  currentFocus: { id: 'focus-1', title: 'Current task', project: 'LifeMap', status: 'Now', nextAction: 'Test AI' },
+  currentFocus: { id: 'focus-1', title: 'Improve AI Inbox relevance', project: 'LifeMap', status: 'Now', nextAction: 'Rank useful prompts and tools' },
   planning: { onTrack: 1, next: 2, waiting: 0, overdue: 0, done: 3 },
-  tasks: Array.from({ length: 30 }, (_, index) => ({ id: `task-${index}`, title: `Task ${index}`, project: 'LifeMap', priority: index + 1 })),
+  tasks: Array.from({ length: 30 }, (_, index) => ({ id: `task-${index}`, title: `Task ${index}`, project: index < 12 ? 'LifeMap' : 'Other', status: index === 29 ? 'Done' : 'Next', priority: index + 1, nextAction: `Action ${index}` })),
   goals: Array.from({ length: 20 }, (_, index) => ({ id: `goal-${index}`, title: `Goal ${index}` })),
   signals: Array.from({ length: 20 }, (_, index) => ({ id: `signal-${index}`, title: `Signal ${index}`, status: 'Inbox' })),
   projectAreas: [{ name: 'LifeMap' }],
@@ -24,15 +24,15 @@ assert(compact.goals.length <= 10);
 assert(compact.signals.length <= 8);
 
 const assistantPrompt = buildAssistantSystemPrompt();
-assert(assistantPrompt.includes('Обращайся к Захару на «ты»'));
-assert(assistantPrompt.includes('Не повторяй одну и ту же сводку'));
+assert(assistantPrompt.includes('Обращайся на «ты»'));
+assert(assistantPrompt.includes('Не повторяй фокус'));
 assert(assistantPrompt.includes(`POLICY_VERSION=${AI_POLICY_VERSION}`));
 
 const inboxPrompt = buildInboxSystemPrompt(['LifeMap']);
-assert(inboxPrompt.includes('ИЗВЛЕЧЕНИЕ ASSETS'));
+assert(inboxPrompt.includes('Один входящий сигнал может дать 0, 1 или много отдельных assets'));
 assert(inboxPrompt.includes('Prompt, Tool, Workflow, Task, Research, Idea, Reference, News, Instruction, File, Other'));
-assert(inboxPrompt.includes('Один входящий пост может содержать несколько разных сущностей'));
-assert(inboxPrompt.includes('Любая полезная информация должна либо попасть в точный kind, либо в Other'));
+assert(inboxPrompt.includes('Запрещены банальности'));
+assert(inboxPrompt.includes('конкретный проект, задачу или рабочий сценарий'));
 
 const safeInbox = buildSafeInboxPayload({
   title: 'PDF guide',
@@ -49,11 +49,22 @@ const safeInbox = buildSafeInboxPayload({
 assert.equal(safeInbox.signal.attachment.fileName, 'guide.pdf');
 assert.equal(safeInbox.signal.attachment.mimeType, 'application/pdf');
 assert(!JSON.stringify(safeInbox).includes('secret-telegram-file-id'));
+assert(safeInbox.activeWork.length > 0);
+assert(safeInbox.activeWork.length <= 6);
+assert.equal(safeInbox.activeWork[0].project, 'LifeMap');
 
-const ai = createLifeMapAiService({});
-assert.equal(ai.status().configured, false);
-const fallback = await ai.chat({ message: 'Что дальше?', snapshot });
+const aiWithoutProvider = createLifeMapAiService({});
+assert.equal(aiWithoutProvider.status().configured, false);
+const fallback = await aiWithoutProvider.chat({ message: 'Что дальше?', snapshot });
 assert.equal(fallback.provider, 'deterministic-fallback');
 assert(Array.isArray(fallback.proposedActions));
+
+const aiPool = createLifeMapAiService({ GROQ_API_KEY: 'test-key' });
+const poolStatus = aiPool.status();
+assert.equal(poolStatus.configured, true);
+assert(poolStatus.providers.filter((provider) => provider.provider === 'groq' && provider.configured).length >= 4);
+assert(poolStatus.providerProfiles.inbox.length >= 3);
+assert(poolStatus.providerProfiles.chat.length >= 4);
+assert(poolStatus.model.includes('Groq pool'));
 
 console.log('LifeMap AI policy tests passed.');
