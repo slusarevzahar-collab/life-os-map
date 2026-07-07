@@ -198,9 +198,9 @@
   width: 100%;
   min-height: 58px;
   display: grid;
-  grid-template-columns: minmax(78px, 118px) minmax(0, 1fr) 26px;
+  grid-template-columns: minmax(78px, 118px) minmax(0, 1fr) 72px 26px;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   padding: 9px 12px;
   border: 0;
   color: rgba(236, 248, 255, .95);
@@ -256,6 +256,37 @@
   line-height: 1.25;
 }
 
+.relevancePill {
+  box-sizing: border-box;
+  min-width: 62px;
+  height: 27px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(148, 163, 184, .18);
+  border-radius: 999px;
+  padding: 0 8px;
+  color: rgba(226, 246, 255, .7);
+  background: rgba(255, 255, 255, .04);
+  font-size: 9px;
+  line-height: 1;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.relevancePill.medium {
+  border-color: rgba(103, 232, 249, .24);
+  color: rgba(178, 243, 255, .92);
+  background: rgba(103, 232, 249, .07);
+}
+
+.relevancePill.high {
+  border-color: rgba(103, 232, 249, .42);
+  color: #dffbff;
+  background: rgba(103, 232, 249, .14);
+  box-shadow: 0 0 18px rgba(103, 232, 249, .08);
+}
+
 .compactInboxDetails {
   display: grid;
   gap: 12px;
@@ -278,6 +309,17 @@
   font-size: 13px;
   line-height: 1.48;
   white-space: pre-wrap;
+}
+
+.relevanceDetail {
+  border: 1px solid rgba(103, 232, 249, .14);
+  border-radius: 13px;
+  padding: 10px 12px;
+  background: rgba(103, 232, 249, .045);
+}
+
+.relevanceDetail p {
+  color: rgba(226, 246, 255, .66);
 }
 
 .fullSignalText {
@@ -385,18 +427,26 @@
 .assetModalBackdrop {
   position: fixed;
   inset: 0;
-  z-index: 2000;
-  display: grid;
-  place-items: center;
-  padding: 24px;
+  z-index: 5000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 100vw;
+  height: 100dvh;
+  overflow: auto;
+  padding: clamp(12px, 3vw, 28px);
   background: rgba(2, 7, 14, .84);
   backdrop-filter: blur(8px);
 }
 
 .assetModal {
+  position: relative;
   box-sizing: border-box;
-  width: min(900px, 92vw);
-  max-height: 86vh;
+  width: min(860px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 32px);
+  margin: auto;
   overflow: auto;
   border: 1px solid rgba(103, 232, 249, .2);
   border-radius: 24px;
@@ -412,7 +462,18 @@
   gap: 10px;
 }
 
+.assetModalHead > div {
+  min-width: 0;
+}
+
+.assetModalHead h3 {
+  overflow-wrap: anywhere;
+}
+
 .promptCopyBox {
+  max-width: 100%;
+  max-height: min(52dvh, 520px);
+  overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
   padding: 16px;
@@ -434,6 +495,11 @@
   .inboxV2Panel .inboxCategoryTabs.inboxV2Tabs {
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   }
+
+  .compactInboxMain {
+    grid-template-columns: minmax(72px, 104px) minmax(0, 1fr) 62px 24px;
+    gap: 8px;
+  }
 }
 
 @media (max-width: 900px) {
@@ -451,7 +517,14 @@
   }
 
   .compactInboxMain {
-    grid-template-columns: minmax(66px, 92px) minmax(0, 1fr) 24px;
+    grid-template-columns: minmax(62px, 88px) minmax(0, 1fr) 56px 22px;
+    padding-inline: 9px;
+  }
+
+  .relevancePill {
+    min-width: 52px;
+    padding: 0 6px;
+    font-size: 8px;
   }
 
   .compactInboxDetails {
@@ -461,5 +534,22 @@
   .inboxAttachmentBlock {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .assetModalBackdrop {
+    align-items: flex-start;
+    padding: 12px;
+  }
+
+  .assetModal {
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+    max-height: calc(100dvh - 24px);
+    border-radius: 18px;
+    padding: 14px;
+  }
+
+  .assetModalHead {
+    align-items: flex-start;
   }
 }
