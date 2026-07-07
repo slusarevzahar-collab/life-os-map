@@ -1,21 +1,17 @@
-import { Client } from '@notionhq/client';
 import { createSignal } from './notionAdapter.js';
-
-function textValue(value = '') {
-  return { rich_text: [{ text: { content: String(value).slice(0, 1900) } }] };
-}
+import { persistSignalAnalysis } from './inboxAssetStore.js';
 
 export async function createAiSignal(args) {
   const result = await createSignal(args);
-  if (!args.payload?.assistantNote || !result?.id) return result;
-  const notion = new Client({ auth: args.notionToken });
+  if (!result?.id) return result;
   try {
-    await notion.pages.update({
-      page_id: result.id,
-      properties: { 'Assistant note': textValue(args.payload.assistantNote) },
+    const analysisResult = await persistSignalAnalysis({
+      notionToken: args.notionToken,
+      signalId: result.id,
+      analysis: args.payload || {},
     });
-    return { ...result, assistantNoteStored: true };
+    return { ...result, assistantNoteStored: true, assetsStored: analysisResult.assets };
   } catch {
-    return { ...result, assistantNoteStored: false };
+    return { ...result, assistantNoteStored: false, assetsStored: 0 };
   }
 }
