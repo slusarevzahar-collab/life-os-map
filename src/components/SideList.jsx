@@ -93,7 +93,8 @@ export function SideList({
     }
   }, [highlightedItemId, visibleItems.length]);
 
-  if (inboxMode) return <AIInboxV2 map={map} snapshot={snapshot} activeFocus={activeFocus} highlightedItemId={highlightedItemId} />;
+  const sharedContext = typeof window !== 'undefined' ? window.__lifemapContext || {} : {};
+  if (inboxMode) return <AIInboxV2 map={map} snapshot={snapshot || sharedContext.snapshot || {}} activeFocus={activeFocus || sharedContext.activeFocus || null} highlightedItemId={highlightedItemId} />;
 
   return (
     <aside className="sideList" onClick={(event) => event.stopPropagation()}>
