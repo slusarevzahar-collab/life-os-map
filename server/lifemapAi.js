@@ -149,6 +149,7 @@ export function createLifeMapAiService(env = process.env) {
       policyVersion: AI_POLICY_VERSION,
       providerOrder: providerStatus.order,
       providerProfiles: providerStatus.profiles,
+      quotaProfiles: providerStatus.quotaProfiles,
       providers: providerStatus.providers,
       privacy: {
         minimalContext: true,
