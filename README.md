@@ -111,21 +111,36 @@ research_request
 
 Исполняемые действия требуют подтверждения и защищённого action secret. Неизвестные типы действий отбрасываются.
 
-## Запуск
+## Запуск в Codespaces
 
-Backend:
+Обычный рабочий режим LifeMap:
 
 ```bash
-npm run api
+git pull
+npm run app
 ```
 
-Frontend:
+`npm run app` сначала собирает production UI, затем запускает Express. UI и API работают вместе на одном порту `3001`.
+
+После запуска в терминале появляется строка:
+
+```text
+LifeMap public UI: https://<codespace>-3001.app.github.dev/
+```
+
+Открывать нужно именно эту ссылку.
+
+Порт `3000` используется только в отдельном режиме frontend hot reload и не нужен для обычной работы LifeMap:
 
 ```bash
+# terminal 1
+npm run api
+
+# terminal 2
 npm run dev
 ```
 
-Backend по умолчанию работает на порту `3001`.
+В этом dev-режиме UI работает на `3000`, а API — на `3001`. Не запускайте этот режим одновременно с `npm run app`, если он не нужен для разработки интерфейса.
 
 ## Проверка
 
