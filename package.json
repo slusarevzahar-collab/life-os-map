@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 3000 --strictPort",
     "api": "node server.js",
+    "app": "npm run build && npm run api",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0 --port 3000 --strictPort",
     "public-ports": "bash .devcontainer/set-public-ports.sh",
