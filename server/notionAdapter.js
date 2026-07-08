@@ -192,19 +192,12 @@ function attachGoalsToTasks(tasks, goals) {
 }
 
 function buildPlanning(tasks) {
-  return tasks.reduce((acc, task) => { const status = String(task.status || '').toLowerCase(); if (status.includes('done') || status.includes('готово')) acc.done += 1; else if (status.includes('overdue') || status.includes('просроч')) acc.overdue += 1; else if (status.includes('waiting') || status.includes('ожид')) acc.waiting += 1; else if (status.includes('next') || status.includes('след')) acc.next += 1; else acc.onTrack += 1; return acc; }, { onTrack: 0, next: 1, waiting: 0, overdue: 0, done: 0 });
+  return tasks.reduce((acc, task) => { const status = String(task.status || '').toLowerCase(); if (status.includes('done') || status.includes('готово')) acc.done += 1; else if (status.includes('overdue') || status.includes('просроч')) acc.overdue += 1; else if (status.includes('waiting') || status.includes('ожид')) acc.waiting += 1; else if (status.includes('next') || status.includes('след')) acc.next += 1; else acc.onTrack += 1; return acc; }, { onTrack: 0, next: 0, waiting: 0, overdue: 0, done: 0 });
 }
 
 const reportedDatabaseWarnings = new Set();
 function isObjectNotFound(error) { return error?.code === 'object_not_found' || /could not find database/i.test(error?.message || ''); }
 function databaseAccessMessage(label, databaseId) { return `${label}: база ${databaseId} не найдена или не открыта для интеграции Life OS Map Backend.`; }
-
-async function queryDatabase(notion, databaseId, mapper, label, warnings, options = {}) {
-  if (!databaseId) return [];
-  const required = Boolean(options.required);
-  try { const response = await notion.databases.query({ database_id: databaseId, page_size: 50 }); return response.results.map(mapper); }
-  catch (error) { const message = isObjectNotFound(error) ? databaseAccessMessage(label, databaseId) : `${label}: ${error.message}`; warnings.push(message); const warningKey = `${label}:${databaseId}:${error?.code || error?.message}`; if (!reportedDatabaseWarnings.has(warningKey)) { reportedDatabaseWarnings.add(warningKey); const log = required ? console.warn : console.info; log(`LifeMap ${message}`); } return []; }
-}
 
 async function queryAllDatabasePages(notion, databaseId) {
   const results = [];
@@ -215,6 +208,25 @@ async function queryAllDatabasePages(notion, databaseId) {
     cursor = response.has_more ? response.next_cursor : null;
   } while (cursor);
   return results;
+}
+
+async function queryDatabase(notion, databaseId, mapper, label, warnings, options = {}) {
+  if (!databaseId) return [];
+  const required = Boolean(options.required);
+  try {
+    const pages = await queryAllDatabasePages(notion, databaseId);
+    return pages.map(mapper);
+  } catch (error) {
+    const message = isObjectNotFound(error) ? databaseAccessMessage(label, databaseId) : `${label}: ${error.message}`;
+    warnings.push(message);
+    const warningKey = `${label}:${databaseId}:${error?.code || error?.message}`;
+    if (!reportedDatabaseWarnings.has(warningKey)) {
+      reportedDatabaseWarnings.add(warningKey);
+      const log = required ? console.warn : console.info;
+      log(`LifeMap ${message}`);
+    }
+    return [];
+  }
 }
 
 function chooseCurrentFocus(tasks) { return tasks.find((task) => String(task.status).toLowerCase().includes('now')) || tasks.find((task) => String(task.status).toLowerCase().includes('сейчас')) || tasks.find((task) => String(task.status).toLowerCase().includes('in progress')) || tasks.find((task) => String(task.status).toLowerCase().includes('в работе')) || tasks[0]; }
@@ -232,7 +244,7 @@ export async function getNotionSnapshot({ notionToken, tasksDbId, goalsDbId, ses
   const signals = await queryDatabase(notion, signalsDbId, mapNotionSignal, 'AI Signals Inbox DB', warnings);
   const currentFocus = chooseCurrentFocus(tasks);
   return {
-    meta: { source: 'notion-live-workspace', version: '0.8.4', updatedAt: new Date().toISOString(), warnings, connected: { tasks: Boolean(tasksDbId && !warnings.some((item) => item.startsWith('Tasks DB:'))), goals: Boolean(goalsDbId && !warnings.some((item) => item.startsWith('Goals DB:'))), sessions: Boolean(sessionsDbId && !warnings.some((item) => item.startsWith('Work Sessions DB:'))), projectAreas: Boolean(projectsDbId && !warnings.some((item) => item.startsWith('Projects & Life Areas DB:'))), dreams: Boolean(dreamsDbId && !warnings.some((item) => item.startsWith('Goals, Dreams & Desires DB:'))), signals: Boolean(signalsDbId && !warnings.some((item) => item.startsWith('AI Signals Inbox DB:'))) } },
+    meta: { source: 'notion-live-workspace', version: '0.8.5', updatedAt: new Date().toISOString(), warnings, connected: { tasks: Boolean(tasksDbId && !warnings.some((item) => item.startsWith('Tasks DB:'))), goals: Boolean(goalsDbId && !warnings.some((item) => item.startsWith('Goals DB:'))), sessions: Boolean(sessionsDbId && !warnings.some((item) => item.startsWith('Work Sessions DB:'))), projectAreas: Boolean(projectsDbId && !warnings.some((item) => item.startsWith('Projects & Life Areas DB:'))), dreams: Boolean(dreamsDbId && !warnings.some((item) => item.startsWith('Goals, Dreams & Desires DB:'))), signals: Boolean(signalsDbId && !warnings.some((item) => item.startsWith('AI Signals Inbox DB:'))) } },
     currentFocus: currentFocus ? { id: currentFocus.id, code: currentFocus.code, title: currentFocus.title, project: currentFocus.project, status: currentFocus.status, progress: currentFocus.progress, nextAction: currentFocus.nextAction } : null,
     tasks,
     goals,
@@ -262,6 +274,7 @@ export async function updateTaskEvent({ notionToken, taskId, event }) {
   if (hasOwn(event, 'nextAction')) properties['Next Action'] = textProperty(event.nextAction);
   if (hasOwn(event, 'sessionNotes')) properties['Session Notes'] = textProperty(event.sessionNotes);
   if (hasOwn(event, 'title')) properties.Task = titleProperty(event.title);
+  properties['Last Touched'] = dateProperty(hasOwn(event, 'lastTouched') ? event.lastTouched : new Date().toISOString());
   await notion.pages.update({ page_id: taskId, properties: cleanProperties(properties) });
   return { id: taskId, updated: true };
 }
