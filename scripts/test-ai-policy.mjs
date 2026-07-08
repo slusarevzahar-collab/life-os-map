@@ -66,5 +66,10 @@ assert(poolStatus.providers.filter((provider) => provider.provider === 'groq' &&
 assert(poolStatus.providerProfiles.inbox.length >= 3);
 assert(poolStatus.providerProfiles.chat.length >= 4);
 assert(poolStatus.model.includes('Groq pool'));
+assert.equal(poolStatus.quotaProfiles.inbox.profile, 'inbox');
+assert.equal(poolStatus.quotaProfiles.chat.profile, 'chat');
+assert(poolStatus.quotaProfiles.inbox.configuredRoutes >= 3);
+assert(poolStatus.quotaProfiles.chat.configuredRoutes >= 4);
+assert.equal(poolStatus.quotaProfiles.chat.capacityPercent, null);
 
 console.log('LifeMap AI policy tests passed.');
