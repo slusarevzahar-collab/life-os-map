@@ -1,6 +1,7 @@
 @import './interface-polish.css';
 @import './assistant-polish.css';
 @import './inbox-polish.css';
+@import './adaptive-polish.css';
 
 .cloudQuotaCard {
   box-sizing: border-box;
