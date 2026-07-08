@@ -10,10 +10,88 @@ import {
   setTelegramWebhook,
 } from './telegramAdapter.js';
 
+const WEBHOOK_DEDUPE_TTL_MS = 6 * 60 * 60 * 1000;
+
+function webhookKey(signal = {}) {
+  const updateId = signal.telegram?.updateId;
+  if (updateId !== undefined && updateId !== null) return `update:${updateId}`;
+  return `signal:${signal.id || `${signal.telegram?.chatId || 'chat'}:${signal.telegram?.messageId || 'message'}`}`;
+}
+
 export function registerTelegramRoutes(app, runtime, { codespacesPublicUrl }) {
   const { config, ai, buildLiveSnapshot, telegramSecretOk } = runtime;
+  const inFlightUpdates = new Set();
+  const completedUpdates = new Map();
 
-  app.post('/api/telegram/webhook', async (req, res) => {
+  function cleanupCompletedUpdates() {
+    const threshold = Date.now() - WEBHOOK_DEDUPE_TTL_MS;
+    completedUpdates.forEach((completedAt, key) => {
+      if (completedAt < threshold) completedUpdates.delete(key);
+    });
+  }
+
+  function alreadyAccepted(key) {
+    cleanupCompletedUpdates();
+    return inFlightUpdates.has(key) || completedUpdates.has(key);
+  }
+
+  async function processAcceptedSignal(baseSignal, key) {
+    let signal = baseSignal;
+    try {
+      signal = await enrichSignalWithTelegramDocument({
+        signal: baseSignal,
+        botToken: config.telegramBotToken,
+      });
+
+      try {
+        const snapshot = await buildLiveSnapshot();
+        signal = await ai.analyzeInboxSignal({ signal, snapshot });
+      } catch (error) {
+        signal = {
+          ...signal,
+          assistantNote: `AI-разбор временно недоступен. Сигнал сохранён без потери данных. Причина: ${error.message}`,
+        };
+      }
+
+      let storage = 'local';
+      try {
+        if (!config.notionToken || !config.signalsDbId) throw new Error('Notion signal storage is not configured.');
+        await createAiSignal({
+          notionToken: config.notionToken,
+          signalsDbId: config.signalsDbId,
+          payload: signal,
+        });
+        storage = 'notion';
+      } catch (error) {
+        appendLocalSignal({ ...signal, storageError: error.message });
+        storage = 'local-fallback';
+      }
+
+      await sendTelegramMessage({
+        botToken: config.telegramBotToken,
+        chatId: signal.telegram?.chatId,
+        text: 'Доставлено в AI-INBOX',
+      }).catch((error) => console.warn(`LifeMap Telegram ack failed: ${error.message}`));
+
+      console.log(`LifeMap Telegram signal processed: ${signal.id} → ${storage}`);
+    } catch (error) {
+      console.error(`LifeMap Telegram background processing failed for ${baseSignal.id}: ${error.message}`);
+      try {
+        appendLocalSignal({
+          ...baseSignal,
+          assistantNote: 'Фоновая обработка Telegram не завершилась. Сигнал сохранён локально для восстановления.',
+          storageError: error.message,
+        });
+      } catch (fallbackError) {
+        console.error(`LifeMap Telegram local recovery failed: ${fallbackError.message}`);
+      }
+    } finally {
+      inFlightUpdates.delete(key);
+      completedUpdates.set(key, Date.now());
+    }
+  }
+
+  app.post('/api/telegram/webhook', (req, res) => {
     if (!telegramSecretOk(req)) {
       res.status(403).json({ ok: false, error: 'Bad Telegram webhook secret.' });
       return;
@@ -25,53 +103,22 @@ export function registerTelegramRoutes(app, runtime, { codespacesPublicUrl }) {
       return;
     }
 
-    let signal = await enrichSignalWithTelegramDocument({
-      signal: baseSignal,
-      botToken: config.telegramBotToken,
-    });
-
-    if (!allowedTelegramUser(signal, config.telegramAllowedUserIds)) {
+    if (!allowedTelegramUser(baseSignal, config.telegramAllowedUserIds)) {
       res.json({ ok: true, rejected: true });
       return;
     }
 
-    try {
-      const snapshot = await buildLiveSnapshot();
-      signal = await ai.analyzeInboxSignal({ signal, snapshot });
-    } catch (error) {
-      signal = {
-        ...signal,
-        assistantNote: `AI-разбор временно недоступен. Сигнал сохранён без потери данных. Причина: ${error.message}`,
-      };
+    const key = webhookKey(baseSignal);
+    if (alreadyAccepted(key)) {
+      res.json({ ok: true, duplicate: true, accepted: true });
+      return;
     }
 
-    let storage = 'local';
-    let notionResult = null;
-    try {
-      if (!config.notionToken || !config.signalsDbId) throw new Error('Notion signal storage is not configured.');
-      notionResult = await createAiSignal({
-        notionToken: config.notionToken,
-        signalsDbId: config.signalsDbId,
-        payload: signal,
-      });
-      storage = `notion:${notionResult.mode}`;
-    } catch (error) {
-      appendLocalSignal({ ...signal, storageError: error.message });
-      storage = 'local-fallback';
-    }
+    inFlightUpdates.add(key);
 
-    sendTelegramMessage({
-      botToken: config.telegramBotToken,
-      chatId: signal.telegram?.chatId,
-      text: 'Принято в AIinbox',
-    }).catch((error) => console.warn(`LifeMap Telegram ack failed: ${error.message}`));
-
-    res.json({
-      ok: true,
-      storage,
-      signal: { id: signal.id, title: signal.title, type: signal.type, priority: signal.priority },
-      notion: notionResult,
-    });
+    // Return quickly so Telegram does not retry the same update while AI analysis is still running.
+    res.status(202).json({ ok: true, accepted: true, signalId: baseSignal.id });
+    void processAcceptedSignal(baseSignal, key);
   });
 
   app.post('/api/telegram/set-webhook', async (req, res) => {
@@ -100,6 +147,11 @@ export function registerTelegramRoutes(app, runtime, { codespacesPublicUrl }) {
         localSignals: readLocalSignals(50).length,
         computedWebhookUrl: codespacesPublicUrl() || config.telegramWebhookUrl || '',
         webhook,
+        dedupe: {
+          inFlight: inFlightUpdates.size,
+          recentlyCompleted: completedUpdates.size,
+          ttlMs: WEBHOOK_DEDUPE_TTL_MS,
+        },
       });
     } catch (error) {
       res.status(500).json({ ok: false, error: error.message });
