@@ -1,14 +1,8 @@
 {
-  "forwardPorts": [3000, 3001],
+  "forwardPorts": [3001],
   "portsAttributes": {
-    "3000": {
-      "label": "LifeMap UI",
-      "protocol": "http",
-      "onAutoForward": "silent",
-      "visibility": "public"
-    },
     "3001": {
-      "label": "LifeMap API / Telegram webhook",
+      "label": "LifeMap",
       "protocol": "http",
       "onAutoForward": "silent",
       "visibility": "public"
