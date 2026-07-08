@@ -55,8 +55,11 @@ export function createLifeMapApp() {
 
   async function publishCodespacesPort() {
     if (process.env.CODESPACES !== 'true') return;
+    const codespaceName = process.env.CODESPACE_NAME;
+    const args = ['codespace', 'ports', 'visibility', `${runtime.config.port}:public`];
+    if (codespaceName) args.push('--codespace', codespaceName);
     try {
-      await execGh(['codespace', 'ports', 'visibility', `${runtime.config.port}:public`]);
+      await execGh(args);
     } catch (error) {
       console.warn(`LifeMap could not auto-public Codespaces port ${runtime.config.port}: ${error.message}`);
     }
