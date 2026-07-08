@@ -26,12 +26,17 @@ export function createLifeMapApp() {
   const app = express();
   app.use(express.json({ limit: '4mb' }));
 
-  function codespacesPublicUrl() {
-    if (runtime.config.telegramWebhookUrl) return runtime.config.telegramWebhookUrl;
+  function codespacesBaseUrl() {
     const name = process.env.CODESPACE_NAME;
     const domain = process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN || 'app.github.dev';
     if (!name || process.env.CODESPACES !== 'true') return '';
-    return `https://${name}-${runtime.config.port}.${domain}/api/telegram/webhook`;
+    return `https://${name}-${runtime.config.port}.${domain}`;
+  }
+
+  function codespacesPublicUrl() {
+    if (runtime.config.telegramWebhookUrl) return runtime.config.telegramWebhookUrl;
+    const baseUrl = codespacesBaseUrl();
+    return baseUrl ? `${baseUrl}/api/telegram/webhook` : '';
   }
 
   registerCoreRoutes(app, runtime);
@@ -43,7 +48,10 @@ export function createLifeMapApp() {
   const builtUiAvailable = fs.existsSync(distIndex);
 
   if (builtUiAvailable) {
-    app.use(express.static(distDir));
+    // Serve the production bundle from the same port as the API. This is the
+    // canonical Codespaces mode used by `npm run app`.
+    app.get('/', (_req, res) => res.sendFile(distIndex));
+    app.use(express.static(distDir, { index: 'index.html' }));
     app.get('*', (req, res, next) => {
       if (req.path.startsWith('/api/')) {
         next();
@@ -80,11 +88,14 @@ export function createLifeMapApp() {
 
   async function start() {
     return new Promise((resolve) => {
-      const server = app.listen(runtime.config.port, async () => {
-        console.log(`LifeMap API listening on http://localhost:${runtime.config.port}`);
+      const host = process.env.API_HOST || '0.0.0.0';
+      const server = app.listen(runtime.config.port, host, async () => {
+        console.log(`LifeMap API listening on http://${host}:${runtime.config.port}`);
         console.log(builtUiAvailable
           ? `LifeMap UI is also served from dist on http://localhost:${runtime.config.port}`
           : 'LifeMap UI dist not found; run npm run build or use npm run dev on port 3000.');
+        const publicUiUrl = codespacesBaseUrl();
+        if (publicUiUrl) console.log(`LifeMap public UI: ${publicUiUrl}/`);
         console.log(envLoaded ? '.env loaded' : '.env not found; using process env');
         console.log(`LifeMap AI providers: ${JSON.stringify(runtime.ai.status().providers)}`);
         await publishCodespacesPort();
