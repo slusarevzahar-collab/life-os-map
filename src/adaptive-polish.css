@@ -1,0 +1,263 @@
+/* Global LifeMap scrollbar language */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(103, 232, 249, .58) rgba(103, 232, 249, .055);
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgba(103, 232, 249, .045);
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 2px solid rgba(3, 7, 18, .92);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(103, 232, 249, .78), rgba(96, 165, 250, .48));
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(125, 249, 255, .96), rgba(96, 165, 250, .78));
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Assistant loading state */
+.assistantMessageBubble.loading p {
+  font-size: 0 !important;
+}
+
+.assistantMessageBubble.loading p::before {
+  content: 'Печатаю';
+  font-size: 14px;
+}
+
+.assistantMessageBubble.loading p::after {
+  content: '...';
+  display: inline-block;
+  width: 1.2em;
+  overflow: hidden;
+  margin-left: 2px;
+  vertical-align: bottom;
+  font-size: 14px;
+  animation: lifeMapTypingDots 1.15s steps(4, end) infinite;
+}
+
+@keyframes lifeMapTypingDots {
+  0% { width: 0; opacity: .45; }
+  100% { width: 1.2em; opacity: 1; }
+}
+
+/* Prevent the Assistant sidebar from producing browser-default horizontal bars. */
+.assistantWorkspaceSidebar {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+.assistantWorkspaceSidebar > *,
+.assistantWorkspaceTabs,
+.assistantQuickStack,
+.cloudQuotaCard {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.assistantWorkspaceTabs button {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Main map: restore readable planet scale on laptop and desktop screens. */
+.mapStage:not(.mapWithSide) .mapNode.orbitNode {
+  --orbit-shift: clamp(-248px, -22vw, -205px) !important;
+  width: clamp(140px, var(--node-size, 140px), 226px) !important;
+}
+
+.mapStage:not(.mapWithSide) .nodeOrb {
+  width: clamp(140px, var(--node-size, 140px), 226px) !important;
+  height: clamp(140px, var(--node-size, 140px), 226px) !important;
+}
+
+.mapStage:not(.mapWithSide) .nodeOrb em {
+  max-width: calc(clamp(140px, var(--node-size, 140px), 226px) - 26px) !important;
+  font-size: max(14px, var(--node-font, 14px));
+}
+
+/* 13-inch laptop / browser zoom-friendly layout. */
+@media (max-width: 1500px), (max-height: 860px) {
+  .assistantWorkspaceOverlay {
+    padding: 8px !important;
+  }
+
+  .assistantWorkspace,
+  .assistantWorkspace.withContext,
+  .assistantWorkspace.compactMode {
+    grid-template-columns: 220px minmax(0, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .assistantWorkspaceContext {
+    display: none !important;
+  }
+
+  .assistantWorkspaceSidebar,
+  .assistantWorkspaceMain {
+    border-radius: 18px !important;
+  }
+
+  .assistantWorkspaceSidebar {
+    padding: 11px !important;
+  }
+
+  .assistantWorkspaceMain {
+    padding: 12px !important;
+  }
+
+  .assistantBrandCompact {
+    gap: 5px !important;
+  }
+
+  .assistantBrandIdentity > span {
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 11px !important;
+    font-size: 13px !important;
+  }
+
+  .assistantBrandIdentity h2 {
+    font-size: 20px !important;
+  }
+
+  .assistantBrandCompact p {
+    font-size: 9px !important;
+    line-height: 1.35 !important;
+  }
+
+  .assistantWorkspaceSidebar > .cloudQuotaCard {
+    margin-top: 9px !important;
+  }
+
+  .assistantWorkspaceTabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 5px !important;
+    margin-top: 10px !important;
+  }
+
+  .assistantWorkspaceTabs button:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+
+  .assistantWorkspaceTabs button {
+    min-height: 32px !important;
+    padding-inline: 6px !important;
+    font-size: 9px !important;
+  }
+
+  .assistantQuickStack {
+    gap: 5px !important;
+    margin-top: 12px !important;
+  }
+
+  .assistantQuickStack button {
+    min-height: 34px !important;
+    padding: 7px 8px !important;
+    border-radius: 11px !important;
+    font-size: 9px !important;
+    line-height: 1.25 !important;
+  }
+
+  .assistantWorkspaceHeader {
+    gap: 10px !important;
+    padding-bottom: 10px !important;
+  }
+
+  .assistantWorkspaceHeader h1 {
+    font-size: clamp(24px, 2.4vw, 31px) !important;
+  }
+
+  .assistantHeaderActions {
+    gap: 5px !important;
+  }
+
+  .assistantHeaderActions button {
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 0 10px !important;
+    font-size: 9px !important;
+  }
+
+  .fullScreenThread {
+    gap: 9px !important;
+    padding: 12px 3px 10px !important;
+  }
+
+  .assistantMessageBubble {
+    border-radius: 16px !important;
+    padding: 11px 13px !important;
+  }
+
+  .assistantMessageBubble > p {
+    font-size: 13px !important;
+    line-height: 1.48 !important;
+  }
+
+  .assistantWorkspaceInput textarea {
+    min-height: 58px !important;
+    max-height: 150px !important;
+    padding: 11px 13px !important;
+    font-size: 12px !important;
+  }
+
+  .assistantWorkspaceInput button[type='submit'] {
+    height: 40px !important;
+    min-height: 40px !important;
+    padding-inline: 14px !important;
+  }
+}
+
+@media (max-width: 1180px) {
+  .assistantWorkspace,
+  .assistantWorkspace.withContext,
+  .assistantWorkspace.compactMode {
+    grid-template-columns: 205px minmax(0, 1fr) !important;
+  }
+
+  .assistantStatusLine {
+    display: grid !important;
+    gap: 3px !important;
+  }
+
+  .assistantStatusLine small {
+    justify-self: start;
+  }
+
+  .mapStage:not(.mapWithSide) .mapNode.orbitNode {
+    --orbit-shift: clamp(-220px, -24vw, -180px) !important;
+    width: clamp(126px, var(--node-size, 126px), 190px) !important;
+  }
+
+  .mapStage:not(.mapWithSide) .nodeOrb {
+    width: clamp(126px, var(--node-size, 126px), 190px) !important;
+    height: clamp(126px, var(--node-size, 126px), 190px) !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .mapStage:not(.mapWithSide) .mapNode.orbitNode {
+    --orbit-shift: -165px !important;
+    width: clamp(108px, var(--node-size, 108px), 132px) !important;
+  }
+
+  .mapStage:not(.mapWithSide) .nodeOrb {
+    width: clamp(108px, var(--node-size, 108px), 132px) !important;
+    height: clamp(108px, var(--node-size, 108px), 132px) !important;
+  }
+}
