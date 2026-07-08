@@ -39,6 +39,20 @@ export function createLifeMapApp() {
     return baseUrl ? `${baseUrl}/api/telegram/webhook` : '';
   }
 
+  // In unified Codespaces mode the UI and API share port 3001. Normalize that
+  // exact origin as same-origin for protected UI actions even when a browser or
+  // proxy omits Sec-Fetch-Site.
+  app.use((req, _res, next) => {
+    const baseUrl = codespacesBaseUrl();
+    const candidate = req.get('Origin') || req.get('Referer');
+    if (baseUrl && candidate) {
+      try {
+        if (new URL(candidate).origin === baseUrl) req.headers['sec-fetch-site'] = 'same-origin';
+      } catch {}
+    }
+    next();
+  });
+
   registerCoreRoutes(app, runtime);
   registerInboxRoutes(app, runtime);
   registerTelegramRoutes(app, runtime, { codespacesPublicUrl });
