@@ -22,11 +22,12 @@ function trustedLifeMapUi(req) {
   if (!candidates.length) return false;
   const codespaceName = process.env.CODESPACE_NAME;
   const domain = process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN || 'app.github.dev';
+  const port = Number(process.env.API_PORT || 3001);
   return candidates.some((candidate) => {
     try {
       const url = new URL(candidate);
       if (['localhost', '127.0.0.1'].includes(url.hostname)) return true;
-      return Boolean(codespaceName) && url.hostname === `${codespaceName}-3000.${domain}`;
+      return Boolean(codespaceName) && url.hostname === `${codespaceName}-${port}.${domain}`;
     } catch {
       return false;
     }
