@@ -39,9 +39,6 @@ export function createLifeMapApp() {
     return baseUrl ? `${baseUrl}/api/telegram/webhook` : '';
   }
 
-  // In unified Codespaces mode the UI and API share port 3001. Normalize that
-  // exact origin as same-origin for protected UI actions even when a browser or
-  // proxy omits Sec-Fetch-Site.
   app.use((req, _res, next) => {
     const baseUrl = codespacesBaseUrl();
     const candidate = req.get('Origin') || req.get('Referer');
@@ -59,21 +56,29 @@ export function createLifeMapApp() {
 
   const distDir = path.resolve(process.cwd(), 'dist');
   const distIndex = path.join(distDir, 'index.html');
-  const builtUiAvailable = fs.existsSync(distIndex);
+  const uiAvailable = () => fs.existsSync(distIndex);
 
-  if (builtUiAvailable) {
-    // Serve the production bundle from the same port as the API. This is the
-    // canonical Codespaces mode used by `npm run app`.
-    app.get('/', (_req, res) => res.sendFile(distIndex));
-    app.use(express.static(distDir, { index: 'index.html' }));
-    app.get('*', (req, res, next) => {
-      if (req.path.startsWith('/api/')) {
-        next();
-        return;
-      }
+  app.use(express.static(distDir, { index: false }));
+
+  app.get('/', (_req, res) => {
+    if (uiAvailable()) {
       res.sendFile(distIndex);
-    });
-  }
+      return;
+    }
+    res.status(503).type('text/plain').send('LifeMap UI build is not available yet. Run npm run app.');
+  });
+
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/')) {
+      next();
+      return;
+    }
+    if (uiAvailable()) {
+      res.sendFile(distIndex);
+      return;
+    }
+    res.status(503).type('text/plain').send('LifeMap UI build is not available yet. Run npm run app.');
+  });
 
   async function publishCodespacesPort() {
     if (process.env.CODESPACES !== 'true') return;
@@ -101,13 +106,13 @@ export function createLifeMapApp() {
   }
 
   async function start() {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const host = process.env.API_HOST || '0.0.0.0';
       const server = app.listen(runtime.config.port, host, async () => {
-        console.log(`LifeMap API listening on http://${host}:${runtime.config.port}`);
-        console.log(builtUiAvailable
-          ? `LifeMap UI is also served from dist on http://localhost:${runtime.config.port}`
-          : 'LifeMap UI dist not found; run npm run build or use npm run dev on port 3000.');
+        console.log(`LifeMap listening on http://${host}:${runtime.config.port}`);
+        console.log(uiAvailable()
+          ? `LifeMap UI + API ready on http://localhost:${runtime.config.port}`
+          : 'LifeMap API started, but UI build is not available yet.');
         const publicUiUrl = codespacesBaseUrl();
         if (publicUiUrl) console.log(`LifeMap public UI: ${publicUiUrl}/`);
         console.log(envLoaded ? '.env loaded' : '.env not found; using process env');
@@ -115,6 +120,14 @@ export function createLifeMapApp() {
         await publishCodespacesPort();
         await syncTelegramWebhook();
         resolve(server);
+      });
+
+      server.on('error', (error) => {
+        if (error?.code === 'EADDRINUSE') {
+          reject(new Error(`LifeMap port ${runtime.config.port} is already in use. Run npm run app again; the startup script should remove stale listeners.`));
+          return;
+        }
+        reject(error);
       });
     });
   }
