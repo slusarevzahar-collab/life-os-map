@@ -1,4 +1,6 @@
 import { execFile } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 import express from 'express';
 import { setTelegramWebhook } from './telegramAdapter.js';
 import { createLifeMapRuntime, loadLocalEnv } from './lifemapRuntime.js';
@@ -36,6 +38,21 @@ export function createLifeMapApp() {
   registerInboxRoutes(app, runtime);
   registerTelegramRoutes(app, runtime, { codespacesPublicUrl });
 
+  const distDir = path.resolve(process.cwd(), 'dist');
+  const distIndex = path.join(distDir, 'index.html');
+  const builtUiAvailable = fs.existsSync(distIndex);
+
+  if (builtUiAvailable) {
+    app.use(express.static(distDir));
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api/')) {
+        next();
+        return;
+      }
+      res.sendFile(distIndex);
+    });
+  }
+
   async function publishCodespacesPort() {
     if (process.env.CODESPACES !== 'true') return;
     try {
@@ -62,6 +79,9 @@ export function createLifeMapApp() {
     return new Promise((resolve) => {
       const server = app.listen(runtime.config.port, async () => {
         console.log(`LifeMap API listening on http://localhost:${runtime.config.port}`);
+        console.log(builtUiAvailable
+          ? `LifeMap UI is also served from dist on http://localhost:${runtime.config.port}`
+          : 'LifeMap UI dist not found; run npm run build or use npm run dev on port 3000.');
         console.log(envLoaded ? '.env loaded' : '.env not found; using process env');
         console.log(`LifeMap AI providers: ${JSON.stringify(runtime.ai.status().providers)}`);
         await publishCodespacesPort();
