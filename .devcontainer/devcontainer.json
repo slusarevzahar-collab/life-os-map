@@ -1,6 +1,10 @@
 {
   "forwardPorts": [3001],
   "portsAttributes": {
+    "3000": {
+      "label": "Unused legacy port",
+      "onAutoForward": "ignore"
+    },
     "3001": {
       "label": "LifeMap",
       "protocol": "http",
