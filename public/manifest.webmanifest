@@ -1,0 +1,17 @@
+{
+  "name": "LifeMap",
+  "short_name": "LifeMap",
+  "description": "Личный навигатор задач, проектов, целей и AI Inbox.",
+  "start_url": "/#root",
+  "display": "standalone",
+  "background_color": "#03040a",
+  "theme_color": "#061018",
+  "icons": [
+    {
+      "src": "/lifemap-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
