@@ -1,0 +1,421 @@
+@media (max-width: 900px) {
+  html,
+  body,
+  #root,
+  .app.actionApp {
+    width: 100%;
+    height: 100%;
+    min-height: 100dvh;
+    overflow: hidden;
+  }
+
+  .app.actionApp {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+  }
+
+  .topNav {
+    top: 8px !important;
+    left: 8px !important;
+    right: 8px !important;
+    width: auto !important;
+    height: 78px !important;
+  }
+
+  .topTitle {
+    max-width: calc(100vw - 16px) !important;
+    min-height: 34px;
+    padding: 7px 11px !important;
+    border-radius: 13px !important;
+  }
+
+  .topTitle .brand,
+  .topTitle em {
+    font-size: 9px !important;
+  }
+
+  .backButton {
+    top: 42px !important;
+    min-width: 88px !important;
+  }
+
+  .topActions {
+    top: 42px !important;
+    left: 98px !important;
+    gap: 7px !important;
+  }
+
+  .centerButton,
+  .errorButton {
+    min-width: 88px !important;
+  }
+
+  .mission,
+  .missionCollapsed {
+    left: 8px !important;
+    width: min(430px, calc(100vw - 16px)) !important;
+  }
+
+  .missionCollapsed {
+    top: 94px !important;
+    padding: 6px !important;
+    border-radius: 16px !important;
+  }
+
+  .missionCollapsed button {
+    grid-template-columns: 34px minmax(0, 1fr) 38px !important;
+    gap: 8px !important;
+  }
+
+  .missionCollapsed span {
+    width: 34px !important;
+    height: 34px !important;
+    border-radius: 11px !important;
+    font-size: 13px !important;
+  }
+
+  .missionCollapsed b {
+    font-size: 12px !important;
+  }
+
+  .missionCollapsed small {
+    font-size: 8px !important;
+  }
+
+  .actionApp:not(.branchView) .mapStage {
+    top: 72px !important;
+  }
+
+  .actionApp:not(.branchView) .mapNode.orbitNode {
+    --orbit-shift: -156px !important;
+    width: clamp(100px, var(--node-size, 100px), 126px) !important;
+  }
+
+  .actionApp:not(.branchView) .nodeOrb {
+    width: clamp(100px, var(--node-size, 100px), 126px) !important;
+    height: clamp(100px, var(--node-size, 100px), 126px) !important;
+    padding: 9px !important;
+  }
+
+  .actionApp:not(.branchView) .nodeOrb em {
+    max-width: 104px !important;
+    font-size: 11px !important;
+    line-height: 1.04 !important;
+  }
+
+  .actionApp:not(.branchView) .coreNode.rootCore,
+  .actionApp:not(.branchView) .coreNode.titleCore {
+    width: 126px !important;
+    height: 126px !important;
+  }
+
+  /* Branches are task/content screens on phones. Prioritize the useful panel over the decorative orbit view. */
+  .branchView .mapStage {
+    display: none !important;
+  }
+
+  .branchView .mission,
+  .branchView .missionCollapsed {
+    display: none !important;
+  }
+
+  .branchView .sideList,
+  .branchView .sideList.inboxPanel {
+    position: absolute !important;
+    top: 92px !important;
+    right: 8px !important;
+    bottom: 8px !important;
+    left: 8px !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: auto !important;
+    max-height: none !important;
+    padding: 10px !important;
+    border-radius: 20px !important;
+    overflow: hidden !important;
+  }
+
+  .inboxV2Panel {
+    min-height: 0 !important;
+  }
+
+  .inboxV2Head {
+    min-height: 0 !important;
+    padding-bottom: 8px !important;
+  }
+
+  .inboxV2Head strong {
+    font-size: 18px !important;
+    white-space: normal !important;
+  }
+
+  .inboxQuotaRow {
+    padding: 6px 0 !important;
+  }
+
+  .inboxQuotaRow .cloudQuotaCard {
+    gap: 0 !important;
+    padding: 8px 10px !important;
+    border-radius: 12px !important;
+  }
+
+  .inboxQuotaRow .cloudQuotaMetrics,
+  .inboxQuotaRow .cloudQuotaCard > p {
+    display: none !important;
+  }
+
+  .inboxQuotaRow .cloudQuotaHead b {
+    font-size: 11px !important;
+  }
+
+  .inboxV2Panel .inboxCategoryTabs.inboxV2Tabs {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    gap: 6px !important;
+    width: 100%;
+    max-width: 100%;
+    margin: 0 !important;
+    padding: 0 0 8px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .inboxV2Panel .inboxCategoryTabs.inboxV2Tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .inboxV2Panel .inboxCategoryTabs.inboxV2Tabs button {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-width: max-content !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    padding: 0 11px !important;
+    border-radius: 12px !important;
+    scroll-snap-align: start;
+    font-size: 10px !important;
+  }
+
+  .inboxV2Tabs .tabCount {
+    min-width: 20px !important;
+    height: 20px !important;
+    font-size: 9px !important;
+  }
+
+  .inboxV2Panel .assetSubtabs {
+    flex-wrap: nowrap !important;
+    max-height: none !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    padding-bottom: 7px !important;
+    scrollbar-width: none;
+  }
+
+  .inboxV2Panel .assetSubtabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .compactInboxList {
+    gap: 7px !important;
+    padding: 1px 1px 28px !important;
+    scrollbar-gutter: auto !important;
+  }
+
+  .compactInboxRow {
+    min-height: 54px !important;
+    border-radius: 13px !important;
+  }
+
+  .compactInboxMain {
+    min-height: 54px !important;
+    grid-template-columns: minmax(0, 1fr) auto 20px !important;
+    gap: 7px !important;
+    padding: 8px 9px !important;
+  }
+
+  .compactInboxBadge {
+    display: none !important;
+  }
+
+  .compactInboxText {
+    gap: 3px !important;
+  }
+
+  .compactInboxText b {
+    display: -webkit-box !important;
+    overflow: hidden !important;
+    white-space: normal !important;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    font-size: 12px !important;
+    line-height: 1.22 !important;
+  }
+
+  .compactInboxText small {
+    font-size: 9px !important;
+  }
+
+  .relevancePill {
+    min-width: 48px !important;
+    height: 24px !important;
+    padding: 0 5px !important;
+    font-size: 7px !important;
+  }
+
+  .compactInboxDetails {
+    gap: 10px !important;
+    padding: 3px 10px 12px !important;
+  }
+
+  .compactInboxDetails p,
+  .relevanceDetail p {
+    font-size: 12px !important;
+    line-height: 1.45 !important;
+  }
+
+  .fullSignalText {
+    max-height: 42dvh !important;
+  }
+
+  .assetCardActions {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px !important;
+  }
+
+  .assetCardActions button {
+    width: 100% !important;
+    min-width: 0 !important;
+    padding-inline: 8px !important;
+    font-size: 10px !important;
+  }
+
+  .inboxAttachmentBlock {
+    gap: 8px !important;
+  }
+
+  .attachmentMeta b {
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+  }
+
+  .assistantWorkspaceOverlay {
+    height: 100dvh;
+    padding: 4px !important;
+  }
+
+  .assistantWorkspace,
+  .assistantWorkspace.withContext,
+  .assistantWorkspace.compactMode {
+    height: 100%;
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .assistantWorkspaceMain {
+    min-width: 0;
+    border-radius: 18px !important;
+    padding: 9px !important;
+  }
+
+  .assistantWorkspaceHeader {
+    gap: 8px !important;
+  }
+
+  .assistantWorkspaceHeader h1 {
+    font-size: 22px !important;
+  }
+
+  .assistantHeaderActions {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .assistantHeaderActions button {
+    min-width: 0;
+    padding: 0 7px !important;
+  }
+
+  .assistantWorkspaceInput {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    gap: 6px !important;
+  }
+
+  .assistantWorkspaceInput textarea {
+    min-height: 52px !important;
+    max-height: 128px !important;
+  }
+
+  .assistantWorkspaceInput button[type='submit'] {
+    width: auto !important;
+    min-width: 76px;
+    padding-inline: 10px !important;
+  }
+
+  .detailCard.compactDetail,
+  .utilityPanel {
+    right: 8px !important;
+    bottom: 8px !important;
+    left: 8px !important;
+    width: auto !important;
+    max-width: none !important;
+    max-height: calc(100dvh - 100px) !important;
+    border-radius: 20px !important;
+  }
+
+  .assistantFab {
+    right: max(12px, env(safe-area-inset-right, 0px)) !important;
+    bottom: max(12px, env(safe-area-inset-bottom, 0px)) !important;
+    width: 52px !important;
+    height: 52px !important;
+    border-radius: 18px !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .topNav {
+    height: 74px !important;
+  }
+
+  .branchView .sideList,
+  .branchView .sideList.inboxPanel {
+    top: 86px !important;
+    right: 5px !important;
+    bottom: 5px !important;
+    left: 5px !important;
+    padding: 8px !important;
+    border-radius: 17px !important;
+  }
+
+  .inboxV2Head strong {
+    font-size: 17px !important;
+  }
+
+  .assetCardActions {
+    grid-template-columns: 1fr !important;
+  }
+
+  .assistantWorkspaceHeader {
+    display: grid !important;
+  }
+
+  .assistantHeaderActions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .assistantHeaderActions .assistantCloseButton {
+    grid-column: 1 / -1;
+  }
+
+  .assistantWorkspaceInput button[type='submit'] {
+    min-width: 66px;
+    font-size: 9px !important;
+  }
+}
