@@ -138,6 +138,11 @@
   font-size: 8px;
 }
 
+/* Exact user-facing waiting label; dots are animated in adaptive-polish.css. */
+.assistantMessageBubble.loading p::before {
+  content: 'печатаю';
+}
+
 @media (max-width: 820px) {
   .cloudQuotaCard {
     border-radius: 14px;
