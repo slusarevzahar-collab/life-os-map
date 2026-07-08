@@ -1,0 +1,140 @@
+.cloudQuotaCard {
+  box-sizing: border-box;
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  border: 1px solid rgba(103, 232, 249, .16);
+  border-radius: 18px;
+  padding: 12px;
+  color: rgba(236, 248, 255, .9);
+  background: linear-gradient(145deg, rgba(103, 232, 249, .075), rgba(96, 165, 250, .025));
+}
+
+.cloudQuotaHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.cloudQuotaHead > div {
+  min-width: 0;
+}
+
+.cloudQuotaHead small,
+.cloudQuotaHead b {
+  display: block;
+}
+
+.cloudQuotaHead small {
+  margin-bottom: 3px;
+  color: rgba(103, 232, 249, .74);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.cloudQuotaHead b {
+  overflow: hidden;
+  color: rgba(248, 253, 255, .92);
+  font-size: 12px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cloudQuotaHead > span {
+  flex: 0 0 auto;
+  min-width: 42px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(148, 163, 184, .18);
+  border-radius: 999px;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.cloudQuotaHead > span.isReady {
+  color: rgba(187, 247, 208, .92);
+  border-color: rgba(74, 222, 128, .22);
+  background: rgba(74, 222, 128, .07);
+}
+
+.cloudQuotaHead > span.isWaiting {
+  color: rgba(253, 224, 71, .9);
+  border-color: rgba(253, 224, 71, .2);
+  background: rgba(253, 224, 71, .06);
+}
+
+.cloudQuotaMetrics {
+  display: grid;
+  gap: 8px;
+}
+
+.cloudQuotaMetric {
+  display: grid;
+  gap: 5px;
+}
+
+.cloudQuotaMetric > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: rgba(203, 225, 235, .6);
+  font-size: 9px;
+}
+
+.cloudQuotaMetric b {
+  color: rgba(236, 248, 255, .78);
+  font-size: 9px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.cloudQuotaTrack {
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .055);
+}
+
+.cloudQuotaTrack span {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(96, 165, 250, .95), rgba(103, 232, 249, .95));
+  transition: width .35s ease;
+}
+
+.cloudQuotaMetric.isUnknown .cloudQuotaTrack span {
+  width: 0 !important;
+}
+
+.cloudQuotaCard p {
+  margin: 0;
+  color: rgba(203, 225, 235, .47);
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.cloudQuotaCard.compact {
+  gap: 8px;
+  border-radius: 16px;
+  padding: 10px 11px;
+}
+
+.cloudQuotaCard.compact .cloudQuotaHead small,
+.cloudQuotaCard.compact .cloudQuotaCard p {
+  font-size: 8px;
+}
+
+@media (max-width: 820px) {
+  .cloudQuotaCard {
+    border-radius: 14px;
+  }
+}
