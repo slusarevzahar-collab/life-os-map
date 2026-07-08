@@ -14,18 +14,22 @@ const snapshot = {
   planning: { onTrack: 1, next: 2, waiting: 0, overdue: 0, done: 3 },
   tasks: Array.from({ length: 30 }, (_, index) => ({ id: `task-${index}`, title: `Task ${index}`, project: index < 12 ? 'LifeMap' : 'Other', status: index === 29 ? 'Done' : 'Next', priority: index + 1, nextAction: `Action ${index}` })),
   goals: Array.from({ length: 20 }, (_, index) => ({ id: `goal-${index}`, title: `Goal ${index}` })),
-  signals: Array.from({ length: 20 }, (_, index) => ({ id: `signal-${index}`, title: `Signal ${index}`, status: 'Inbox' })),
+  signals: Array.from({ length: 20 }, (_, index) => ({ id: `signal-${index}`, title: `Signal ${index}`, status: 'Inbox', relevanceScore: index, assets: [{ kind: 'Tool', title: `Tool ${index}` }] })),
   projectAreas: [{ name: 'LifeMap' }],
 };
 
 const compact = compactForAssistant(snapshot, { project: 'LifeMap' });
-assert(compact.tasks.length <= 16);
+assert(compact.tasks.length <= 18);
 assert(compact.goals.length <= 10);
-assert(compact.signals.length <= 8);
+assert(compact.signals.length <= 10);
+assert(compact.signals[0].relevanceScore >= compact.signals.at(-1).relevanceScore);
+assert(Array.isArray(compact.signals[0].assets));
 
 const assistantPrompt = buildAssistantSystemPrompt();
 assert(assistantPrompt.includes('Обращайся на «ты»'));
 assert(assistantPrompt.includes('Не повторяй фокус'));
+assert(assistantPrompt.includes('Decision first'));
+assert(assistantPrompt.includes('ПЯТЬ РОЛЕЙ ASSISTANT'));
 assert(assistantPrompt.includes(`POLICY_VERSION=${AI_POLICY_VERSION}`));
 
 const inboxPrompt = buildInboxSystemPrompt(['LifeMap']);
