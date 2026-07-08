@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   attachmentDownloadUrl,
+  fetchAssistantStatus,
   fetchInboxAssets,
   fetchInboxReprocessStatus,
   patchSignal,
@@ -9,7 +10,9 @@ import {
 } from '../lib/lifeMapRuntime.js';
 import { listItems } from '../lib/lifeMapSelectors.js';
 import { ChevronDown } from './ChevronDown.jsx';
+import { CloudQuotaMeter } from './CloudQuotaMeter.jsx';
 import '../ai-inbox-v2.css';
+import '../ai-capacity.css';
 
 const MATERIAL_KINDS = ['Research', 'Reference', 'News', 'Instruction', 'File', 'Other'];
 
@@ -123,25 +126,41 @@ function daysOld(value) {
   return Math.max(0, (Date.now() - time) / 86400000);
 }
 
+function uniqueCoreText(signal = {}) {
+  const parts = [signal.title, signal.summary]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+  return [...new Set(parts.map((value) => value.toLowerCase()))].join(' ');
+}
+
+function lowInformationSignal(signal = {}) {
+  const coreText = uniqueCoreText(signal);
+  const coreTokens = keywordSet(coreText);
+  const hasResource = Boolean(signal.sourceUrl || inferredAttachment(signal));
+  const hasAssets = Array.isArray(signal.assets) && signal.assets.length > 0;
+  if (hasResource || hasAssets) return false;
+  return coreText.length < 36 || coreTokens.size < 3;
+}
+
 function relevanceForAsset(asset = {}, snapshot = {}, activeFocus = null) {
   const source = asset.sourceSignal || {};
   const focus = activeFocus || snapshot?.currentFocus || {};
-  const assetTokens = keywordSet(asset.title, asset.description, asset.suggestedUse, asset.category, source.title, source.summary, source.assistantNote, source.relatedProjects);
+  const assetTokens = keywordSet(asset.title, asset.description, asset.suggestedUse, asset.category, source.title, source.summary, source.relatedProjects);
   const focusTokens = keywordSet(focus.title, focus.project, focus.nextAction, focus.summary);
   const reasons = [];
-  let score = 0;
+  let relationScore = 0;
 
   const focusOverlap = overlapCount(assetTokens, focusTokens);
-  if (focusOverlap >= 1) {
-    const value = Math.min(38, focusOverlap * 10);
-    score += value;
-    reasons.push(`есть пересечение с текущим фокусом (${focusOverlap})`);
+  if (focusOverlap >= 2) {
+    const value = Math.min(36, focusOverlap * 9);
+    relationScore += value;
+    reasons.push(`содержательно пересекается с текущим фокусом (${focusOverlap})`);
   }
 
   const focusProject = String(focus.project || '').trim().toLowerCase();
   const relatedProjects = (source.relatedProjects || []).map((name) => String(name).trim().toLowerCase());
   if (focusProject && relatedProjects.includes(focusProject)) {
-    score += 25;
+    relationScore += 30;
     reasons.push(`напрямую связан с проектом ${focus.project}`);
   }
 
@@ -150,35 +169,45 @@ function relevanceForAsset(asset = {}, snapshot = {}, activeFocus = null) {
     .filter((task) => {
       const taskTokens = keywordSet(task.title, task.project, task.goalName, task.nextAction);
       const projectMatch = task.project && relatedProjects.includes(String(task.project).trim().toLowerCase());
-      return projectMatch || overlapCount(assetTokens, taskTokens) >= 2;
+      return projectMatch || overlapCount(assetTokens, taskTokens) >= 3;
     });
 
   if (matchingTasks.length) {
-    score += Math.min(25, matchingTasks.length * 5);
-    reasons.push(`может относиться к ${matchingTasks.length} активн. задачам`);
+    relationScore += Math.min(25, matchingTasks.length * 5);
+    reasons.push(`может помочь в ${matchingTasks.length} активн. задачах`);
   }
 
+  if (relationScore === 0) {
+    return {
+      score: 0,
+      level: 'low',
+      reasons: ['прямой связи с текущим фокусом и активными задачами пока не найдено'],
+    };
+  }
+
+  let score = relationScore;
   const priority = String(source.priority || '').toLowerCase();
   if (priority === 'high') {
-    score += 7;
+    score += 5;
     reasons.push('источник помечен высоким приоритетом');
-  } else if (priority === 'normal' || priority === 'medium') {
-    score += 3;
   }
 
   const age = daysOld(source.capturedAt);
-  if (age <= 14) score += 5;
-  else if (age <= 60) score += 2;
+  if (age <= 14) score += 4;
+  else if (age <= 60) score += 1;
 
   const normalizedScore = Math.max(0, Math.min(100, Math.round(score)));
   return {
     score: normalizedScore,
     level: normalizedScore >= 70 ? 'high' : normalizedScore >= 40 ? 'medium' : 'low',
-    reasons: reasons.length ? reasons.slice(0, 3) : ['прямой связи с текущим фокусом и активными задачами пока не найдено'],
+    reasons: reasons.slice(0, 3),
   };
 }
 
 function relevanceForSignal(signal = {}, snapshot = {}, activeFocus = null) {
+  if (lowInformationSignal(signal)) {
+    return { score: 0, level: 'low', reasons: ['слишком мало содержания для оценки актуальности'] };
+  }
   const own = relevanceForAsset({
     title: signal.title,
     description: signal.summary,
@@ -336,9 +365,9 @@ function SignalRow({ signal, expanded, onToggle, statusOverride, busy, onStatus,
       </button>
       {expanded ? <div className="compactInboxDetails">
         <RelevanceDetail relevance={signal.relevance} />
-        {signal.summary ? <div><small>Оригинальный текст / содержание</small><p className="fullSignalText">{signal.summary}</p></div> : null}
+        {signal.summary ? <div><small>Исходный материал</small><p className="fullSignalText">{signal.summary}</p></div> : null}
         {signal.assistantNote ? <div><small>Комментарий AI</small><p>{signal.assistantNote}</p></div> : null}
-        {signal.possibleUse ? <div><small>Как применить</small><p>{signal.possibleUse}</p></div> : null}
+        {signal.possibleUse ? <div><small>Применение</small><p>{signal.possibleUse}</p></div> : null}
         <AttachmentBlock signal={signal} />
         <div className="assetCardActions">
           {signal.sourceUrl ? <button type="button" onClick={() => openExternal(signal.sourceUrl)}>Открыть источник</button> : null}
@@ -368,6 +397,7 @@ export function AIInboxV2({ map, snapshot = {}, activeFocus = null }) {
   const [busySignalId, setBusySignalId] = useState('');
   const [reprocessing, setReprocessing] = useState(false);
   const [job, setJob] = useState(null);
+  const [aiStatus, setAiStatus] = useState(null);
   const jobRef = useRef(null);
   const lastJobProgressRef = useRef(-1);
   const [promptAsset, setPromptAsset] = useState(null);
@@ -400,6 +430,10 @@ export function AIInboxV2({ map, snapshot = {}, activeFocus = null }) {
     }
   };
 
+  const loadAiStatus = async () => {
+    try { setAiStatus(await fetchAssistantStatus()); } catch {}
+  };
+
   const syncJobStatus = async () => {
     try {
       const response = await fetchInboxReprocessStatus();
@@ -418,9 +452,11 @@ export function AIInboxV2({ map, snapshot = {}, activeFocus = null }) {
         if (done !== lastJobProgressRef.current) {
           lastJobProgressRef.current = done;
           await loadSignals({ initial: false });
+          await loadAiStatus();
         }
       } else if (previous && ['running', 'waiting_rate_limit'].includes(previous.status) && nextJob?.status && nextJob.status !== 'idle') {
         await loadSignals({ initial: false });
+        await loadAiStatus();
         setNotice(`Переразбор завершён: обработано ${nextJob.processed || 0}${nextJob.reused ? `, повторно использовано ${nextJob.reused}` : ''}, ошибок ${nextJob.failed || 0}.`);
       }
     } catch (err) {
@@ -430,11 +466,14 @@ export function AIInboxV2({ map, snapshot = {}, activeFocus = null }) {
 
   useEffect(() => {
     loadSignals({ initial: true });
+    loadAiStatus();
     syncJobStatus();
     const signalTimer = window.setInterval(() => loadSignals({ initial: false }), 15000);
+    const quotaTimer = window.setInterval(loadAiStatus, 30000);
     const jobTimer = window.setInterval(syncJobStatus, 3000);
     return () => {
       window.clearInterval(signalTimer);
+      window.clearInterval(quotaTimer);
       window.clearInterval(jobTimer);
     };
   }, [map?.id]);
@@ -518,9 +557,11 @@ export function AIInboxV2({ map, snapshot = {}, activeFocus = null }) {
   return (
     <aside className="sideList inboxPanel inboxV2Panel" onClick={(event) => event.stopPropagation()}>
       <div className="sideListHead inboxHead inboxV2Head">
-        <div><small>AI Inbox · библиотека сигналов</small><strong>{map.title}</strong></div>
+        <div><small>AI Inbox</small><strong>Библиотека сигналов</strong></div>
         {(unprocessedCount > 0 || reprocessing) ? <button className="reprocessButton" type="button" disabled={reprocessing} onClick={reprocess}>{reprocessLabel}</button> : null}
       </div>
+
+      <div className="inboxQuotaRow"><CloudQuotaMeter status={aiStatus} profile="inbox" compact /></div>
 
       <div className="inboxCategoryTabs inboxV2Tabs">
         {TABS.map((item) => <button key={item.id} className={tab === item.id ? 'active' : ''} type="button" onClick={() => setTab(item.id)}><span className="tabLabel">{item.label}</span><span className="tabCount">{counts[item.id] || 0}</span></button>)}
