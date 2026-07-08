@@ -1,21 +1,21 @@
 {
-  "forwardPorts": [3000, 3001, 8080],
+  "forwardPorts": [3000, 3001],
   "portsAttributes": {
     "3000": {
       "label": "LifeMap UI",
+      "protocol": "http",
       "onAutoForward": "silent",
       "visibility": "public"
     },
     "3001": {
       "label": "LifeMap API / Telegram webhook",
-      "onAutoForward": "silent",
-      "visibility": "public"
-    },
-    "8080": {
-      "label": "LifeMap UI alt",
+      "protocol": "http",
       "onAutoForward": "silent",
       "visibility": "public"
     }
+  },
+  "otherPortsAttributes": {
+    "onAutoForward": "ignore"
   },
   "postStartCommand": "bash .devcontainer/set-public-ports.sh >/tmp/lifemap-public-ports-start.log 2>&1 || true"
 }
