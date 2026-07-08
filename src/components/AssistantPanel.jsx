@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { executeAssistantActions, fetchAssistantStatus, postAssistantChat } from '../lib/lifeMapRuntime.js';
+import { CloudQuotaMeter } from './CloudQuotaMeter.jsx';
 import '../assistant-fullscreen.css';
+import '../ai-capacity.css';
 
 const CHAT_PREFIX = 'lifemap.assistant.chat.v2:';
 const SECRET_KEY = 'lifemap.assistant.writeSecret.session';
@@ -28,7 +30,7 @@ function itemKey(item) {
 }
 
 function itemKindLabel(item) {
-  if (!item) return 'Глобальный ассистент';
+  if (!item) return 'LifeMap';
   if (item.kind === 'signal') return 'AI Inbox';
   if (item.kind === 'task') return 'Задача';
   return item.kind || 'Объект LifeMap';
@@ -45,7 +47,7 @@ function friendlyAssistantError(error) {
     return 'Бесплатный AI-пул временно исчерпал доступную квоту. LifeMap автоматически переключает модели; если закончились все доступные маршруты, чат продолжит работать после обновления квоты.';
   }
   if (/failed to fetch|network|load failed/i.test(message)) {
-    return 'Не удалось связаться с LifeMap API. Проверь, что backend на порту 3001 запущен.';
+    return 'Не удалось связаться с LifeMap API. Проверь, что приложение на порту 3001 запущено.';
   }
   return message.length > 320 ? `${message.slice(0, 319)}…` : message;
 }
@@ -77,8 +79,8 @@ function quickPromptsFor(target) {
     return [
       'Разбери этот сигнал и скажи, что с ним делать',
       'Выдели инструменты, промпты и идеи из этого материала',
-      'Предложи задачу, если из этого реально стоит сделать действие',
-      'Сформулируй, в какую библиотеку или проект это положить',
+      'Предложи задачу, только если действие действительно нужно',
+      'Скажи, куда положить этот материал и почему',
     ];
   }
   if (target?.kind === 'task') {
@@ -175,6 +177,10 @@ export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
   const [wideContext, setWideContext] = useState(true);
   const scrollRef = useRef(null);
 
+  const refreshStatus = () => fetchAssistantStatus()
+    .then(setStatus)
+    .catch((err) => setStatus((previous) => previous || { ok: false, configured: false, error: friendlyAssistantError(err) }));
+
   useEffect(() => {
     const handler = (event) => {
       setTarget(event.detail?.target || null);
@@ -199,14 +205,15 @@ export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
   const chatKey = useMemo(() => itemKey(target), [target]);
   const context = useMemo(() => assistantContext(currentMap, activeFocus, snapshot, target, targetContext), [currentMap, activeFocus, snapshot, target, targetContext]);
   const quickPrompts = useMemo(() => quickPromptsFor(target), [target]);
-  const title = target ? `${itemCode(target)} · ${safeText(target.title)}` : 'Помощник LifeMap';
   const targetText = itemSummary(target);
   const latestActions = useMemo(() => messages.flatMap((message) => message.proposedActions || []).slice(-12), [messages]);
   const snapshotStats = useMemo(() => ({ tasks: snapshot?.tasks?.length || 0, goals: snapshot?.goals?.length || 0, signals: snapshot?.signals?.length || 0, warnings: snapshot?.meta?.warnings?.length || 0 }), [snapshot]);
 
   useEffect(() => {
-    if (!open) return;
-    fetchAssistantStatus().then(setStatus).catch((err) => setStatus({ ok: false, configured: false, error: friendlyAssistantError(err) }));
+    if (!open) return undefined;
+    refreshStatus();
+    const timer = window.setInterval(refreshStatus, 30000);
+    return () => window.clearInterval(timer);
   }, [open]);
 
   useEffect(() => { setMessages(readChat(chatKey)); }, [chatKey]);
@@ -250,6 +257,7 @@ export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
       appendMessages([{ role: 'assistant', text: friendly, createdAt: new Date().toISOString(), error: true }]);
     } finally {
       setBusy(false);
+      refreshStatus();
     }
   };
 
@@ -289,6 +297,9 @@ export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
     sendMessage(event);
   };
 
+  const mainEyebrow = target ? `${itemKindLabel(target)} · ${itemCode(target)}` : 'Рабочий чат';
+  const mainTitle = target ? safeText(target.title) : 'LifeMap Assistant';
+
   return (
     <>
       <button className="assistantFab" type="button" onClick={openGlobal} title="Открыть помощника LifeMap">AI</button>
@@ -296,18 +307,55 @@ export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
         <div className="assistantWorkspaceOverlay" onClick={() => setOpen(false)}>
           <section className={`assistantWorkspace ${wideContext ? 'withContext' : 'compactMode'}`} onClick={(event) => event.stopPropagation()}>
             <aside className="assistantWorkspaceSidebar">
-              <div className="assistantBrandBlock"><small>LifeMap AI</small><h2>{title}</h2><p>{target ? `${itemKindLabel(target)} открыт как рабочий контекст.` : 'Глобальный ассистент карты, задач, очереди и AI Inbox.'}</p></div>
-              <div className="assistantStatusStack"><span className={status?.configured ? 'ok' : 'warn'}>{status?.configured ? `AI подключён · ${status.model || 'model'}` : 'AI ждёт backend / ключ'}</span><span>{status?.canExecuteActions ? 'Действия доступны по secret' : 'Только чат и предложения'}</span><span>{snapshotStats.tasks} задач · {snapshotStats.signals} сигналов</span></div>
-              <nav className="assistantWorkspaceTabs"><button className={tab === 'context' ? 'active' : ''} type="button" onClick={() => setTab('context')}>Контекст</button><button className={tab === 'actions' ? 'active' : ''} type="button" onClick={() => setTab('actions')}>Действия <span>{latestActions.length}</span></button><button className={tab === 'settings' ? 'active' : ''} type="button" onClick={() => setTab('settings')}>Настройки</button></nav>
+              <div className="assistantBrandBlock assistantBrandCompact">
+                <div className="assistantBrandIdentity"><span>AI</span><div><small>LifeMap</small><h2>Assistant</h2></div></div>
+                <p>Контекст, задачи и AI Inbox в одном рабочем диалоге.</p>
+              </div>
+
+              <CloudQuotaMeter status={status} profile="chat" compact />
+
+              <div className="assistantStatusLine">
+                <span className={status?.configured ? 'ok' : 'warn'}>{status?.configured ? 'Облачный пул подключён' : 'AI ждёт backend или ключ'}</span>
+                <small>{snapshotStats.tasks} задач · {snapshotStats.signals} сигналов</small>
+              </div>
+
+              <nav className="assistantWorkspaceTabs">
+                <button className={tab === 'context' ? 'active' : ''} type="button" onClick={() => setTab('context')}>Контекст</button>
+                <button className={tab === 'actions' ? 'active' : ''} type="button" onClick={() => setTab('actions')}>Действия <span>{latestActions.length}</span></button>
+                <button className={tab === 'settings' ? 'active' : ''} type="button" onClick={() => setTab('settings')}>Настройки</button>
+              </nav>
+
               <div className="assistantQuickStack"><small>Быстрые команды</small>{quickPrompts.map((prompt) => <button key={prompt} type="button" onClick={(event) => sendMessage(event, prompt)} disabled={busy}>{prompt}</button>)}</div>
             </aside>
+
             <main className="assistantWorkspaceMain">
-              <header className="assistantWorkspaceHeader"><div><small>{target ? `${itemKindLabel(target)} · ${itemCode(target)}` : 'Глобальный режим'}</small><h1>{target ? safeText(target.title) : 'Чат с AI по LifeMap'}</h1></div><div className="assistantHeaderActions"><button type="button" onClick={() => setWideContext((value) => !value)}>{wideContext ? 'Скрыть контекст' : 'Показать контекст'}</button><button type="button" onClick={clearChat}>Очистить</button><button type="button" onClick={() => setOpen(false)}>Закрыть</button></div></header>
-              <div className="assistantChatThread fullScreenThread" ref={scrollRef}>{!messages.length ? <div className="assistantMessage assistantSystemMessage"><b>Контекстный чат готов.</b><p>Задай вопрос по текущей карте, задаче или сигналу. Ассистент получает live-контекст из LifeMap и Notion через backend.</p></div> : null}{messages.map((message, index) => <MessageBubble key={`${message.createdAt}-${index}`} message={message} onExecute={runAction} actionBusy={actionBusy} actionsDisabled={!status?.canExecuteActions} />)}{busy ? <div className="assistantMessageBubble assistant loading"><p>Думаю по контексту LifeMap…</p></div> : null}</div>
+              <header className="assistantWorkspaceHeader">
+                <div><small>{mainEyebrow}</small><h1>{mainTitle}</h1></div>
+                <div className="assistantHeaderActions">
+                  <button type="button" onClick={() => setWideContext((value) => !value)}>{wideContext ? 'Скрыть контекст' : 'Контекст'}</button>
+                  <button type="button" onClick={clearChat}>Очистить чат</button>
+                  <button className="assistantCloseButton" type="button" onClick={() => setOpen(false)}>Закрыть</button>
+                </div>
+              </header>
+
+              <div className="assistantChatThread fullScreenThread" ref={scrollRef}>
+                {!messages.length ? <div className="assistantWelcome"><small>Готов к работе</small><h2>Что разберём?</h2><p>Спроси о текущем фокусе, задаче, очереди или материале из AI Inbox. Контекст LifeMap уже подключён.</p></div> : null}
+                {messages.map((message, index) => <MessageBubble key={`${message.createdAt}-${index}`} message={message} onExecute={runAction} actionBusy={actionBusy} actionsDisabled={!status?.canExecuteActions} />)}
+                {busy ? <div className="assistantMessageBubble assistant loading"><p>Анализирую контекст LifeMap…</p></div> : null}
+              </div>
+
               {error ? <div className="assistantInlineError">{error}</div> : null}
-              <form className="assistantInput assistantWorkspaceInput" onSubmit={sendMessage}><textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={handleDraftKeyDown} placeholder={target ? 'Напиши команду или вопрос по этому объекту. Контекст уже прикреплён.' : 'Спроси о фокусе, очереди, AI Inbox, задачах или следующем шаге.'} /><button type="submit" disabled={busy || !draft.trim()}>{busy ? 'Отправляю…' : 'Отправить'}</button></form>
+              <form className="assistantInput assistantWorkspaceInput" onSubmit={sendMessage}>
+                <textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={handleDraftKeyDown} placeholder={target ? 'Вопрос или команда по открытому объекту…' : 'Спроси о фокусе, задачах, очереди или AI Inbox…'} />
+                <button type="submit" disabled={busy || !draft.trim()}>{busy ? 'Отправляю…' : 'Отправить'}</button>
+              </form>
             </main>
-            {wideContext ? <aside className="assistantWorkspaceContext">{tab === 'context' ? <><section><small>Контекст объекта</small><div className="assistantContextList">{context.map((item) => <div key={`${item.label}-${item.value}`}><b>{item.label}</b><span>{item.value}</span></div>)}</div></section><section><small>Фрагмент материала</small><p className="assistantTargetText large">{targetText || 'Объект не выбран. Ассистент работает по глобальному контексту карты.'}</p></section></> : null}{tab === 'actions' ? <section><small>Предложенные действия</small>{latestActions.length ? <div className="assistantActions sideActions">{latestActions.map((action, index) => <ActionCard key={`${action.type}-${action.title}-${index}`} action={action} onExecute={runAction} busy={actionBusy === `${action.type}-${action.title}`} disabled={!status?.canExecuteActions} />)}</div> : <p className="assistantEmptyText">Пока нет действий. Спроси ассистента, что сделать дальше.</p>}</section> : null}{tab === 'settings' ? <section><small>Настройки ассистента</small><label className="assistantSecretField">Secret для выполнения действий<input type="password" value={secret} onChange={(event) => setSecret(event.target.value)} placeholder="LIFEMAP_ASSISTANT_API_SECRET" /></label><p className="assistantMutedText">Секрет хранится только в sessionStorage текущей вкладки. Без него ассистент предлагает действия, но не меняет Notion.</p><div className="assistantContextList"><div><b>API</b><span>{status?.ok ? 'доступен' : status?.error || 'проверяется'}</span></div><div><b>Модель</b><span>{status?.model || 'не задана'}</span></div><div><b>Write actions</b><span>{status?.canExecuteActions ? 'backend разрешает с secret' : 'выключены'}</span></div></div></section> : null}</aside> : null}
+
+            {wideContext ? <aside className="assistantWorkspaceContext">
+              {tab === 'context' ? <><section><small>Данные контекста</small><div className="assistantContextList">{context.map((item) => <div key={`${item.label}-${item.value}`}><b>{item.label}</b><span>{item.value}</span></div>)}</div></section><section><small>Фрагмент</small><p className="assistantTargetText large">{targetText || 'Объект не выбран. Ассистент использует глобальный контекст карты.'}</p></section></> : null}
+              {tab === 'actions' ? <section><small>Действия</small>{latestActions.length ? <div className="assistantActions sideActions">{latestActions.map((action, index) => <ActionCard key={`${action.type}-${action.title}-${index}`} action={action} onExecute={runAction} busy={actionBusy === `${action.type}-${action.title}`} disabled={!status?.canExecuteActions} />)}</div> : <p className="assistantEmptyText">Пока нет предложенных действий.</p>}</section> : null}
+              {tab === 'settings' ? <section><small>Настройки</small><label className="assistantSecretField">Secret для выполнения действий<input type="password" value={secret} onChange={(event) => setSecret(event.target.value)} placeholder="LIFEMAP_ASSISTANT_API_SECRET" /></label><p className="assistantMutedText">Секрет хранится только в sessionStorage текущей вкладки. Без него ассистент предлагает действия, но не меняет Notion.</p><div className="assistantContextList"><div><b>API</b><span>{status?.ok ? 'доступен' : status?.error || 'проверяется'}</span></div><div><b>AI pool</b><span>{status?.model || 'не задан'}</span></div><div><b>Write actions</b><span>{status?.canExecuteActions ? 'разрешены с secret' : 'выключены'}</span></div></div></section> : null}
+            </aside> : null}
           </section>
         </div>
       ) : null}
