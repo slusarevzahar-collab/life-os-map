@@ -55,13 +55,13 @@ export function MissionPanel({ focus, focusQueueItems, snapshot, apiState, onDon
       <div className="missionTop">
         <div>
           <small><em /> {isOffline ? 'API OFFLINE · нет данных для карты' : isMock ? 'MOCK DATA · проверь backend/.env' : isLoading ? 'LOADING · жду backend' : 'MISSION CONTROL'}</small>
-          <h1><span>FO</span>Текущий фокус</h1>
+          <h1><span>FO</span>Рабочий фокус</h1>
         </div>
       </div>
-      {isOffline ? <div className="warningLine">Карта специально не показывает запасные данные: backend API недоступен. Запусти npm run api и обнови страницу.</div> : null}
-      {isMock ? <div className="warningLine">Сейчас карта получает mock-данные. Нужно, чтобы backend видел NOTION_TOKEN и NOTION_TASKS_DB_ID.</div> : null}
-      <button className="missionLine activeLine missionJumpLine" style={jumpLineStyle} onClick={() => openFocusItem(focus)}>Сейчас: {currentTitle}</button>
-      <button className="missionLine nextLine missionJumpLine" style={jumpLineStyle} onClick={() => openFocusItem(nextItem || focus)}>Далее: {nextAction}</button>
+      {isOffline ? <div className="warningLine">Карта не показывает запасные данные: backend API недоступен. Запусти LifeMap и обнови страницу.</div> : null}
+      {isMock ? <div className="warningLine">Сейчас карта получает mock-данные. Backend должен видеть NOTION_TOKEN и NOTION_TASKS_DB_ID.</div> : null}
+      <button className="missionLine activeLine missionJumpLine" style={jumpLineStyle} onClick={() => openFocusItem(focus)}>Сейчас · {currentTitle}</button>
+      <button className="missionLine nextLine missionJumpLine" style={jumpLineStyle} onClick={() => openFocusItem(nextItem || focus)}>Далее · {nextAction}</button>
       <div className="focusControls">
         <button className="queueToggle" onClick={() => setQueueOpen((value) => !value)}>
           {queueOpen ? 'Скрыть очередь' : `Очередь ${queueItems.length}`} <ChevronDown open={queueOpen} />
