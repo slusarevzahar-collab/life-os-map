@@ -1,0 +1,219 @@
+.assistantDecisionWorkspace {
+  grid-template-columns: minmax(238px, 286px) minmax(0, 1fr) !important;
+}
+
+.assistantDecisionWorkspace .assistantWorkspaceSidebar {
+  overflow-x: hidden;
+}
+
+.assistantDecisionWorkspace .assistantWorkspaceMain {
+  min-width: 0;
+}
+
+.assistantContextPulse {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.assistantContextPulse span {
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.assistantContextPulse small {
+  display: -webkit-box;
+  overflow: hidden;
+  color: rgba(203, 225, 235, .48);
+  font-size: 9px;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.assistantDecisionCommands {
+  margin-top: 14px !important;
+}
+
+.assistantDecisionCommands button {
+  position: relative;
+  min-height: 42px;
+  padding: 10px 34px 10px 11px !important;
+  border-radius: 14px !important;
+  line-height: 1.25;
+}
+
+.assistantDecisionCommands button::after {
+  content: '→';
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  color: rgba(103, 232, 249, .66);
+}
+
+.assistantDecisionCommands button:hover::after {
+  color: #061018;
+}
+
+.assistantWriteAccess {
+  margin-top: 14px;
+  border: 1px solid rgba(103, 232, 249, .1);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .025);
+}
+
+.assistantWriteAccess summary {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 11px;
+  list-style: none;
+  cursor: pointer;
+}
+
+.assistantWriteAccess summary::-webkit-details-marker {
+  display: none;
+}
+
+.assistantWriteAccess summary span {
+  color: rgba(226, 246, 255, .74);
+  font-size: 10px;
+  font-weight: 850;
+}
+
+.assistantWriteAccess summary b {
+  color: rgba(103, 232, 249, .72);
+  font-size: 8px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+.assistantWriteAccess[open] {
+  padding-bottom: 10px;
+}
+
+.assistantWriteAccess .assistantSecretField,
+.assistantWriteAccess > p {
+  margin: 2px 10px 0;
+}
+
+.assistantWriteAccess > p {
+  color: rgba(203, 225, 235, .5);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.assistantDecisionWelcome {
+  max-width: 670px;
+  margin: auto;
+  border: 1px solid rgba(103, 232, 249, .14);
+  border-radius: 24px;
+  padding: 22px;
+  background: radial-gradient(circle at 15% 0%, rgba(103, 232, 249, .08), transparent 42%), rgba(255, 255, 255, .025);
+}
+
+.assistantDecisionWelcome small {
+  color: rgba(103, 232, 249, .78);
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.assistantDecisionWelcome h2 {
+  margin: 8px 0 10px;
+  font-size: clamp(26px, 3vw, 40px);
+  letter-spacing: -.045em;
+}
+
+.assistantDecisionWelcome p {
+  margin: 0;
+  color: rgba(226, 246, 255, .63);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.assistantDecisionWorkspace .assistantHeaderActions {
+  flex-wrap: nowrap;
+}
+
+.assistantDecisionWorkspace .assistantHeaderActions button {
+  min-width: 84px;
+}
+
+.assistantDecisionWorkspace .assistantMessageBubble.assistant p {
+  white-space: pre-wrap;
+}
+
+@media (max-width: 1180px) {
+  .assistantDecisionWorkspace {
+    grid-template-columns: 220px minmax(0, 1fr) !important;
+  }
+
+  .assistantDecisionWorkspace .assistantWorkspaceSidebar {
+    padding: 12px !important;
+  }
+
+  .assistantDecisionCommands button {
+    min-height: 38px;
+    font-size: 9px !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .assistantDecisionWorkspace {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .assistantDecisionWorkspace .assistantWorkspaceSidebar {
+    display: none !important;
+  }
+
+  .assistantDecisionWorkspace .assistantWorkspaceMain {
+    width: 100%;
+    height: 100%;
+  }
+
+  .assistantDecisionWorkspace .assistantWorkspaceHeader {
+    align-items: center !important;
+  }
+
+  .assistantDecisionWorkspace .assistantWorkspaceHeader h1 {
+    font-size: 22px !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .assistantDecisionWorkspace .assistantWorkspaceHeader {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .assistantDecisionWorkspace .assistantHeaderActions {
+    gap: 4px !important;
+  }
+
+  .assistantDecisionWorkspace .assistantHeaderActions button {
+    min-width: 0;
+    height: 32px !important;
+    padding-inline: 8px !important;
+    font-size: 8px !important;
+  }
+
+  .assistantDecisionWelcome {
+    border-radius: 18px;
+    padding: 16px;
+  }
+
+  .assistantDecisionWelcome h2 {
+    font-size: 25px;
+  }
+
+  .assistantDecisionWelcome p {
+    font-size: 12px;
+  }
+}
