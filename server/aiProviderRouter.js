@@ -85,6 +85,47 @@ function retryAfterMs(response) {
   return Number.isFinite(raw) && raw > 0 ? Math.ceil(raw * 1000) : 0;
 }
 
+function headerNumber(response, name) {
+  const raw = response.headers.get(name);
+  if (raw === null || raw === '') return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
+}
+
+function metricSnapshot(limit, remaining, reset = '') {
+  if (!Number.isFinite(limit) || !Number.isFinite(remaining) || limit <= 0) return null;
+  return {
+    limit,
+    remaining: Math.max(0, remaining),
+    percent: Math.max(0, Math.min(100, Math.round((remaining / limit) * 100))),
+    reset: String(reset || ''),
+  };
+}
+
+function quotaSnapshot(response) {
+  const requests = metricSnapshot(
+    headerNumber(response, 'x-ratelimit-limit-requests'),
+    headerNumber(response, 'x-ratelimit-remaining-requests'),
+    response.headers.get('x-ratelimit-reset-requests') || '',
+  );
+  const tokens = metricSnapshot(
+    headerNumber(response, 'x-ratelimit-limit-tokens'),
+    headerNumber(response, 'x-ratelimit-remaining-tokens'),
+    response.headers.get('x-ratelimit-reset-tokens') || '',
+  );
+  if (!requests && !tokens) return null;
+  return { requests, tokens, updatedAt: new Date().toISOString() };
+}
+
+function usageSnapshot(data = {}) {
+  const usage = data.usage || {};
+  const promptTokens = Number(usage.prompt_tokens || 0);
+  const completionTokens = Number(usage.completion_tokens || 0);
+  const totalTokens = Number(usage.total_tokens || promptTokens + completionTokens || 0);
+  if (!promptTokens && !completionTokens && !totalTokens) return null;
+  return { promptTokens, completionTokens, totalTokens };
+}
+
 function shortProviderError(config, response, data) {
   if (response.status === 429) return `${config.provider}/${config.model}: rate limit`;
   const message = String(data.error?.message || `HTTP ${response.status}`).replace(/\s+/g, ' ').slice(0, 220);
@@ -116,13 +157,17 @@ async function callProvider({ config, systemPrompt, userPayload, maxTokens, temp
       signal: controller.signal,
     });
 
+    const quota = quotaSnapshot(response);
     const data = await response.json().catch(() => ({}));
+    const usage = usageSnapshot(data);
     if (!response.ok || data.error) {
       const error = new Error(shortProviderError(config, response, data));
       error.provider = config.provider;
       error.model = config.model;
       error.status = response.status;
       error.retryAfterMs = retryAfterMs(response);
+      error.quota = quota;
+      error.usage = usage;
       throw error;
     }
     const text = extractText(data);
@@ -130,9 +175,11 @@ async function callProvider({ config, systemPrompt, userPayload, maxTokens, temp
       const error = new Error(`${config.provider}/${config.model}: empty response`);
       error.provider = config.provider;
       error.model = config.model;
+      error.quota = quota;
+      error.usage = usage;
       throw error;
     }
-    return { text, provider: config.provider, model: data.model || config.model };
+    return { text, provider: config.provider, model: data.model || config.model, quota, usage };
   } finally {
     clearTimeout(timer);
   }
@@ -143,11 +190,18 @@ function soonestRetry(errors = []) {
   return values.length ? Math.min(...values) : 0;
 }
 
+function conservativePercent(quota) {
+  const values = [quota?.requests?.percent, quota?.tokens?.percent].filter(Number.isFinite);
+  return values.length ? Math.min(...values) : null;
+}
+
 export function createAiProviderRouter(env = process.env) {
   const configs = providerConfigs(env);
   const timeoutMs = Number(env.AI_REQUEST_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
   const blockedUntil = new Map();
   const lastProfileCallAt = new Map();
+  const routeTelemetry = new Map();
+  const profileTelemetry = new Map();
   const minGapMs = {
     inbox: Math.max(5000, Number(env.AI_INBOX_MIN_GAP_MS || 12000)),
     chat: Math.max(0, Number(env.AI_CHAT_MIN_GAP_MS || 0)),
@@ -166,11 +220,58 @@ export function createAiProviderRouter(env = process.env) {
     lastProfileCallAt.set(profile, Date.now());
   }
 
+  function recordTelemetry(name, profile, payload = {}, outcome = 'ok') {
+    const config = configs[name];
+    const previous = routeTelemetry.get(name) || {};
+    const now = new Date().toISOString();
+    routeTelemetry.set(name, {
+      ...previous,
+      quota: payload.quota || previous.quota || null,
+      usage: payload.usage || previous.usage || null,
+      lastOutcome: outcome,
+      lastUsedAt: now,
+    });
+    profileTelemetry.set(profile, {
+      route: name,
+      provider: config?.provider || '',
+      model: payload.model || config?.model || '',
+      outcome,
+      updatedAt: now,
+    });
+  }
+
+  function profileQuota(profile) {
+    const order = orderFor(profile);
+    const configured = order.filter((name) => Boolean(configs[name]?.apiKey));
+    const available = configured.filter((name) => Math.max(0, Number(blockedUntil.get(name) || 0) - Date.now()) === 0);
+    const latest = profileTelemetry.get(profile) || null;
+    const telemetryRoute = latest?.route || configured.find((name) => routeTelemetry.get(name)?.quota) || '';
+    const telemetry = telemetryRoute ? routeTelemetry.get(telemetryRoute) || null : null;
+    const quota = telemetry?.quota || null;
+    return {
+      profile,
+      routeOrder: order,
+      configuredRoutes: configured.length,
+      availableRoutes: available.length,
+      blockedRoutes: configured.length - available.length,
+      lastRoute: latest?.route || '',
+      lastProvider: latest?.provider || '',
+      lastModel: latest?.model || '',
+      lastOutcome: latest?.outcome || '',
+      updatedAt: quota?.updatedAt || latest?.updatedAt || '',
+      requests: quota?.requests || null,
+      tokens: quota?.tokens || null,
+      capacityPercent: conservativePercent(quota),
+      telemetrySource: quota ? 'provider-response-headers' : 'availability-only',
+    };
+  }
+
   function status() {
     const uniqueNames = [...new Set([...orderFor('chat'), ...orderFor('inbox')])];
     return {
       order: orderFor('chat'),
       profiles: { chat: orderFor('chat'), inbox: orderFor('inbox') },
+      quotaProfiles: { chat: profileQuota('chat'), inbox: profileQuota('inbox') },
       pacingMs: minGapMs,
       providers: uniqueNames.map((name) => ({
         name,
@@ -178,6 +279,9 @@ export function createAiProviderRouter(env = process.env) {
         configured: Boolean(configs[name]?.apiKey),
         model: configs[name]?.model || '',
         blockedForMs: Math.max(0, Number(blockedUntil.get(name) || 0) - Date.now()),
+        quota: routeTelemetry.get(name)?.quota || null,
+        lastOutcome: routeTelemetry.get(name)?.lastOutcome || '',
+        lastUsedAt: routeTelemetry.get(name)?.lastUsedAt || '',
       })),
     };
   }
@@ -197,12 +301,16 @@ export function createAiProviderRouter(env = process.env) {
       }
 
       try {
-        return await callProvider({ config, systemPrompt, userPayload, maxTokens, temperature, timeoutMs });
+        const result = await callProvider({ config, systemPrompt, userPayload, maxTokens, temperature, timeoutMs });
+        recordTelemetry(name, profile, result, 'ok');
+        return result;
       } catch (error) {
         if (error.name === 'AbortError') {
+          recordTelemetry(name, profile, {}, 'timeout');
           errors.push({ provider: config.provider, model: config.model, message: `${name}: timeout`, status: 408, retryAfterMs: 0 });
           continue;
         }
+        recordTelemetry(name, profile, error, Number(error.status || 0) === 429 ? 'rate_limit' : 'error');
         const item = {
           provider: config.provider,
           model: config.model,
