@@ -97,7 +97,17 @@ export function registerTelegramRoutes(app, runtime, { codespacesPublicUrl, defe
       console.log(`LifeMap Telegram signal processed: ${signal.id} → ${stored.storage}`);
     } catch (error) {
       console.error(`LifeMap Telegram background processing failed for ${baseSignal.id}: ${error.message}`);
-      if (!stored.signalId) {
+      if (stored.signalId) {
+        await persistSignalAnalysis({
+          notionToken: config.notionToken,
+          signalId: stored.signalId,
+          analysis: {
+            ...baseSignal,
+            assistantNote: 'AI-разбор временно не завершён. Сигнал сохранён и остаётся доступным для последующего переразбора.',
+            assets: [],
+          },
+        }).catch((persistError) => console.warn(`LifeMap Telegram failure note could not be stored: ${persistError.message}`));
+      } else {
         try {
           appendLocalSignal({
             ...baseSignal,
