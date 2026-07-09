@@ -1,0 +1,48 @@
+name: Production Telegram smoke
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  telegram-production-status:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for production deployment and verify secure intake
+        shell: bash
+        run: |
+          set -euo pipefail
+          endpoint="https://lifemap-gamma.vercel.app/api/telegram/status"
+          body=""
+          for attempt in {1..20}; do
+            body="$(curl --fail --silent --show-error --max-time 20 "$endpoint" || true)"
+            if BODY="$body" python - <<'PY'
+          import json, os, sys
+          try:
+              data = json.loads(os.environ.get('BODY', ''))
+          except Exception:
+              sys.exit(1)
+          ok = (
+              data.get('ok') is True
+              and data.get('configured') is True
+              and data.get('hasSecret') is True
+              and data.get('allowedUsersLocked') is True
+              and data.get('signalsDb') is True
+              and data.get('intake', {}).get('secureReady') is True
+              and data.get('intake', {}).get('durableFirst') is True
+              and data.get('intake', {}).get('backgroundScheduler') == 'vercel-waitUntil'
+          )
+          sys.exit(0 if ok else 1)
+          PY
+            then
+              echo "$body" | python -m json.tool
+              exit 0
+            fi
+            echo "Attempt $attempt: production intake not ready yet"
+            echo "$body"
+            sleep 15
+          done
+          echo "Production Telegram intake did not become ready in time"
+          echo "$body"
+          exit 1
