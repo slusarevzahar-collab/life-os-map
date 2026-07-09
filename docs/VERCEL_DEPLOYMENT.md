@@ -60,6 +60,7 @@ The Vercel webhook path is designed as durable-first intake:
 
 ```text
 Telegram POST
+→ verify production intake configuration
 → verify webhook secret
 → verify allowed Telegram user
 → save raw signal to Notion
@@ -69,9 +70,13 @@ Telegram POST
 → update the same Notion signal record with classification, note, next action and extracted assets
 ```
 
+Production intake fails closed. The Vercel route only accepts Telegram material when all security and durable-storage prerequisites are present: bot token, webhook secret, non-empty user allowlist, Notion token and LM Inbox database ID. The production self-sync also refuses to register a webhook until this secure intake configuration is ready.
+
 The raw signal is written before Telegram receives a success response. If durable Notion storage is unavailable in the Vercel runtime, the route returns a non-2xx response so Telegram can retry instead of silently losing the update.
 
 `api/index.js` also checks the current Telegram webhook on production API activity and synchronizes it to the stable production URL when needed. This avoids dependence on a running Codespace.
+
+Codespaces no longer take ownership of the Telegram webhook during normal startup. Production Vercel remains the default webhook owner. A Codespaces runtime may take ownership only when `TELEGRAM_WEBHOOK_RUNTIME=codespaces` is set explicitly for a deliberate local webhook test.
 
 The manual `/api/telegram/set-webhook` route remains available for administration but requires `X-LifeMap-Assistant-Secret`.
 
@@ -94,16 +99,19 @@ Expected minimum:
 - health shows which Notion databases and AI providers are configured;
 - snapshot stops showing API offline;
 - Assistant status reports configured cloud routes after `GROQ_API_KEY` is present;
-- `/api/telegram/status` reports the real webhook URL and `intake.durableFirst: true`;
+- `/api/telegram/status` reports the real webhook URL;
+- `intake.secureReady` is `true`;
+- `intake.durableFirst` is `true`;
 - `intake.backgroundScheduler` is `vercel-waitUntil` on the production Vercel Function.
 
 Final end-to-end acceptance test:
 
 1. stop the Codespace;
-2. send one unique Telegram message to the LM Inbox bot;
-3. receive exactly one `Доставлено в LM Inbox` acknowledgement;
-4. confirm a new signal appears in Notion/LM Inbox;
-5. after background processing, confirm the same signal record receives AI analysis and extracted assets rather than a duplicate record.
+2. open `/api/telegram/status` on the stable production domain and confirm `secureReady: true` plus the stable Vercel webhook URL;
+3. send one unique Telegram message to the LM Inbox bot;
+4. receive exactly one `Доставлено в LM Inbox` acknowledgement;
+5. confirm a new signal appears in Notion/LM Inbox;
+6. after background processing, confirm the same signal record receives AI analysis and extracted assets rather than a duplicate record.
 
 ## Important serverless limitation
 
