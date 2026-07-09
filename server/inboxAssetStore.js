@@ -43,6 +43,10 @@ function dateStart(property) {
   return property?.date?.start || null;
 }
 
+function titleProperty(value = '') {
+  return { title: [{ text: { content: String(value || 'Untitled signal').slice(0, 1900) } }] };
+}
+
 function textProperty(value = '') {
   const content = String(value || '');
   if (!content) return { rich_text: [] };
@@ -152,6 +156,7 @@ export async function persistSignalAnalysis({ notionToken, signalId, analysis = 
     'Extracted assets': textProperty(serializeAssets(assets)),
     'Asset type': multiSelectProperty(assetTypes(assets)),
   };
+  if (analysis.title) properties.Signal = titleProperty(analysis.title);
   if (processingVersion) properties['AI processing version'] = textProperty(processingVersion);
   if (analysis.type) properties.Type = selectProperty(analysis.type);
   if (analysis.priority) properties.Priority = selectProperty(analysis.priority);
