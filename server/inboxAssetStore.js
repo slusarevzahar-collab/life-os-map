@@ -144,14 +144,18 @@ export async function persistSignalAnalysis({ notionToken, signalId, analysis = 
   const notion = new Client({ auth: notionToken });
   const assets = Array.isArray(analysis.assets) ? analysis.assets : [];
   const attachment = normalizeAttachment(analysis);
+  const processingVersion = analysis.aiProcessing?.policyVersion || analysis.policyVersion || '';
   const properties = {
     'Assistant note': textProperty(analysis.assistantNote || ''),
     'Possible use': textProperty(analysis.possibleUse || ''),
     'Next action': textProperty(analysis.nextAction || ''),
     'Extracted assets': textProperty(serializeAssets(assets)),
-    'AI processing version': textProperty(analysis.aiProcessing?.policyVersion || AI_POLICY_VERSION),
     'Asset type': multiSelectProperty(assetTypes(assets)),
   };
+  if (processingVersion) properties['AI processing version'] = textProperty(processingVersion);
+  if (analysis.type) properties.Type = selectProperty(analysis.type);
+  if (analysis.priority) properties.Priority = selectProperty(analysis.priority);
+  if (Array.isArray(analysis.relatedProjects)) properties['Related projects'] = multiSelectProperty(analysis.relatedProjects);
   if (attachment) properties['Attachment metadata'] = textProperty(JSON.stringify(attachment));
   await notion.pages.update({ page_id: signalId, properties });
   return { id: signalId, updated: true, assets: assets.length };
