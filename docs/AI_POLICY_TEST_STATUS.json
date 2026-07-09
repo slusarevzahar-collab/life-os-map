@@ -1,0 +1,18 @@
+{
+  "ok": true,
+  "policyVersion": "2026-07-09.4",
+  "commit": "940773332f267103eb39604f850d1ca7b911f419",
+  "checkedAt": "2026-07-09T21:17:32.187345Z",
+  "exitCode": 0,
+  "logTail": [
+    "npm warn config optional Use `--omit=optional` to exclude optional dependencies, or",
+    "npm warn config `--include=optional` to include them.",
+    "npm warn config",
+    "npm warn config       Default value does install optional deps unless otherwise omitted.",
+    "",
+    "> life-os-map@0.1.0 test:ai",
+    "> node scripts/test-ai-policy.mjs",
+    "",
+    "LifeMap AI policy tests passed."
+  ]
+}
