@@ -20,7 +20,7 @@ function execGh(args = []) {
   });
 }
 
-export function createLifeMapApp() {
+export function createLifeMapApp({ deferTask = null } = {}) {
   const envLoaded = loadLocalEnv();
   const runtime = createLifeMapRuntime({ envLoaded });
   const app = express();
@@ -52,7 +52,7 @@ export function createLifeMapApp() {
 
   registerCoreRoutes(app, runtime);
   registerInboxRoutes(app, runtime);
-  registerTelegramRoutes(app, runtime, { codespacesPublicUrl });
+  registerTelegramRoutes(app, runtime, { codespacesPublicUrl, deferTask });
 
   const distDir = path.resolve(process.cwd(), 'dist');
   const distIndex = path.join(distDir, 'index.html');
