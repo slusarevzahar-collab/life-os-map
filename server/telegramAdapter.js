@@ -49,7 +49,7 @@ function projectTagsFor(text = '') {
   const tags = [];
   if (/lifemap|life os|live os|навигатор|карта/i.test(lower)) tags.push('LifeMap');
   if (/sleda|следа|следы/i.test(lower)) tags.push('Sleda.net');
-  if (/telegram|bot|бот|inbox|инбокс/i.test(lower)) tags.push('AI Inbox');
+  if (/telegram|bot|бот|inbox|инбокс/i.test(lower)) tags.push('LM Inbox');
   if (/4life|transfer factor|трансфер фактор/i.test(lower)) tags.push('4Life');
   if (/yandex|яндекс|самокат|чардж|энерджайзер/i.test(lower)) tags.push('Yandex Chargers');
   if (/ai|нейро|нейросет|agent|агент|автоматизац/i.test(lower)) tags.push('AI Tools');
