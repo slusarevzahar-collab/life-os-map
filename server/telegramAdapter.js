@@ -12,6 +12,7 @@ function firstLine(value = '') { return String(value || '').split(/\r?\n/).map((
 function shortTitle(value = '', fallback = 'Telegram signal') { const raw = firstLine(value) || fallback; const clean = raw.replace(/^https?:\/\/\S+$/i, 'Ссылка из Telegram'); return compactText(clean, 72); }
 function messageFromUpdate(update = {}) { return update.message || update.edited_message || update.channel_post || update.edited_channel_post || null; }
 function textFromMessage(message = {}) { return message.text || message.caption || message.poll?.question || message.document?.file_name || message.photo?.length && 'Фото из Telegram' || message.video && 'Видео из Telegram' || message.voice && 'Голосовое сообщение из Telegram' || message.audio?.title || ''; }
+function heuristicText(value = '') { return String(value || '').split(/\r?\n/).filter((line) => !/^\s*[“”"'`>]*\s*(system|developer|assistant)\s*:/i.test(line)).join('\n'); }
 
 function collectEntityUrls(message = {}) {
   const source = message.text || message.caption || '';
@@ -42,7 +43,13 @@ function forwardedOrigin(message = {}) {
 }
 
 function directMessageLink(message = {}) { if (!message.chat || !message.message_id || !['channel', 'supergroup'].includes(message.chat.type)) return ''; return publicTelegramLink(message.chat, message.message_id); }
-function sourceLinkFor(message = {}, urls = []) { const origin = forwardedOrigin(message); const telegramPostUrl = origin?.url || directMessageLink(message); return { sourceUrl: telegramPostUrl || urls[0] || '', telegramPostUrl, forwardedFrom: origin, entityUrls: urls }; }
+function sourceLinkFor(message = {}, urls = []) {
+  const origin = forwardedOrigin(message);
+  const telegramPostUrl = origin?.url || directMessageLink(message);
+  const sourceText = String(message.text || message.caption || '').trim();
+  const embeddedSourceUrl = urls.length === 1 && sourceText.length <= Math.max(240, String(urls[0] || '').length + 120) ? urls[0] : '';
+  return { sourceUrl: telegramPostUrl || embeddedSourceUrl || '', telegramPostUrl, forwardedFrom: origin, entityUrls: urls };
+}
 
 function projectTagsFor(text = '') {
   const lower = text.toLowerCase();
@@ -88,14 +95,15 @@ export function buildSignalFromTelegramUpdate(update = {}) {
   const capturedAt = message.date ? new Date(message.date * 1000).toISOString() : new Date().toISOString();
   const source = sourceLabel(message);
   const summary = originalText ? compactMultiline(originalText) : compactText(`Входящий объект из Telegram: ${title}`, 900);
-  const relatedProjects = projectTagsFor(`${title} ${summary}`);
+  const safeHeuristicText = heuristicText(`${title}\n${summary}`);
+  const relatedProjects = projectTagsFor(safeHeuristicText);
   const possibleUse = relatedProjects.length ? `Связать с: ${relatedProjects.join(', ')}. Разобрать и решить, это задача, идея, материал или контекст.` : 'Разобрать: это задача, идея, материал, ссылка или контекст для будущей работы.';
   return {
     id: `telegram-${message.chat?.id || message.from?.id || 'chat'}-${message.message_id || update.update_id}`,
     title,
-    type: inferType(summary, urls),
+    type: inferType(safeHeuristicText, urls),
     status: 'New',
-    priority: inferPriority(summary),
+    priority: inferPriority(safeHeuristicText),
     relatedProjects,
     summary,
     nextAction: 'Разобрать входящий сигнал и решить, превращать ли его в задачу, заметку или проектный материал.',
@@ -122,8 +130,9 @@ export async function enrichSignalWithTelegramDocument({ signal, botToken }) {
     if (!cleanText) return signal;
     const title = document.fileName || signal.title || 'Telegram document';
     const summary = compactMultiline(`${title}\n\n${cleanText}`);
-    const relatedProjects = projectTagsFor(`${title} ${summary}`);
-    return { ...signal, title, type: inferType(`${title}\n${summary}`, signal.telegram?.entityUrls || []), priority: inferPriority(summary), relatedProjects: relatedProjects.length ? relatedProjects : signal.relatedProjects, summary, rawText: cleanText, possibleUse: relatedProjects.length ? `Связать с: ${relatedProjects.join(', ')}. Это контекстный документ к входящему посту; решить, прикрепить его к основному сигналу или вынести в библиотеку.` : 'Контекстный документ из Telegram. Решить, к какому основному посту или проекту его прикрепить.', telegram: { ...signal.telegram, document: { ...document, textCaptured: true, textLength: text.length } } };
+    const safeHeuristicText = heuristicText(`${title}\n${summary}`);
+    const relatedProjects = projectTagsFor(safeHeuristicText);
+    return { ...signal, title, type: inferType(safeHeuristicText, signal.telegram?.entityUrls || []), priority: inferPriority(safeHeuristicText), relatedProjects: relatedProjects.length ? relatedProjects : signal.relatedProjects, summary, rawText: cleanText, possibleUse: relatedProjects.length ? `Связать с: ${relatedProjects.join(', ')}. Это контекстный документ к входящему посту; решить, прикрепить его к основному сигналу или вынести в библиотеку.` : 'Контекстный документ из Telegram. Решить, к какому основному посту или проекту его прикрепить.', telegram: { ...signal.telegram, document: { ...document, textCaptured: true, textLength: text.length } } };
   } catch (error) {
     return { ...signal, possibleUse: `${signal.possibleUse || ''} Не удалось подтянуть текст документа: ${error.message}`.trim(), telegram: { ...signal.telegram, document: { ...document, textCaptured: false, textError: error.message } } };
   }
