@@ -33,12 +33,12 @@ function branchTitle(map) {
 }
 
 function itemCode(item) {
-  return safeText(item?.code || item?.raw?.code || item?.icon || '').replace(/-/g, '') || 'AI';
+  return safeText(item?.code || item?.raw?.code || item?.icon || '').replace(/-/g, '') || 'LM';
 }
 
 function itemKindLabel(item) {
   if (!item) return 'LifeMap';
-  if (item.kind === 'signal') return 'AI Inbox';
+  if (item.kind === 'signal') return 'LM Inbox';
   if (item.kind === 'task') return 'Задача';
   return item.kind || 'Объект LifeMap';
 }
@@ -62,7 +62,7 @@ function assistantContext(map, focus, snapshot, target, targetContext = {}) {
     { label: 'Фокус', value: focusTitle(focus) },
     { label: 'Задачи ветки', value: `активные ${Number(map?.tasks || 0)}, сделано ${Number(map?.completedTasks || 0)}` },
     { label: 'Источник', value: source },
-    { label: 'AI Inbox', value: connected.signals ? 'Notion подключён' : 'live-источник не подтверждён' },
+    { label: 'LM Inbox', value: connected.signals ? 'Notion подключён' : 'live-источник не подтверждён' },
   ];
 
   if (target) {
@@ -93,7 +93,7 @@ function quickPromptsFor(target) {
       },
       {
         label: 'Решение по сигналу',
-        prompt: 'Прими решение по этому сигналу как редактор AI Inbox: что оставить, что извлечь, что игнорировать и нужен ли конкретный следующий шаг. Не создавай задачу без реального действия.',
+        prompt: 'Прими решение по этому сигналу как редактор LM Inbox: что оставить, что извлечь, что игнорировать и нужен ли конкретный следующий шаг. Не создавай задачу без реального действия.',
       },
     ];
   }
@@ -114,7 +114,7 @@ function quickPromptsFor(target) {
       },
       {
         label: 'Найти помощь в Inbox',
-        prompt: 'Проверь переданные сигналы AI Inbox и найди максимум 3 материала, которые прямо помогают выполнить эту задачу. Если прямой пользы нет, так и скажи.',
+        prompt: 'Проверь переданные сигналы LM Inbox и найди максимум 3 материала, которые прямо помогают выполнить эту задачу. Если прямой пользы нет, так и скажи.',
       },
     ];
   }
@@ -130,7 +130,7 @@ function quickPromptsFor(target) {
     },
     {
       label: 'Inbox → текущая работа',
-      prompt: 'Найди максимум 3 сигнала AI Inbox, которые прямо помогают текущему фокусу. Для каждого скажи, что именно использовать сейчас. Если подходящих нет, не придумывай связи.',
+      prompt: 'Найди максимум 3 сигнала LM Inbox, которые прямо помогают текущему фокусу. Для каждого скажи, что именно использовать сейчас. Если подходящих нет, не придумывай связи.',
     },
     {
       label: 'Почистить очередь',
@@ -155,8 +155,9 @@ function formatHistoryTime(value) {
   try {
     const date = new Date(value);
     const now = new Date();
-    const sameDay = date.toDateString() === now.toDateString();
-    if (sameDay) return new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(date);
+    if (date.toDateString() === now.toDateString()) {
+      return new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(date);
+    }
     const yesterday = new Date(now);
     yesterday.setDate(now.getDate() - 1);
     if (date.toDateString() === yesterday.toDateString()) return 'Вчера';
@@ -168,12 +169,14 @@ function formatHistoryTime(value) {
 
 function sessionKindLabel(session) {
   const kind = session?.target?.kind;
-  if (kind === 'signal') return 'AI Inbox';
+  if (kind === 'signal') return 'LM Inbox';
   if (kind === 'task') return 'Задача';
   return 'LifeMap';
 }
 
-function HistoryPanel({ sessions, activeSessionId, busy, onSelect, onNew, mobile = false }) {
+function HistoryPanel({ sessions, activeSessionId, busy, onSelect, onNew, onClear, mobile = false }) {
+  const [openMenuId, setOpenMenuId] = useState('');
+
   return (
     <section className={`assistantHistoryPanel ${mobile ? 'mobile' : ''}`}>
       <div className="assistantHistoryHead">
@@ -182,16 +185,33 @@ function HistoryPanel({ sessions, activeSessionId, busy, onSelect, onNew, mobile
       </div>
       <div className="assistantHistoryList">
         {sessions.length ? sessions.slice(0, 16).map((session) => (
-          <button
-            type="button"
-            key={session.id}
-            className={session.id === activeSessionId ? 'active' : ''}
-            onClick={() => onSelect(session)}
-            disabled={busy}
-          >
-            <b>{session.title || 'Новый чат'}</b>
-            <span>{sessionKindLabel(session)}{session.updatedAt ? ` · ${formatHistoryTime(session.updatedAt)}` : ''}</span>
-          </button>
+          <div className="assistantHistoryRow" key={session.id}>
+            <button
+              type="button"
+              className={`assistantHistorySelect ${session.id === activeSessionId ? 'active' : ''}`}
+              onClick={() => onSelect(session)}
+              disabled={busy}
+            >
+              <b>{session.title || 'Новый чат'}</b>
+              <span>{sessionKindLabel(session)}{session.updatedAt ? ` · ${formatHistoryTime(session.updatedAt)}` : ''}</span>
+            </button>
+            <button
+              type="button"
+              className="assistantHistoryMenuButton"
+              aria-label={`Меню чата ${session.title || 'Новый чат'}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                setOpenMenuId((current) => current === session.id ? '' : session.id);
+              }}
+            >
+              ⋯
+            </button>
+            {openMenuId === session.id ? (
+              <div className="assistantHistoryMenu">
+                <button type="button" onClick={() => { setOpenMenuId(''); onClear(session); }}>Очистить чат</button>
+              </div>
+            ) : null}
+          </div>
         )) : <p>История появится после первого сообщения.</p>}
       </div>
     </section>
@@ -341,6 +361,7 @@ export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
   useEffect(() => {
     if (open) setTimeout(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' }), 40);
   }, [open, messages.length]);
+
   useEffect(() => { writeSecret(secret); }, [secret]);
 
   const appendMessages = (nextMessages, sessionId = activeSessionId) => {
@@ -360,6 +381,12 @@ export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
     else startNewChat(event);
   };
 
+  const openInbox = (event) => {
+    event.stopPropagation();
+    window.location.hash = '#root/sphere-inbox';
+    window.location.reload();
+  };
+
   const sendMessage = async (event, quickText = '') => {
     event?.preventDefault?.();
     const text = safeText(quickText || draft);
@@ -371,6 +398,7 @@ export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
       sessionId = created.session.id;
       setSessions(created.sessions);
       setActiveSessionId(sessionId);
+      setActiveAssistantSessionId(sessionId);
     }
 
     const userMessage = { role: 'user', text, createdAt: new Date().toISOString() };
@@ -408,9 +436,11 @@ export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
   };
 
   const runAction = async (action) => {
-    if (!secret) {
-      setError('Для подтверждённых изменений нужен action secret. Открой «Изменения» в левой колонке.');
-      return;
+    let confirmationKey = secret;
+    if (!confirmationKey) {
+      confirmationKey = window.prompt('Введите ключ подтверждения для изменения данных:') || '';
+      if (!confirmationKey) return;
+      setSecret(confirmationKey);
     }
     const ok = window.confirm(`Выполнить изменение «${action.title || action.type}» в LifeMap/Notion?`);
     if (!ok) return;
@@ -418,7 +448,7 @@ export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
     setActionBusy(actionId);
     setError('');
     try {
-      const response = await executeAssistantActions({ actions: [{ ...action, confirmed: true, requiresConfirmation: false }], secret });
+      const response = await executeAssistantActions({ actions: [{ ...action, confirmed: true, requiresConfirmation: false }], secret: confirmationKey });
       appendMessages([{ role: 'system', text: `Изменение выполнено: ${action.title || action.type}`, summary: JSON.stringify(response.executedActions || response, null, 2), createdAt: new Date().toISOString() }]);
     } catch (err) {
       const friendly = friendlyAssistantError(err);
@@ -429,12 +459,12 @@ export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
     }
   };
 
-  const clearChat = () => {
-    if (!activeSessionId) return;
-    const ok = window.confirm('Очистить сообщения в этом чате?');
+  const clearSession = (session) => {
+    if (!session?.id) return;
+    const ok = window.confirm(`Очистить чат «${session.title || 'Новый чат'}»?`);
     if (!ok) return;
-    setSessions(clearAssistantSession(activeSessionId));
-    setMessages([]);
+    setSessions(clearAssistantSession(session.id));
+    if (session.id === activeSessionId) setMessages([]);
   };
 
   const handleDraftKeyDown = (event) => {
@@ -444,17 +474,23 @@ export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
   };
 
   const mainEyebrow = target ? `${itemKindLabel(target)} · ${itemCode(target)}` : '';
-  const mainTitle = target ? safeText(target.title) : 'LifeMap Assistant';
+  const mainTitle = target ? safeText(target.title) : '';
 
   return (
     <>
-      <button className="assistantFab" type="button" onClick={openGlobal} title="Открыть помощника LifeMap">AI</button>
+      <div className="assistantFabRail">
+        <button className="assistantInboxFab" type="button" onClick={openInbox} title="Открыть LM Inbox">LM Inbox</button>
+        <button className="assistantFab" type="button" onClick={openGlobal} title="Открыть LM Assistant">AI</button>
+      </div>
+
       {open ? (
         <div className="assistantWorkspaceOverlay" onClick={() => setOpen(false)}>
           <section className="assistantWorkspace compactMode assistantDecisionWorkspace" onClick={(event) => event.stopPropagation()}>
             <aside className="assistantWorkspaceSidebar">
               <div className="assistantBrandBlock assistantBrandCompact">
-                <div className="assistantBrandIdentity"><span>AI</span><div><small>LifeMap</small><h2>Assistant</h2></div></div>
+                <div className="lmAssistantBadge" aria-label="LM Assistant">
+                  <span className="lmBrandL">L</span><span className="lmBrandM">M</span><strong>Assistant</strong>
+                </div>
               </div>
 
               <CloudQuotaMeter status={status} compact />
@@ -465,6 +501,7 @@ export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
                 busy={busy}
                 onSelect={(session) => activateSession(session, true)}
                 onNew={startNewChat}
+                onClear={clearSession}
               />
 
               <div className="assistantQuickStack assistantDecisionCommands">
@@ -475,16 +512,6 @@ export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
                   </button>
                 ))}
               </div>
-
-              <details className="assistantWriteAccess">
-                <summary><span>Изменения</span><b>{secret ? 'включены' : 'только предложения'}</b></summary>
-                {status?.canExecuteActions ? (
-                  <label className="assistantSecretField">
-                    Action secret
-                    <input type="password" value={secret} onChange={(event) => setSecret(event.target.value)} placeholder="LIFEMAP_ASSISTANT_API_SECRET" />
-                  </label>
-                ) : <p>Backend сейчас не разрешает write actions. Assistant всё равно может анализировать и предлагать изменения.</p>}
-              </details>
             </aside>
 
             {historyOpen ? (
@@ -498,18 +525,18 @@ export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
                     mobile
                     onSelect={(session) => activateSession(session, true)}
                     onNew={startNewChat}
+                    onClear={clearSession}
                   />
                 </div>
               </div>
             ) : null}
 
             <main className="assistantWorkspaceMain">
-              <header className="assistantWorkspaceHeader">
-                <div>{mainEyebrow ? <small>{mainEyebrow}</small> : null}<h1>{mainTitle}</h1></div>
+              <header className={`assistantWorkspaceHeader ${mainTitle ? '' : 'minimalHeader'}`}>
+                {mainTitle ? <div><small>{mainEyebrow}</small><h1>{mainTitle}</h1></div> : <div />}
                 <div className="assistantHeaderActions">
-                  <button className="assistantMobileHistoryButton" type="button" onClick={() => setHistoryOpen(true)}>История</button>
-                  <button type="button" onClick={clearChat}>Очистить</button>
-                  <button className="assistantCloseButton" type="button" onClick={() => setOpen(false)}>Закрыть</button>
+                  <button className="assistantMobileHistoryButton" type="button" onClick={() => setHistoryOpen(true)} aria-label="Открыть историю">☰</button>
+                  <button className="assistantCloseButton" type="button" onClick={() => setOpen(false)} aria-label="Закрыть">×</button>
                 </div>
               </header>
 
@@ -528,8 +555,8 @@ export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
 
               {error ? <div className="assistantInlineError">{error}</div> : null}
               <form className="assistantInput assistantWorkspaceInput" onSubmit={sendMessage}>
-                <textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={handleDraftKeyDown} placeholder={target ? 'Что нужно решить по этому объекту?' : 'Опиши решение, которое нужно принять, или проблему в работе…'} />
-                <button type="submit" disabled={busy || !draft.trim()}>{busy ? '...' : 'Отправить'}</button>
+                <textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={handleDraftKeyDown} placeholder={target ? 'Что нужно решить по этому объекту?' : 'Сообщение для LM Assistant'} />
+                <button type="submit" disabled={busy || !draft.trim()} aria-label="Отправить">{busy ? '…' : '↑'}</button>
               </form>
             </main>
           </section>
