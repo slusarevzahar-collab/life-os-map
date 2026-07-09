@@ -25,7 +25,8 @@
   "intake": {
     "secureReady": true,
     "durableFirst": true,
-    "backgroundScheduler": "vercel-waitUntil"
+    "backgroundScheduler": "vercel-waitUntil",
+    "mediaGroupBundling": true
   },
   "dedupe": {
     "inFlight": 0,
