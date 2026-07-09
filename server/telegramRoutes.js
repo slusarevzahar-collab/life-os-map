@@ -1,4 +1,9 @@
-import { persistSignalAnalysis } from './inboxAssetStore.js';
+import {
+  findInboxSignalByMediaGroup,
+  getInboxSignalRecord,
+  mergeInboxSignalMedia,
+  persistSignalAnalysis,
+} from './inboxAssetStore.js';
 import { createSignal } from './notionAdapter.js';
 import {
   allowedTelegramUser,
@@ -12,6 +17,11 @@ import {
 } from './telegramAdapter.js';
 
 const WEBHOOK_DEDUPE_TTL_MS = 6 * 60 * 60 * 1000;
+const MEDIA_GROUP_SETTLE_MS = 1800;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function webhookKey(signal = {}) {
   const updateId = signal.telegram?.updateId;
@@ -33,6 +43,10 @@ function secureIntakeReady(config = {}) {
   );
 }
 
+function documentFromAttachment(attachment = null) {
+  return (attachment?.media || []).find((item) => item?.kind === 'document' && item?.fileId) || null;
+}
+
 export function registerTelegramRoutes(app, runtime, { codespacesPublicUrl, deferTask = null }) {
   const { config, ai, buildLiveSnapshot, telegramSecretOk, assistantSecretOk } = runtime;
   const inFlightUpdates = new Set();
@@ -50,34 +64,84 @@ export function registerTelegramRoutes(app, runtime, { codespacesPublicUrl, defe
     return inFlightUpdates.has(key) || completedUpdates.has(key);
   }
 
+  function markCompleted(key) {
+    inFlightUpdates.delete(key);
+    completedUpdates.set(key, Date.now());
+  }
+
   async function persistAcceptedSignal(baseSignal) {
     if (config.notionToken && config.signalsDbId) {
       try {
+        const mediaGroupId = baseSignal.telegram?.mediaGroupId || '';
+        if (mediaGroupId) {
+          const existing = await findInboxSignalByMediaGroup({
+            notionToken: config.notionToken,
+            signalsDbId: config.signalsDbId,
+            mediaGroupId,
+            chatId: baseSignal.telegram?.chatId,
+          });
+          if (existing?.id) {
+            await mergeInboxSignalMedia({ notionToken: config.notionToken, signalId: existing.id, signal: baseSignal });
+            return { storage: 'notion', signalId: existing.id, joined: true };
+          }
+        }
+
         const result = await createSignal({
           notionToken: config.notionToken,
           signalsDbId: config.signalsDbId,
           payload: baseSignal,
         });
         if (!result?.id) throw new Error('Notion did not return a signal page id.');
-        return { storage: 'notion', signalId: result.id };
+
+        if (baseSignal.attachment || baseSignal.rawText) {
+          await mergeInboxSignalMedia({ notionToken: config.notionToken, signalId: result.id, signal: baseSignal });
+        }
+        return { storage: 'notion', signalId: result.id, joined: false };
       } catch (error) {
         if (isServerlessRuntime()) throw error;
         appendLocalSignal({ ...baseSignal, storageError: error.message });
-        return { storage: 'local-fallback', signalId: '' };
+        return { storage: 'local-fallback', signalId: '', joined: false };
       }
     }
 
     const error = new Error('Notion signal storage is not configured.');
     if (isServerlessRuntime()) throw error;
     appendLocalSignal({ ...baseSignal, storageError: error.message });
-    return { storage: 'local-fallback', signalId: '' };
+    return { storage: 'local-fallback', signalId: '', joined: false };
   }
 
   async function processAcceptedSignal(baseSignal, key, stored) {
     let signal = baseSignal;
     try {
+      if (baseSignal.telegram?.mediaGroupId) await sleep(MEDIA_GROUP_SETTLE_MS);
+
+      if (stored.signalId) {
+        const current = await getInboxSignalRecord({
+          notionToken: config.notionToken,
+          signalsDbId: config.signalsDbId,
+          signalId: stored.signalId,
+        }).catch(() => null);
+        if (current) {
+          const attachment = current.attachment || baseSignal.attachment || null;
+          const document = documentFromAttachment(attachment) || baseSignal.telegram?.document || null;
+          signal = {
+            ...baseSignal,
+            ...current,
+            rawText: current.originalText || current.summary || baseSignal.rawText || '',
+            attachment,
+            telegram: {
+              ...baseSignal.telegram,
+              mediaGroupId: attachment?.mediaGroupId || baseSignal.telegram?.mediaGroupId || '',
+              media: attachment?.media || baseSignal.telegram?.media || [],
+              attachment,
+              document,
+            },
+          };
+        }
+      }
+
       signal = await enrichSignalWithTelegramDocument({
-        signal: baseSignal,
+        signal,
         botToken: config.telegramBotToken,
       });
 
@@ -119,8 +183,7 @@ export function registerTelegramRoutes(app, runtime, { codespacesPublicUrl, defe
         }
       }
     } finally {
-      inFlightUpdates.delete(key);
-      completedUpdates.set(key, Date.now());
+      markCompleted(key);
     }
   }
 
@@ -169,6 +232,19 @@ export function registerTelegramRoutes(app, runtime, { codespacesPublicUrl, defe
       return;
     }
 
+    if (stored.joined) {
+      markCompleted(key);
+      res.status(202).json({
+        ok: true,
+        accepted: true,
+        durable: true,
+        storage: stored.storage,
+        signalId: stored.signalId,
+        joinedMediaGroup: true,
+      });
+      return;
+    }
+
     await sendTelegramMessage({
       botToken: config.telegramBotToken,
       chatId: baseSignal.telegram?.chatId,
@@ -185,6 +261,7 @@ export function registerTelegramRoutes(app, runtime, { codespacesPublicUrl, defe
       durable: stored.storage === 'notion',
       storage: stored.storage,
       signalId: stored.signalId || baseSignal.id,
+      mediaGroup: Boolean(baseSignal.telegram?.mediaGroupId),
     });
   });
 
@@ -223,6 +300,7 @@ export function registerTelegramRoutes(app, runtime, { codespacesPublicUrl, defe
           secureReady: secureIntakeReady(config),
           durableFirst: true,
           backgroundScheduler: typeof deferTask === 'function' ? 'vercel-waitUntil' : 'process-lifetime',
+          mediaGroupBundling: true,
         },
         dedupe: {
           inFlight: inFlightUpdates.size,
