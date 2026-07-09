@@ -23,7 +23,7 @@ LifeMap — персональный AI-навигационный центр З
 - Codespaces: единый рабочий порт 3001, UI + API + Telegram webhook
 - Vercel: Vite UI в `dist/` + serverless entrypoint `api/index.js` для `/api/*`
 - Notion как source of truth для рабочих данных
-- Telegram → LM Inbox → AI analysis → Notion/local fallback → LifeMap UI
+- Telegram → LM Inbox → durable raw save → AI analysis → update same Notion signal → LifeMap UI
 - AI provider router с несколькими Groq routes и fallback-архитектурой
 - дальнейший план: Gemini как независимый cloud fallback, затем локальная Gemma через LM Studio последним fallback route
 
@@ -83,14 +83,25 @@ LM Assistant — слой решений и исполнения, а не уни
 - точные provider/model diagnostics оставлять только для status/debug API.
 
 ## Текущий приоритет
-Главная активная инфраструктурная задача: **настроить Telegram webhook на Vercel production endpoint**.
+Главная активная инфраструктурная задача: **завершить end-to-end проверку Telegram webhook на Vercel production**.
 
-Критерий готовности:
+Уже реализовано в коде:
+1. `api/index.js` использует Vercel `waitUntil()` для фоновой обработки webhook;
+2. production Function проверяет Telegram webhook и синхронизирует его на стабильный production endpoint;
+3. если `TELEGRAM_WEBHOOK_URL` не задан, production URL выводится из `VERCEL_PROJECT_PRODUCTION_URL`;
+4. raw Telegram signal сначала сохраняется в Notion, и только потом возвращается HTTP 202;
+5. AI enrichment обновляет тот же Notion signal record, а не создаёт второй;
+6. если durable Notion save на Vercel не удался, route возвращает non-2xx, чтобы Telegram мог повторить доставку;
+7. acknowledgement: ровно `Доставлено в LM Inbox`;
+8. `/api/telegram/set-webhook` защищён `LIFEMAP_ASSISTANT_API_SECRET`.
+
+Остался acceptance test:
 1. Telegram webhook указывает на стабильный Vercel endpoint `/api/telegram/webhook`;
 2. secret и Telegram allowlist проверяются;
-3. при выключенном Codespace тестовое сообщение доходит до backend;
+3. при выключенном Codespace тестовое сообщение доходит до Vercel backend;
 4. запись появляется в LM Inbox / Notion;
-5. бот отдаёт один короткий acknowledgement без дублей.
+5. бот отдаёт один короткий acknowledgement без дублей;
+6. AI enrichment появляется в том же signal record.
 
 После webhook:
 1. синхронизация истории LM Assistant между устройствами;
@@ -100,9 +111,11 @@ LM Assistant — слой решений и исполнения, а не уни
 ## Vercel deployment
 
 Файлы:
-- `api/index.js` — serverless entrypoint для Express app;
+- `api/index.js` — serverless entrypoint для Express app и production webhook self-healing;
+- `server/telegramRoutes.js` — durable-first Telegram intake;
+- `server/inboxAssetStore.js` — enrichment существующего signal record;
 - `vercel.json` — `/api/:path*` → API function;
-- `docs/VERCEL_DEPLOYMENT.md` — environment variables и проверка.
+- `docs/VERCEL_DEPLOYMENT.md` — environment variables, webhook architecture и проверка.
 
 После deploy проверить:
 
@@ -124,13 +137,13 @@ LM Assistant — слой решений и исполнения, а не уни
 - URL вида `<project>-<unique-hash>-<scope>.vercel.app` относится к конкретному deployment/commit и не обновляется вместе с новыми коммитами;
 - при проверке последних изменений использовать стабильный production domain проекта или branch URL, а не старый commit-specific deployment URL.
 
-Bulk LM Inbox reprocess пока хранит progress в process memory и не считается durable serverless workflow. Не переписывать его под Vercel наивно; для production нужен durable queue/workflow.
+Normal Telegram intake теперь durable-first и использует Vercel background scheduling. Bulk LM Inbox reprocess всё ещё хранит progress в process memory и не считается durable serverless workflow. Для production bulk work нужен durable queue/workflow.
 
 ## Важные документы
 - `docs/LIFEMAP_AI_POLICY.md` — правила поведения LM Assistant и LM Inbox
 - `docs/FRONTEND_FUNCTION_CONTRACT.md` — функции, которые нельзя потерять при redesign
 - `docs/NAVIGATOR_MASTER_PLAN.md` — архитектурный план
-- `docs/VERCEL_DEPLOYMENT.md` — deploy backend/API на Vercel
+- `docs/VERCEL_DEPLOYMENT.md` — deploy backend/API и production Telegram webhook на Vercel
 - `README.md` — текущий запуск и общая архитектура
 
 ## Правила разработки
@@ -178,6 +191,14 @@ curl http://localhost:3001/api/life-os/assistant/status
 curl http://localhost:3001/api/life-os/inbox/reprocess/status
 curl http://localhost:3001/api/telegram/status
 ```
+
+Для production Telegram acceptance test:
+1. остановить Codespace;
+2. открыть `/api/telegram/status` на stable production domain;
+3. убедиться, что webhook URL — stable Vercel production endpoint;
+4. отправить одно уникальное сообщение боту;
+5. проверить один acknowledgement и один Notion signal record;
+6. проверить enrichment того же record.
 
 ## Формат отчёта после работы
 Кратко сообщить:
