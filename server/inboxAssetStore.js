@@ -109,6 +109,7 @@ function mapSignalPage(page) {
     priority: selectName(props.Priority),
     relatedProjects: multiSelectNames(props['Related projects']),
     summary: richText(props.Summary),
+    originalText: richText(props['Original text']),
     assistantNote: richText(props['Assistant note']),
     possibleUse: richText(props['Possible use']),
     nextAction: richText(props['Next action']),
@@ -150,12 +151,14 @@ export async function persistSignalAnalysis({ notionToken, signalId, analysis = 
   const attachment = normalizeAttachment(analysis);
   const processingVersion = analysis.aiProcessing?.policyVersion || analysis.policyVersion || '';
   const properties = {
+    Summary: textProperty(analysis.summary || ''),
     'Assistant note': textProperty(analysis.assistantNote || ''),
     'Possible use': textProperty(analysis.possibleUse || ''),
     'Next action': textProperty(analysis.nextAction || ''),
     'Extracted assets': textProperty(serializeAssets(assets)),
     'Asset type': multiSelectProperty(assetTypes(assets)),
   };
+  if (analysis.rawText) properties['Original text'] = textProperty(analysis.rawText);
   if (analysis.title) properties.Signal = titleProperty(analysis.title);
   if (processingVersion) properties['AI processing version'] = textProperty(processingVersion);
   if (analysis.type) properties.Type = selectProperty(analysis.type);
