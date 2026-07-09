@@ -20,7 +20,7 @@ LifeMap — персональный AI-навигационный центр З
 ## Текущая архитектура
 - React 18 + Vite frontend
 - Express backend
-- Codespaces: единый рабочий порт 3001, UI + API + Telegram webhook
+- Codespaces: единый рабочий порт 3001, UI + API; normal startup не должен забирать production Telegram webhook
 - Vercel: Vite UI в `dist/` + serverless entrypoint `api/index.js` для `/api/*`
 - Notion как source of truth для рабочих данных
 - Telegram → LM Inbox → durable raw save → AI analysis → update same Notion signal → LifeMap UI
@@ -93,11 +93,15 @@ LM Assistant — слой решений и исполнения, а не уни
 5. AI enrichment обновляет тот же Notion signal record, а не создаёт второй;
 6. если durable Notion save на Vercel не удался, route возвращает non-2xx, чтобы Telegram мог повторить доставку;
 7. acknowledgement: ровно `Доставлено в LM Inbox`;
-8. `/api/telegram/set-webhook` защищён `LIFEMAP_ASSISTANT_API_SECRET`.
+8. `/api/telegram/set-webhook` защищён `LIFEMAP_ASSISTANT_API_SECRET`;
+9. production intake работает fail-closed: нужны bot token, webhook secret, непустой allowlist, Notion token и LM Inbox DB;
+10. production self-sync не регистрирует webhook, пока secure intake не готов;
+11. обычный `npm run app` в Codespaces не перенаправляет production webhook на временный Codespaces URL;
+12. для намеренного local webhook test Codespaces должен явно получить `TELEGRAM_WEBHOOK_RUNTIME=codespaces`.
 
 Остался acceptance test:
-1. Telegram webhook указывает на стабильный Vercel endpoint `/api/telegram/webhook`;
-2. secret и Telegram allowlist проверяются;
+1. `/api/telegram/status` показывает `intake.secureReady: true`;
+2. Telegram webhook указывает на стабильный Vercel endpoint `/api/telegram/webhook`;
 3. при выключенном Codespace тестовое сообщение доходит до Vercel backend;
 4. запись появляется в LM Inbox / Notion;
 5. бот отдаёт один короткий acknowledgement без дублей;
@@ -111,9 +115,10 @@ LM Assistant — слой решений и исполнения, а не уни
 ## Vercel deployment
 
 Файлы:
-- `api/index.js` — serverless entrypoint для Express app и production webhook self-healing;
-- `server/telegramRoutes.js` — durable-first Telegram intake;
+- `api/index.js` — serverless entrypoint для Express app, production webhook self-healing и Vercel `waitUntil`;
+- `server/telegramRoutes.js` — fail-closed durable-first Telegram intake;
 - `server/inboxAssetStore.js` — enrichment существующего signal record;
+- `server/lifemapStart.js` — runtime wiring и защита production webhook от автоматического захвата Codespaces;
 - `vercel.json` — `/api/:path*` → API function;
 - `docs/VERCEL_DEPLOYMENT.md` — environment variables, webhook architecture и проверка.
 
@@ -137,7 +142,7 @@ LM Assistant — слой решений и исполнения, а не уни
 - URL вида `<project>-<unique-hash>-<scope>.vercel.app` относится к конкретному deployment/commit и не обновляется вместе с новыми коммитами;
 - при проверке последних изменений использовать стабильный production domain проекта или branch URL, а не старый commit-specific deployment URL.
 
-Normal Telegram intake теперь durable-first и использует Vercel background scheduling. Bulk LM Inbox reprocess всё ещё хранит progress в process memory и не считается durable serverless workflow. Для production bulk work нужен durable queue/workflow.
+Normal Telegram intake теперь durable-first, fail-closed и использует Vercel background scheduling. Bulk LM Inbox reprocess всё ещё хранит progress в process memory и не считается durable serverless workflow. Для production bulk work нужен durable queue/workflow.
 
 ## Важные документы
 - `docs/LIFEMAP_AI_POLICY.md` — правила поведения LM Assistant и LM Inbox
@@ -195,7 +200,7 @@ curl http://localhost:3001/api/telegram/status
 Для production Telegram acceptance test:
 1. остановить Codespace;
 2. открыть `/api/telegram/status` на stable production domain;
-3. убедиться, что webhook URL — stable Vercel production endpoint;
+3. убедиться, что `intake.secureReady: true`, а webhook URL — stable Vercel production endpoint;
 4. отправить одно уникальное сообщение боту;
 5. проверить один acknowledgement и один Notion signal record;
 6. проверить enrichment того же record.
