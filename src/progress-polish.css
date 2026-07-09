@@ -74,3 +74,13 @@
 .sideListHead {
   align-items: center !important;
 }
+
+/* Canonical user-facing name. The legacy component still uses AI Inbox internally. */
+.inboxV2Head small {
+  font-size: 0 !important;
+}
+
+.inboxV2Head small::after {
+  content: 'LM Inbox';
+  font-size: 10px;
+}
