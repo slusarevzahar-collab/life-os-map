@@ -10,7 +10,7 @@ assert(!masked.includes('+7 999 123-45-67'));
 assert(!masked.includes('very-secret-value'));
 
 const snapshot = {
-  currentFocus: { id: 'focus-1', title: 'Improve AI Inbox relevance', project: 'LifeMap', status: 'Now', nextAction: 'Rank useful prompts and tools' },
+  currentFocus: { id: 'focus-1', title: 'Improve LM Inbox relevance', project: 'LifeMap', status: 'Now', nextAction: 'Rank useful prompts and tools' },
   planning: { onTrack: 1, next: 2, waiting: 0, overdue: 0, done: 3 },
   tasks: Array.from({ length: 30 }, (_, index) => ({ id: `task-${index}`, title: `Task ${index}`, project: index < 12 ? 'LifeMap' : 'Other', status: index === 29 ? 'Done' : 'Next', priority: index + 1, nextAction: `Action ${index}` })),
   goals: Array.from({ length: 20 }, (_, index) => ({ id: `goal-${index}`, title: `Goal ${index}` })),
@@ -29,7 +29,8 @@ const assistantPrompt = buildAssistantSystemPrompt();
 assert(assistantPrompt.includes('Обращайся на «ты»'));
 assert(assistantPrompt.includes('Не повторяй фокус'));
 assert(assistantPrompt.includes('Decision first'));
-assert(assistantPrompt.includes('ПЯТЬ РОЛЕЙ ASSISTANT'));
+assert(assistantPrompt.includes('ПЯТЬ РОЛЕЙ LM ASSISTANT'));
+assert(assistantPrompt.includes('Канонические названия: LifeMap, LM Assistant, LM Inbox'));
 assert(assistantPrompt.includes(`POLICY_VERSION=${AI_POLICY_VERSION}`));
 
 const inboxPrompt = buildInboxSystemPrompt(['LifeMap']);
@@ -37,6 +38,7 @@ assert(inboxPrompt.includes('Один входящий сигнал может �
 assert(inboxPrompt.includes('Prompt, Tool, Workflow, Task, Research, Idea, Reference, News, Instruction, File, Other'));
 assert(inboxPrompt.includes('Запрещены банальности'));
 assert(inboxPrompt.includes('конкретный проект, задачу или рабочий сценарий'));
+assert(inboxPrompt.includes('LM Inbox'));
 
 const safeInbox = buildSafeInboxPayload({
   title: 'PDF guide',
