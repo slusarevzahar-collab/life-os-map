@@ -23,6 +23,16 @@ function isServerlessRuntime() {
   return Boolean(process.env.VERCEL || process.env.VERCEL_ENV);
 }
 
+function secureIntakeReady(config = {}) {
+  return Boolean(
+    config.telegramBotToken &&
+    config.telegramWebhookSecret &&
+    config.telegramAllowedUserIds &&
+    config.notionToken &&
+    config.signalsDbId
+  );
+}
+
 export function registerTelegramRoutes(app, runtime, { codespacesPublicUrl, deferTask = null }) {
   const { config, ai, buildLiveSnapshot, telegramSecretOk, assistantSecretOk } = runtime;
   const inFlightUpdates = new Set();
@@ -105,6 +115,16 @@ export function registerTelegramRoutes(app, runtime, { codespacesPublicUrl, defe
   }
 
   app.post('/api/telegram/webhook', async (req, res) => {
+    if (isServerlessRuntime() && !secureIntakeReady(config)) {
+      res.status(503).json({
+        ok: false,
+        accepted: false,
+        retry: true,
+        error: 'LM Inbox secure intake is not fully configured.',
+      });
+      return;
+    }
+
     if (!telegramSecretOk(req)) {
       res.status(403).json({ ok: false, error: 'Bad Telegram webhook secret.' });
       return;
@@ -190,6 +210,7 @@ export function registerTelegramRoutes(app, runtime, { codespacesPublicUrl, defe
         computedWebhookUrl: config.telegramWebhookUrl || codespacesPublicUrl() || '',
         webhook,
         intake: {
+          secureReady: secureIntakeReady(config),
           durableFirst: true,
           backgroundScheduler: typeof deferTask === 'function' ? 'vercel-waitUntil' : 'process-lifetime',
         },
