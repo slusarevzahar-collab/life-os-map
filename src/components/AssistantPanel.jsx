@@ -1,11 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { executeAssistantActions, fetchAssistantStatus, postAssistantChat } from '../lib/lifeMapRuntime.js';
+import {
+  clearAssistantSession,
+  createAssistantSession,
+  findAssistantSessionForTarget,
+  readActiveAssistantSessionId,
+  readAssistantSessionMessages,
+  readAssistantSessions,
+  setActiveAssistantSessionId,
+  touchAssistantSessionFromMessage,
+  updateAssistantSession,
+  writeAssistantSessionMessages,
+} from '../lib/assistantChatHistory.js';
 import { CloudQuotaMeter } from './CloudQuotaMeter.jsx';
 import '../assistant-fullscreen.css';
 import '../ai-capacity.css';
 import '../assistant-role.css';
 
-const CHAT_PREFIX = 'lifemap.assistant.chat.v3:';
 const SECRET_KEY = 'lifemap.assistant.writeSecret.session';
 const EXECUTABLE_ACTIONS = new Set(['update_task', 'rename_item', 'create_session', 'create_signal', 'dedupe_signals']);
 
@@ -23,11 +34,6 @@ function branchTitle(map) {
 
 function itemCode(item) {
   return safeText(item?.code || item?.raw?.code || item?.icon || '').replace(/-/g, '') || 'AI';
-}
-
-function itemKey(item) {
-  if (!item) return 'global';
-  return item.sourceId || item.id || itemCode(item) || 'object';
 }
 
 function itemKindLabel(item) {
@@ -133,19 +139,6 @@ function quickPromptsFor(target) {
   ];
 }
 
-function readChat(key) {
-  try {
-    const data = JSON.parse(window.localStorage.getItem(`${CHAT_PREFIX}${key}`) || '[]');
-    return Array.isArray(data) ? data : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeChat(key, messages) {
-  try { window.localStorage.setItem(`${CHAT_PREFIX}${key}`, JSON.stringify(messages.slice(-40))); } catch {}
-}
-
 function readSecret() {
   try { return window.sessionStorage.getItem(SECRET_KEY) || ''; } catch { return ''; }
 }
@@ -155,6 +148,54 @@ function writeSecret(value) {
     if (value) window.sessionStorage.setItem(SECRET_KEY, value);
     else window.sessionStorage.removeItem(SECRET_KEY);
   } catch {}
+}
+
+function formatHistoryTime(value) {
+  if (!value) return '';
+  try {
+    const date = new Date(value);
+    const now = new Date();
+    const sameDay = date.toDateString() === now.toDateString();
+    if (sameDay) return new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(date);
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    if (date.toDateString() === yesterday.toDateString()) return 'Вчера';
+    return new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' }).format(date);
+  } catch {
+    return '';
+  }
+}
+
+function sessionKindLabel(session) {
+  const kind = session?.target?.kind;
+  if (kind === 'signal') return 'AI Inbox';
+  if (kind === 'task') return 'Задача';
+  return 'LifeMap';
+}
+
+function HistoryPanel({ sessions, activeSessionId, busy, onSelect, onNew, mobile = false }) {
+  return (
+    <section className={`assistantHistoryPanel ${mobile ? 'mobile' : ''}`}>
+      <div className="assistantHistoryHead">
+        <small>История</small>
+        <button type="button" onClick={onNew} disabled={busy}>+ Новый</button>
+      </div>
+      <div className="assistantHistoryList">
+        {sessions.length ? sessions.slice(0, 16).map((session) => (
+          <button
+            type="button"
+            key={session.id}
+            className={session.id === activeSessionId ? 'active' : ''}
+            onClick={() => onSelect(session)}
+            disabled={busy}
+          >
+            <b>{session.title || 'Новый чат'}</b>
+            <span>{sessionKindLabel(session)}{session.updatedAt ? ` · ${formatHistoryTime(session.updatedAt)}` : ''}</span>
+          </button>
+        )) : <p>История появится после первого сообщения.</p>}
+      </div>
+    </section>
+  );
 }
 
 function ActionCard({ action, onExecute, busy, disabled }) {
@@ -203,6 +244,13 @@ export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
   const [targetContext, setTargetContext] = useState({});
   const [status, setStatus] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [sessions, setSessions] = useState(() => readAssistantSessions());
+  const [activeSessionId, setActiveSessionId] = useState(() => {
+    const stored = readActiveAssistantSessionId();
+    const items = readAssistantSessions();
+    return items.some((session) => session.id === stored) ? stored : (items[0]?.id || '');
+  });
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [actionBusy, setActionBusy] = useState('');
   const [error, setError] = useState('');
@@ -213,12 +261,50 @@ export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
     .then(setStatus)
     .catch((err) => setStatus((previous) => previous || { ok: false, configured: false, error: friendlyAssistantError(err) }));
 
+  const activateSession = (session, openPanel = true) => {
+    if (!session) return;
+    setActiveSessionId(session.id);
+    setActiveAssistantSessionId(session.id);
+    setTarget(session.target || null);
+    setTargetContext(session.targetContext || {});
+    setMessages(readAssistantSessionMessages(session.id));
+    setDraft('');
+    setError('');
+    setHistoryOpen(false);
+    if (openPanel) setOpen(true);
+  };
+
+  const startNewChat = (event) => {
+    event?.stopPropagation?.();
+    if (busy) return;
+    const created = createAssistantSession();
+    setSessions(created.sessions);
+    activateSession(created.session, true);
+  };
+
   useEffect(() => {
     const handler = (event) => {
-      setTarget(event.detail?.target || null);
-      setTargetContext(event.detail?.context || {});
+      const nextTarget = event.detail?.target || null;
+      const nextContext = event.detail?.context || {};
+      const existing = findAssistantSessionForTarget(nextTarget);
+      if (existing) {
+        setSessions(readAssistantSessions());
+        setActiveSessionId(existing.id);
+        setActiveAssistantSessionId(existing.id);
+        setTarget(existing.target || nextTarget);
+        setTargetContext(existing.targetContext || nextContext);
+        setMessages(readAssistantSessionMessages(existing.id));
+      } else {
+        const created = createAssistantSession({ target: nextTarget, targetContext: nextContext });
+        setSessions(created.sessions);
+        setActiveSessionId(created.session.id);
+        setTarget(nextTarget);
+        setTargetContext(nextContext);
+        setMessages([]);
+      }
       setDraft('');
       setError('');
+      setHistoryOpen(false);
       setOpen(true);
     };
     window.addEventListener('lifemap:assistant-target', handler);
@@ -227,13 +313,15 @@ export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
 
   useEffect(() => {
     const onKey = (event) => {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key === 'Escape') {
+        if (historyOpen) setHistoryOpen(false);
+        else setOpen(false);
+      }
     };
     if (open) window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open]);
+  }, [open, historyOpen]);
 
-  const chatKey = useMemo(() => itemKey(target), [target]);
   const context = useMemo(() => assistantContext(currentMap, activeFocus, snapshot, target, targetContext), [currentMap, activeFocus, snapshot, target, targetContext]);
   const quickPrompts = useMemo(() => quickPromptsFor(target), [target]);
   const snapshotStats = useMemo(() => ({
@@ -250,33 +338,44 @@ export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
     return () => window.clearInterval(timer);
   }, [open]);
 
-  useEffect(() => { setMessages(readChat(chatKey)); }, [chatKey]);
   useEffect(() => {
     if (open) setTimeout(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' }), 40);
   }, [open, messages.length]);
   useEffect(() => { writeSecret(secret); }, [secret]);
 
-  const appendMessages = (nextMessages) => {
+  const appendMessages = (nextMessages, sessionId = activeSessionId) => {
+    if (!sessionId) return;
     setMessages((items) => {
       const next = [...items, ...nextMessages].slice(-40);
-      writeChat(chatKey, next);
+      writeAssistantSessionMessages(sessionId, next);
       return next;
     });
+    setSessions(updateAssistantSession(sessionId, { updatedAt: new Date().toISOString() }));
   };
 
   const openGlobal = (event) => {
     event.stopPropagation();
-    setTarget(null);
-    setTargetContext({});
-    setOpen(true);
+    const current = sessions.find((session) => session.id === activeSessionId) || sessions[0];
+    if (current) activateSession(current, true);
+    else startNewChat(event);
   };
 
   const sendMessage = async (event, quickText = '') => {
     event?.preventDefault?.();
     const text = safeText(quickText || draft);
     if (!text || busy) return;
+
+    let sessionId = activeSessionId;
+    if (!sessionId) {
+      const created = createAssistantSession({ target, targetContext });
+      sessionId = created.session.id;
+      setSessions(created.sessions);
+      setActiveSessionId(sessionId);
+    }
+
     const userMessage = { role: 'user', text, createdAt: new Date().toISOString() };
-    appendMessages([userMessage]);
+    appendMessages([userMessage], sessionId);
+    setSessions(touchAssistantSessionFromMessage(sessionId, text));
     setDraft('');
     setBusy(true);
     setError('');
@@ -297,11 +396,11 @@ export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
         warnings: assistant.warnings || [],
         nextStep: assistant.nextStep,
         createdAt: new Date().toISOString(),
-      }]);
+      }], sessionId);
     } catch (err) {
       const friendly = friendlyAssistantError(err);
       setError(friendly);
-      appendMessages([{ role: 'assistant', text: friendly, createdAt: new Date().toISOString(), error: true }]);
+      appendMessages([{ role: 'assistant', text: friendly, createdAt: new Date().toISOString(), error: true }], sessionId);
     } finally {
       setBusy(false);
       refreshStatus();
@@ -331,9 +430,10 @@ export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
   };
 
   const clearChat = () => {
-    const ok = window.confirm('Очистить локальную историю этого чата?');
+    if (!activeSessionId) return;
+    const ok = window.confirm('Очистить сообщения в этом чате?');
     if (!ok) return;
-    writeChat(chatKey, []);
+    setSessions(clearAssistantSession(activeSessionId));
     setMessages([]);
   };
 
@@ -343,7 +443,7 @@ export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
     sendMessage(event);
   };
 
-  const mainEyebrow = target ? `${itemKindLabel(target)} · ${itemCode(target)}` : 'Навигатор решений';
+  const mainEyebrow = target ? `${itemKindLabel(target)} · ${itemCode(target)}` : '';
   const mainTitle = target ? safeText(target.title) : 'LifeMap Assistant';
 
   return (
@@ -355,15 +455,17 @@ export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
             <aside className="assistantWorkspaceSidebar">
               <div className="assistantBrandBlock assistantBrandCompact">
                 <div className="assistantBrandIdentity"><span>AI</span><div><small>LifeMap</small><h2>Assistant</h2></div></div>
-                <p>Выбирает приоритет, находит блокеры, собирает рабочую сессию и связывает AI Inbox с текущей работой.</p>
               </div>
 
-              <CloudQuotaMeter status={status} profile="chat" compact />
+              <CloudQuotaMeter status={status} compact />
 
-              <div className="assistantStatusLine assistantContextPulse">
-                <span className={status?.configured ? 'ok' : 'warn'}>{status?.configured ? 'AI готов к работе' : 'AI ждёт backend или ключ'}</span>
-                <small>{focusTitle(activeFocus)} · {snapshotStats.tasks} задач · {snapshotStats.signals} сигналов</small>
-              </div>
+              <HistoryPanel
+                sessions={sessions}
+                activeSessionId={activeSessionId}
+                busy={busy}
+                onSelect={(session) => activateSession(session, true)}
+                onNew={startNewChat}
+              />
 
               <div className="assistantQuickStack assistantDecisionCommands">
                 <small>{target ? 'Работа с объектом' : 'Решения'}</small>
@@ -385,10 +487,27 @@ export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
               </details>
             </aside>
 
+            {historyOpen ? (
+              <div className="assistantHistoryMobileOverlay" onClick={() => setHistoryOpen(false)}>
+                <div className="assistantHistoryMobileSheet" onClick={(event) => event.stopPropagation()}>
+                  <button className="assistantHistoryMobileClose" type="button" onClick={() => setHistoryOpen(false)}>×</button>
+                  <HistoryPanel
+                    sessions={sessions}
+                    activeSessionId={activeSessionId}
+                    busy={busy}
+                    mobile
+                    onSelect={(session) => activateSession(session, true)}
+                    onNew={startNewChat}
+                  />
+                </div>
+              </div>
+            ) : null}
+
             <main className="assistantWorkspaceMain">
               <header className="assistantWorkspaceHeader">
-                <div><small>{mainEyebrow}</small><h1>{mainTitle}</h1></div>
+                <div>{mainEyebrow ? <small>{mainEyebrow}</small> : null}<h1>{mainTitle}</h1></div>
                 <div className="assistantHeaderActions">
+                  <button className="assistantMobileHistoryButton" type="button" onClick={() => setHistoryOpen(true)}>История</button>
                   <button type="button" onClick={clearChat}>Очистить</button>
                   <button className="assistantCloseButton" type="button" onClick={() => setOpen(false)}>Закрыть</button>
                 </div>
@@ -397,9 +516,8 @@ export function AssistantPanel({ currentMap, activeFocus, snapshot }) {
               <div className="assistantChatThread fullScreenThread" ref={scrollRef}>
                 {!messages.length ? (
                   <div className="assistantWelcome assistantDecisionWelcome">
-                    <small>Не просто чат</small>
                     <h2>Что нужно решить?</h2>
-                    <p>Assistant не пересказывает карту. Он должен помочь выбрать приоритет, найти блокер, собрать рабочую сессию или связать полезный материал из Inbox с конкретной работой.</p>
+                    <p>Опиши проблему или решение, которое нужно принять. История чатов сохранится на этом устройстве.</p>
                   </div>
                 ) : null}
                 {messages.map((message, index) => (
