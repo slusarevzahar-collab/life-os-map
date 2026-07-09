@@ -3,6 +3,11 @@ import { motion } from 'framer-motion';
 import { topItems } from '../lib/lifeMapSelectors.js';
 import { mapVariants } from '../constants/lifeMap.js';
 
+function canonicalTitle(node = {}) {
+  if (node?.id === 'sphere-inbox' || node?.title === 'AI Inbox') return 'LM Inbox';
+  return node?.title || '';
+}
+
 function planetSize(title = '') {
   const len = String(title).length;
   if (len > 54) return 226;
@@ -87,8 +92,8 @@ export function OrbitMap({
   onSubmitInlineRename,
   onCancelInlineRename,
 }) {
-  const children = topItems(map);
   const isRoot = map.id === 'root';
+  const children = topItems(map).filter((node) => !(isRoot && node.id === 'sphere-inbox'));
   const pressTimer = useRef(null);
   const panRef = useRef(null);
   const [viewport, setViewport] = useState({ x: 0, y: 0, scale: 1 });
@@ -129,6 +134,7 @@ export function OrbitMap({
 
   const orbitShift = children.length <= 2 ? 'clamp(-215px, -20vw, -170px)' : 'clamp(-220px, -21vw, -190px)';
   const coreEditing = inlineEditor?.nodeId === map.id;
+  const coreTitle = canonicalTitle(map);
 
   return (
     <motion.section
@@ -165,12 +171,13 @@ export function OrbitMap({
               onSubmit={(event) => onSubmitInlineRename(map, event)}
               onCancel={onCancelInlineRename}
             />
-          ) : <b>{isRoot ? 'LifeMap' : map.title}</b>}
+          ) : <b>{isRoot ? 'LifeMap' : coreTitle}</b>}
         </motion.button>
         {children.map((node, index) => {
+          const title = canonicalTitle(node);
           const angle = (360 / Math.max(children.length, 1)) * index;
-          const size = planetSize(node.title);
-          const fontSize = planetFontSize(node.title);
+          const size = planetSize(title);
+          const fontSize = planetFontSize(title);
           const progress = progressValue(node);
           const editing = inlineEditor?.nodeId === node.id;
           const progressText = progressTitle(node);
@@ -184,7 +191,7 @@ export function OrbitMap({
                   onSubmit={(event) => onSubmitInlineRename(node, event)}
                   onCancel={onCancelInlineRename}
                 />
-              ) : <em>{node.title}</em>}
+              ) : <em>{title}</em>}
               <strong aria-label={progressText} title={progressText} style={progressRingStyle(progress)} />
             </span>
           );
@@ -198,7 +205,7 @@ export function OrbitMap({
               key={node.id}
               className={`mapNode orbitNode state-${node.state}`}
               style={style}
-              title={`${node.title} · ${progressText}`}
+              title={`${title} · ${progressText}`}
               onContextMenu={(event) => onOpenMenu(node, event)}
               onPointerDown={(event) => startPress(node, event)}
               onPointerUp={clearPress}
