@@ -3,12 +3,19 @@ name: Production Telegram smoke
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - docs/LM_INBOX_PRODUCTION_STATUS.json
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   telegram-production-status:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
       - name: Wait for production deployment and verify secure intake
         shell: bash
         run: |
@@ -36,7 +43,20 @@ jobs:
           sys.exit(0 if ok else 1)
           PY
             then
+              mkdir -p docs
+              BODY="$body" python - <<'PY'
+          import json, os
+          data = json.loads(os.environ['BODY'])
+          with open('docs/LM_INBOX_PRODUCTION_STATUS.json', 'w', encoding='utf-8') as f:
+              json.dump(data, f, ensure_ascii=False, indent=2)
+              f.write('\n')
+          PY
               echo "$body" | python -m json.tool
+              git config user.name "github-actions[bot]"
+              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+              git add docs/LM_INBOX_PRODUCTION_STATUS.json
+              git commit -m "Record production Telegram status [skip ci]" || true
+              git push
               exit 0
             fi
             echo "Attempt $attempt: production intake not ready yet"
