@@ -2,6 +2,10 @@ import { waitUntil } from '@vercel/functions';
 import { createLifeMapApp } from '../server/lifemapStart.js';
 import { getTelegramWebhookInfo, setTelegramWebhook } from '../server/telegramAdapter.js';
 
+if (!process.env.TELEGRAM_WEBHOOK_URL && process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+  process.env.TELEGRAM_WEBHOOK_URL = `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}/api/telegram/webhook`;
+}
+
 const { app, runtime } = createLifeMapApp({ deferTask: waitUntil });
 let webhookSyncState = 'idle';
 
@@ -16,9 +20,7 @@ function restoreApiPath(req) {
 }
 
 function productionWebhookUrl() {
-  if (runtime.config.telegramWebhookUrl) return runtime.config.telegramWebhookUrl;
-  const productionDomain = process.env.VERCEL_PROJECT_PRODUCTION_URL || '';
-  return productionDomain ? `https://${productionDomain}/api/telegram/webhook` : '';
+  return runtime.config.telegramWebhookUrl || '';
 }
 
 function ensureProductionTelegramWebhook() {
