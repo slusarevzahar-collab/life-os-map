@@ -120,7 +120,7 @@ function signalToLeaf(signal) {
     tasks: done ? 0 : 1,
     completedTasks: done ? 1 : 0,
     totalTasks: 1,
-    summary: useful(signal.summary) || useful(signal.possibleUse) || useful(signal.nextAction) || 'Сигнал сохранён в AI Inbox.',
+    summary: useful(signal.summary) || useful(signal.possibleUse) || useful(signal.nextAction) || 'Сигнал сохранён в LM Inbox.',
     details: [useful(signal.summary), useful(signal.possibleUse), useful(signal.nextAction), useful(signal.sourceUrl), useful(signal.capturedAt)].filter(Boolean),
     children: [],
     taskList: [],
@@ -159,7 +159,7 @@ function projectTitle(task) {
   if (hasAny(text, ['lifemap', 'life os', 'navigator', 'навигатор', 'notion', 'map'])) return 'LifeMap';
   if (hasAny(text, ['sleda', 'след'])) return 'Sleda.net';
   if (hasAny(text, ['4life', 'for life'])) return '4Life';
-  if (hasAny(text, ['telegram', 'inbox', 'бот', 'bot'])) return 'AI Inbox';
+  if (hasAny(text, ['telegram', 'inbox', 'бот', 'bot'])) return 'LM Inbox';
   return raw;
 }
 
@@ -368,7 +368,7 @@ function classifySnapshot(snapshot) {
 
   const topNodes = [];
   if (projectNodes.length) topNodes.push(makeGroupNode({ id: 'sphere-projects', title: 'Проекты', icon: 'PR', children: projectNodes, summary: 'Сфера проектов: здесь лежат LifeMap, Sleda.net и другие рабочие направления.', kind: 'sphere' }));
-  topNodes.push(makeLeafSphere({ id: 'sphere-inbox', title: 'AI Inbox', icon: 'IN', leaves: signalNodes, summary: 'Входящие из Telegram-бота и других источников: что прислал, когда, что полезно и как применить.' }));
+  topNodes.push(makeLeafSphere({ id: 'sphere-inbox', title: 'LM Inbox', icon: 'IN', leaves: signalNodes, summary: 'Входящие из Telegram-бота и других источников: что прислал, когда, что полезно и как применить.' }));
   if (goalNodes.length) topNodes.push(makeGroupNode({ id: 'sphere-goals', title: 'Цели', icon: 'GO', children: goalNodes, summary: 'Крупные цели из Notion, связанные с задачами.', kind: 'sphere' }));
   if (lifeAreaNodes.length || lifeDreams.length) topNodes.push(makeGroupNode({ id: 'sphere-life', title: 'Жизнь', icon: 'LF', children: [...lifeAreaNodes, ...lifeDreams], summary: 'Личные сферы, мечты, навыки, тело, творчество и баланс.', kind: 'sphere' }));
   if (incomeTasks.length) topNodes.push(makeLeafSphere({ id: 'sphere-income', title: 'Доход', icon: '₽', leaves: incomeTasks, summary: 'Задачи и направления, связанные с клиентами, деньгами и монетизацией.' }));
@@ -395,7 +395,7 @@ export function buildActionMap(snapshot) {
     tasks: activeCount,
     completedTasks,
     totalTasks,
-    summary: 'Главная орбита LifeMap: проекты, цели, AI Inbox, жизнь, доход и идеи на потом.',
+    summary: 'Главная орбита LifeMap: проекты, цели, LM Inbox, жизнь, доход и идеи на потом.',
     details: [],
     session: {
       current: current.title || 'LifeMap: сделать карту рабочим навигатором',
