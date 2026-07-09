@@ -24,22 +24,40 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - run: npm run test:ai
-      - name: Record successful regression check
+      - name: Run and record AI regression checks
         shell: bash
         run: |
-          set -euo pipefail
+          set +e
+          npm run test:ai > /tmp/ai-policy-test.log 2>&1
+          code=$?
+          set -e
+
           mkdir -p docs
-          cat > docs/AI_POLICY_TEST_STATUS.json <<EOF
-          {
-            "ok": true,
-            "policyVersion": "2026-07-09.4",
-            "commit": "${GITHUB_SHA}",
-            "checkedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          TEST_EXIT_CODE="$code" python - <<'PY'
+          import json, os
+          from datetime import datetime, timezone
+
+          code = int(os.environ.get('TEST_EXIT_CODE', '1'))
+          with open('/tmp/ai-policy-test.log', 'r', encoding='utf-8', errors='replace') as f:
+              lines = f.read().splitlines()
+          status = {
+              'ok': code == 0,
+              'policyVersion': '2026-07-09.4',
+              'commit': os.environ.get('GITHUB_SHA', ''),
+              'checkedAt': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
+              'exitCode': code,
+              'logTail': lines[-30:],
           }
-          EOF
+          with open('docs/AI_POLICY_TEST_STATUS.json', 'w', encoding='utf-8') as f:
+              json.dump(status, f, ensure_ascii=False, indent=2)
+              f.write('\n')
+          PY
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs/AI_POLICY_TEST_STATUS.json
-          git commit -m "Record AI policy regression success [skip ci]" || true
+          git commit -m "Record AI policy regression result [skip ci]" || true
           git push
+
+          cat /tmp/ai-policy-test.log
+          exit "$code"
