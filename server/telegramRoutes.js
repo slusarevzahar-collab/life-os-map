@@ -70,7 +70,7 @@ export function registerTelegramRoutes(app, runtime, { codespacesPublicUrl }) {
       await sendTelegramMessage({
         botToken: config.telegramBotToken,
         chatId: signal.telegram?.chatId,
-        text: 'Доставлено в AI-INBOX',
+        text: 'Доставлено в LM Inbox',
       }).catch((error) => console.warn(`LifeMap Telegram ack failed: ${error.message}`));
 
       console.log(`LifeMap Telegram signal processed: ${signal.id} → ${storage}`);
