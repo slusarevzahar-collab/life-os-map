@@ -1,18 +1,28 @@
 # LifeMap
 
-LifeMap — карта жизни и проектов с Notion как source of truth, AI Inbox для входящих сигналов и LifeMap Assistant для работы с контекстом карты.
+LifeMap — карта жизни и проектов с Notion как source of truth, LM Inbox для входящих сигналов и LM Assistant для работы с контекстом карты.
+
+Канонические пользовательские названия:
+
+```text
+LifeMap
+LM Assistant
+LM Inbox
+```
+
+`Life OS`, `LifeMap Assistant` и `AI Inbox` — legacy aliases. Они могут встречаться в старых данных и технических путях API, но не должны использоваться в новом пользовательском интерфейсе и новых AI-ответах.
 
 ## Архитектура
 
 ```text
-Telegram → AI Inbox → Notion → LifeMap UI
+Telegram → LM Inbox → Notion → LifeMap UI
                          ↓
-                  LifeMap Assistant
+                    LM Assistant
                          ↓
               Groq pool → Gemini fallback
 ```
 
-Основной рабочий режим — один порт:
+Основной рабочий режим Codespaces — один порт:
 
 ```text
 3001 = LifeMap UI + API + Telegram webhook
@@ -20,9 +30,9 @@ Telegram → AI Inbox → Notion → LifeMap UI
 
 Порт `3000` больше не используется проектом.
 
-## AI Assistant
+## LM Assistant
 
-LifeMap Assistant получает минимальный безопасный контекст:
+LM Assistant получает минимальный безопасный контекст:
 
 - текущий focus;
 - релевантные задачи;
@@ -64,9 +74,9 @@ research_request
 
 Исполняемые действия требуют подтверждения и защищённого action secret. Неизвестные типы действий отбрасываются.
 
-## AI Inbox
+## LM Inbox
 
-AI Inbox — часть LifeMap, а не отдельный проект.
+LM Inbox — часть LifeMap, а не отдельный проект.
 
 Поток:
 
@@ -80,7 +90,7 @@ Telegram receive
 → LifeMap UI
 ```
 
-AI Inbox может извлекать несколько assets из одного сигнала:
+LM Inbox может извлекать несколько assets из одного сигнала:
 
 ```text
 Prompt
@@ -107,16 +117,18 @@ Other
 - В задачи;
 - Разобрано.
 
+На корневой орбите LM Inbox не показывается как отдельная планета: он открывается отдельной кнопкой рядом с AI launcher.
+
 ## AI providers
 
-Router поддерживает разные профили для массовой обработки AI Inbox и Assistant chat.
+Router поддерживает разные профили для массовой обработки LM Inbox и LM Assistant chat.
 
 Основной бесплатный provider сейчас — Groq pool. Gemini предусмотрен как независимый fallback после подключения ключа.
 
-В status UI отдельно показывается operational capacity для:
+В status UI отдельно учитывается operational capacity для:
 
-- Assistant profile;
-- AI Inbox profile.
+- LM Assistant profile;
+- LM Inbox profile.
 
 LifeMap не придумывает общую квоту. Точные remaining/limit значения показываются только после provider response headers; до этого UI показывает availability маршрутов без ложного процента.
 
@@ -129,13 +141,13 @@ git pull
 npm run app
 ```
 
-`npm run app` теперь:
+`npm run app`:
 
 1. находит и останавливает stale listener на порту `3001`;
 2. собирает production UI;
 3. запускает единый Express server;
 4. отдаёт UI и API на `3001`;
-5. публикует Codespaces port и синхронизирует Telegram webhook.
+5. публикует Codespaces port и может синхронизировать Telegram webhook для Codespaces runtime.
 
 После запуска в терминале должна появиться строка:
 
@@ -143,9 +155,21 @@ npm run app
 LifeMap public UI: https://<codespace>-3001.app.github.dev/
 ```
 
-Открывать нужно именно эту ссылку.
+Для обычной разработки в Codespaces открывать нужно именно этот URL.
 
 `npm run dev` намеренно запускает тот же one-port mode, чтобы случайно не вернуть старый `3000`.
+
+## Vercel production
+
+Vercel получает изменения из `main` через Git integration и автоматически создаёт production deployment.
+
+Важное различие:
+
+- Codespaces URL временный и зависит от активного Codespace;
+- стабильный Vercel production domain предназначен для постоянно доступного UI/API;
+- Telegram production webhook должен указывать на стабильный Vercel endpoint `/api/telegram/webhook`, а не на Codespaces URL.
+
+Environment variables для Vercel задаются в настройках проекта Vercel. Локальный `.env` из Codespaces туда не переносится автоматически.
 
 ## Если 3001 показывает 404
 
@@ -177,7 +201,9 @@ curl http://localhost:3001/api/telegram/status
 curl http://localhost:3001/api/life-os/health
 ```
 
-Если AI provider не настроен, status покажет `configured: false`, но LifeMap и сохранение AI Inbox продолжат работать.
+Legacy API paths `/api/life-os/*` пока сохраняются ради обратной совместимости. Переименование пользовательских терминов не должно ломать существующие маршруты.
+
+Если AI provider не настроен, status покажет `configured: false`, но LifeMap и сохранение LM Inbox продолжат работать.
 
 ## Обновление кода
 
@@ -192,17 +218,18 @@ npm run app
 
 - `docs/NAVIGATOR_MASTER_PLAN.md` — архитектурный план.
 - `docs/LIFEMAP_PROGRESS_LOGIC.md` — логика процентов.
-- `docs/LIFEMAP_AI_POLICY.md` — правила Assistant, AI Inbox, privacy, actions и смены моделей.
+- `docs/LIFEMAP_AI_POLICY.md` — правила LM Assistant, LM Inbox, privacy, actions и смены моделей.
 - `docs/FRONTEND_FUNCTION_CONTRACT.md` — обязательный regression contract для redesign iterations.
+- `docs/VERCEL_DEPLOYMENT.md` — production deploy и environment configuration.
 
 ## Ближайший roadmap
 
-1. Проверить текущий single-port startup после Codespaces pull/rebuild.
-2. Подключить Gemini как независимый cloud fallback.
-3. Продолжить protected local Gemma fallback через LM Studio.
-4. Проверить Telegram → AI analysis → Notion → LifeMap UI на новых типах сигналов.
-5. Добавить voice/image processing отдельным privacy-safe слоем.
-6. Продолжить premium visual consistency pass.
+1. Настроить Telegram webhook на стабильный Vercel production endpoint и проверить end-to-end доставку при выключенном Codespace.
+2. Проверить LM Assistant и LM Inbox визуально и функционально на production UI.
+3. Синхронизировать историю LM Assistant между устройствами через backend storage.
+4. Подключить Gemini как независимый cloud fallback.
+5. Продолжить protected local Gemma fallback через LM Studio.
+6. Добавить voice/image processing отдельным privacy-safe слоем.
 
 ## Важная логика продукта
 
