@@ -11,23 +11,92 @@
   min-width: 0;
 }
 
-/* Keep the sidebar focused on identity, one AI resource gauge, history, decisions and write access. */
-.assistantBrandCompact > p,
 .assistantContextPulse,
-.assistantDecisionWorkspace .assistantWorkspaceHeader > div > small,
-.assistantBrandIdentity small,
-.assistantWriteAccess summary b {
+.assistantWriteAccess,
+.assistantBrandCompact > p,
+.assistantBrandIdentity {
   display: none !important;
 }
 
+/* LM Assistant brand badge */
 .assistantBrandCompact {
   margin-bottom: 2px;
 }
 
-.assistantBrandIdentity h2 {
-  margin-top: 0 !important;
+.lmAssistantBadge {
+  width: fit-content;
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid rgba(103, 232, 249, .22);
+  border-radius: 15px;
+  padding: 0 13px;
+  background: linear-gradient(135deg, rgba(96, 165, 250, .09), rgba(103, 232, 249, .035));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04);
+  font-weight: 950;
+  letter-spacing: -.035em;
+  white-space: nowrap;
 }
 
+.lmAssistantBadge .lmBrandL,
+.lmAssistantBadge .lmBrandM {
+  font-size: 21px;
+}
+
+.lmAssistantBadge .lmBrandL {
+  color: #67e8f9;
+}
+
+.lmAssistantBadge .lmBrandM {
+  color: #f8fdff;
+  margin-right: 7px;
+}
+
+.lmAssistantBadge strong {
+  color: rgba(248, 253, 255, .94);
+  font-size: 18px;
+}
+
+/* Floating LM Inbox + AI rail */
+.assistantFabRail {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 215;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.assistantFabRail .assistantFab,
+.assistantInboxFab {
+  position: static !important;
+  inset: auto !important;
+  transform: none !important;
+  margin: 0 !important;
+}
+
+.assistantInboxFab {
+  min-height: 54px;
+  border: 1px solid rgba(103, 232, 249, .24);
+  border-radius: 18px;
+  padding: 0 17px;
+  color: rgba(236, 248, 255, .9);
+  background: linear-gradient(135deg, rgba(96, 165, 250, .16), rgba(103, 232, 249, .09));
+  box-shadow: 0 14px 42px rgba(0, 0, 0, .34), inset 0 1px 0 rgba(255, 255, 255, .05);
+  backdrop-filter: blur(18px);
+  font-size: 12px;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.assistantInboxFab:hover {
+  border-color: rgba(103, 232, 249, .48);
+  background: linear-gradient(135deg, rgba(96, 165, 250, .24), rgba(103, 232, 249, .15));
+}
+
+/* History */
 .assistantHistoryPanel {
   display: grid;
   gap: 8px;
@@ -64,19 +133,13 @@
   color: rgba(103, 232, 249, .95);
 }
 
-.assistantHistoryHead button:disabled,
-.assistantHistoryList button:disabled {
-  opacity: .45;
-  cursor: wait;
-}
-
 .assistantHistoryList {
   display: grid;
   gap: 5px;
   max-height: 178px;
   min-width: 0;
-  overflow-y: auto;
-  padding-right: 3px;
+  overflow: visible auto;
+  padding: 0 3px 0 0;
   scrollbar-width: thin;
   scrollbar-color: rgba(103, 232, 249, .3) transparent;
 }
@@ -94,8 +157,16 @@
   background: rgba(103, 232, 249, .28);
 }
 
-.assistantHistoryList button {
-  width: 100%;
+.assistantHistoryRow {
+  position: relative;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  align-items: stretch;
+  gap: 3px;
+}
+
+.assistantHistorySelect {
   min-width: 0;
   display: grid;
   gap: 3px;
@@ -108,30 +179,26 @@
   cursor: pointer;
 }
 
-.assistantHistoryList button:hover {
-  border-color: rgba(103, 232, 249, .12);
-  background: rgba(103, 232, 249, .045);
+.assistantHistorySelect:hover,
+.assistantHistorySelect.active {
+  border-color: rgba(103, 232, 249, .16);
+  background: linear-gradient(90deg, rgba(96, 165, 250, .12), rgba(103, 232, 249, .055));
 }
 
-.assistantHistoryList button.active {
-  border-color: rgba(103, 232, 249, .2);
-  background: linear-gradient(90deg, rgba(96, 165, 250, .12), rgba(103, 232, 249, .06));
-}
-
-.assistantHistoryList button b,
-.assistantHistoryList button span {
+.assistantHistorySelect b,
+.assistantHistorySelect span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.assistantHistoryList button b {
+.assistantHistorySelect b {
   font-size: 10px;
   font-weight: 850;
 }
 
-.assistantHistoryList button span,
+.assistantHistorySelect span,
 .assistantHistoryList > p {
   margin: 0;
   color: rgba(203, 225, 235, .42);
@@ -139,6 +206,59 @@
   line-height: 1.35;
 }
 
+.assistantHistoryMenuButton {
+  border: 0;
+  border-radius: 9px;
+  color: rgba(203, 225, 235, .55);
+  background: transparent;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.assistantHistoryMenuButton:hover {
+  color: #f8fdff;
+  background: rgba(255, 255, 255, .06);
+}
+
+.assistantHistoryMenu {
+  position: absolute;
+  top: calc(100% - 2px);
+  right: 0;
+  z-index: 20;
+  min-width: 126px;
+  border: 1px solid rgba(103, 232, 249, .15);
+  border-radius: 12px;
+  padding: 5px;
+  background: rgba(7, 14, 27, .98);
+  box-shadow: 0 18px 46px rgba(0, 0, 0, .42);
+}
+
+.assistantHistoryMenu button {
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 9px;
+  text-align: left;
+  color: rgba(248, 253, 255, .78);
+  background: transparent;
+  font-size: 9px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.assistantHistoryMenu button:hover {
+  color: #fecaca;
+  background: rgba(248, 113, 113, .1);
+}
+
+.assistantHistoryHead button:disabled,
+.assistantHistorySelect:disabled {
+  opacity: .45;
+  cursor: wait;
+}
+
+/* Decision commands */
 .assistantDecisionCommands {
   margin-top: 14px !important;
 }
@@ -164,47 +284,85 @@
   color: #061018;
 }
 
-.assistantWriteAccess {
-  margin-top: 14px;
-  border: 1px solid rgba(103, 232, 249, .1);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, .025);
-}
-
-.assistantWriteAccess summary {
+/* Header: no redundant global title, compact close control */
+.assistantWorkspaceHeader.minimalHeader {
   min-height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 0 11px;
-  list-style: none;
-  cursor: pointer;
+  padding-bottom: 4px;
 }
 
-.assistantWriteAccess summary::-webkit-details-marker {
+.assistantDecisionWorkspace .assistantHeaderActions {
+  flex-wrap: nowrap;
+  margin-left: auto;
+}
+
+.assistantDecisionWorkspace .assistantHeaderActions button {
+  min-width: 38px;
+}
+
+.assistantCloseButton,
+.assistantMobileHistoryButton {
+  width: 38px;
+  height: 38px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  font-size: 22px !important;
+  line-height: 1 !important;
+}
+
+.assistantMobileHistoryButton {
   display: none;
+  font-size: 14px !important;
 }
 
-.assistantWriteAccess summary span {
-  color: rgba(226, 246, 255, .74);
-  font-size: 10px;
-  font-weight: 850;
+.assistantDecisionWorkspace .assistantMessageBubble.assistant p {
+  white-space: pre-wrap;
 }
 
-.assistantWriteAccess[open] {
-  padding-bottom: 10px;
+/* Compact GPT-like composer */
+.assistantDecisionWorkspace .assistantWorkspaceInput {
+  position: relative;
+  grid-template-columns: minmax(0, 1fr) 42px !important;
+  align-items: center !important;
+  gap: 6px !important;
+  min-height: 56px;
+  margin-top: 10px !important;
+  border: 1px solid rgba(103, 232, 249, .18) !important;
+  border-radius: 999px !important;
+  padding: 6px 7px 6px 16px !important;
+  background: rgba(255, 255, 255, .055) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .025);
 }
 
-.assistantWriteAccess .assistantSecretField,
-.assistantWriteAccess > p {
-  margin: 2px 10px 0;
+.assistantDecisionWorkspace .assistantWorkspaceInput:focus-within {
+  border-color: rgba(103, 232, 249, .46) !important;
+  box-shadow: 0 0 0 4px rgba(103, 232, 249, .07);
 }
 
-.assistantWriteAccess > p {
-  color: rgba(203, 225, 235, .5);
-  font-size: 9px;
-  line-height: 1.4;
+.assistantDecisionWorkspace .assistantWorkspaceInput textarea {
+  min-height: 24px !important;
+  height: 28px;
+  max-height: 128px;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 3px 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  resize: none;
+  line-height: 1.45;
+}
+
+.assistantDecisionWorkspace .assistantWorkspaceInput button[type='submit'] {
+  width: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  font-size: 20px;
 }
 
 .assistantDecisionWelcome {
@@ -229,22 +387,7 @@
   line-height: 1.55;
 }
 
-.assistantDecisionWorkspace .assistantHeaderActions {
-  flex-wrap: nowrap;
-}
-
-.assistantDecisionWorkspace .assistantHeaderActions button {
-  min-width: 84px;
-}
-
-.assistantDecisionWorkspace .assistantMessageBubble.assistant p {
-  white-space: pre-wrap;
-}
-
-.assistantMobileHistoryButton {
-  display: none;
-}
-
+/* Mobile history drawer */
 .assistantHistoryMobileOverlay {
   position: absolute;
   inset: 0;
@@ -331,11 +474,24 @@
   }
 
   .assistantMobileHistoryButton {
-    display: inline-flex;
+    display: inline-grid;
   }
 }
 
 @media (max-width: 560px) {
+  .assistantFabRail {
+    right: 10px;
+    bottom: 10px;
+    gap: 6px;
+  }
+
+  .assistantInboxFab {
+    min-height: 48px;
+    border-radius: 16px;
+    padding: 0 13px;
+    font-size: 10px;
+  }
+
   .assistantDecisionWorkspace .assistantWorkspaceHeader {
     display: grid !important;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -343,13 +499,6 @@
 
   .assistantDecisionWorkspace .assistantHeaderActions {
     gap: 4px !important;
-  }
-
-  .assistantDecisionWorkspace .assistantHeaderActions button {
-    min-width: 0;
-    height: 32px !important;
-    padding-inline: 8px !important;
-    font-size: 8px !important;
   }
 
   .assistantDecisionWelcome {
@@ -369,5 +518,10 @@
     width: min(92vw, 340px);
     border-radius: 18px;
     padding: 14px;
+  }
+
+  .assistantDecisionWorkspace .assistantWorkspaceInput {
+    min-height: 52px;
+    padding-left: 13px !important;
   }
 }
