@@ -6,6 +6,7 @@ on:
     paths-ignore:
       - docs/LM_INBOX_PRODUCTION_STATUS.json
       - docs/LM_INBOX_DATA_STATUS.json
+      - docs/AI_POLICY_TEST_STATUS.json
   workflow_dispatch:
 
 permissions:
@@ -16,6 +17,38 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+
+      - name: Run AI policy regressions and save result
+        shell: bash
+        run: |
+          set +e
+          npm run test:ai > /tmp/ai-policy-test.log 2>&1
+          code=$?
+          set -e
+          mkdir -p docs
+          TEST_EXIT_CODE="$code" python - <<'PY'
+          import json, os
+          from datetime import datetime, timezone
+          code = int(os.environ.get('TEST_EXIT_CODE', '1'))
+          with open('/tmp/ai-policy-test.log', 'r', encoding='utf-8', errors='replace') as f:
+              lines = f.read().splitlines()
+          status = {
+              'ok': code == 0,
+              'policyVersion': '2026-07-09.4',
+              'commit': os.environ.get('GITHUB_SHA', ''),
+              'checkedAt': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
+              'exitCode': code,
+              'logTail': lines[-30:],
+          }
+          with open('docs/AI_POLICY_TEST_STATUS.json', 'w', encoding='utf-8') as f:
+              json.dump(status, f, ensure_ascii=False, indent=2)
+              f.write('\n')
+          PY
 
       - name: Wait for production deployment and verify secure intake
         shell: bash
@@ -78,9 +111,16 @@ jobs:
               echo "$body" | python -m json.tool
               git config user.name "github-actions[bot]"
               git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-              git add docs/LM_INBOX_PRODUCTION_STATUS.json docs/LM_INBOX_DATA_STATUS.json
+              git add docs/LM_INBOX_PRODUCTION_STATUS.json docs/LM_INBOX_DATA_STATUS.json docs/AI_POLICY_TEST_STATUS.json
               git commit -m "Record production LM Inbox health [skip ci]" || true
               git push
+
+              python - <<'PY'
+          import json, sys
+          with open('docs/AI_POLICY_TEST_STATUS.json', 'r', encoding='utf-8') as f:
+              status = json.load(f)
+          sys.exit(0 if status.get('ok') is True else 1)
+          PY
               exit 0
             fi
             echo "Attempt $attempt: production intake not ready yet"
