@@ -1,0 +1,24 @@
+name: AI policy regression checks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - 'scripts/test-ai-policy.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/ai-policy-tests.yml'
+  workflow_dispatch:
+
+jobs:
+  test-ai-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run test:ai
