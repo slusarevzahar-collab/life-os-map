@@ -9,7 +9,7 @@ LifeMap — персональный AI-навигационный центр З
 - LM Assistant;
 - LM Inbox.
 
-`Life OS`, `LifeMap Assistant` и `AI Inbox` — устаревшие алиасы. Их можно учитывать при чтении старых данных и исторических документов, но не возвращать в новом пользовательском интерфейсе и новых AI-ответах.
+`Life OS`, `LifeMap Assistant` и `AI Inbox` — устаревшие алиасы. Их можно учитывать при чтении старых данных и исторических документов, но не возвращать в новом пользовательском интерфейсе и новых AI-ответах. В LifeMap Tasks создана отдельная задача на последующую миграцию legacy-названий; не смешивать её с текущей production-проверкой webhook.
 
 ## Главное правило работы
 Нет разделения обязанностей между Claude, GPT и другими AI-инструментами.
@@ -25,7 +25,7 @@ LifeMap — персональный AI-навигационный центр З
 - Notion как source of truth для рабочих данных
 - Telegram → LM Inbox → durable raw save → AI analysis → update same Notion signal → LifeMap UI
 - AI provider router с несколькими Groq routes и fallback-архитектурой
-- дальнейший план: Gemini как независимый cloud fallback, затем локальная Gemma через LM Studio последним fallback route
+- Gemini и локальная Gemma через LM Studio отложены и не входят в активный roadmap; локальную модель не возвращать в план, пока пользователь отдельно не пересмотрит решение и текущий ноутбук не подходит для нагрузки
 
 Обычный Codespaces запуск:
 
@@ -109,8 +109,8 @@ LM Assistant — слой решений и исполнения, а не уни
 
 После webhook:
 1. синхронизация истории LM Assistant между устройствами;
-2. независимый Gemini cloud fallback;
-3. local_lmstudio bridge для Gemma как последний fallback.
+2. проверить LM Assistant и LM Inbox на production UI и выбрать следующий продуктовый приоритет;
+3. Gemini и local Gemma остаются отложенными и не должны автоматически возвращаться в план.
 
 ## Vercel deployment
 
