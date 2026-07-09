@@ -1,4 +1,5 @@
 .assistantDecisionWorkspace {
+  position: relative;
   grid-template-columns: minmax(228px, 272px) minmax(0, 1fr) !important;
 }
 
@@ -10,7 +11,7 @@
   min-width: 0;
 }
 
-/* Keep the sidebar focused on identity, one AI resource gauge, decisions and write access. */
+/* Keep the sidebar focused on identity, one AI resource gauge, history, decisions and write access. */
 .assistantBrandCompact > p,
 .assistantContextPulse,
 .assistantDecisionWorkspace .assistantWorkspaceHeader > div > small,
@@ -25,6 +26,117 @@
 
 .assistantBrandIdentity h2 {
   margin-top: 0 !important;
+}
+
+.assistantHistoryPanel {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  min-width: 0;
+}
+
+.assistantHistoryHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.assistantHistoryHead small {
+  color: rgba(103, 232, 249, .72);
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.assistantHistoryHead button {
+  border: 0;
+  padding: 3px 0;
+  color: rgba(203, 225, 235, .58);
+  background: transparent;
+  font-size: 9px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.assistantHistoryHead button:hover {
+  color: rgba(103, 232, 249, .95);
+}
+
+.assistantHistoryHead button:disabled,
+.assistantHistoryList button:disabled {
+  opacity: .45;
+  cursor: wait;
+}
+
+.assistantHistoryList {
+  display: grid;
+  gap: 5px;
+  max-height: 178px;
+  min-width: 0;
+  overflow-y: auto;
+  padding-right: 3px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(103, 232, 249, .3) transparent;
+}
+
+.assistantHistoryList::-webkit-scrollbar {
+  width: 5px;
+}
+
+.assistantHistoryList::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.assistantHistoryList::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(103, 232, 249, .28);
+}
+
+.assistantHistoryList button {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  padding: 8px 9px;
+  text-align: left;
+  color: rgba(226, 246, 255, .7);
+  background: rgba(255, 255, 255, .025);
+  cursor: pointer;
+}
+
+.assistantHistoryList button:hover {
+  border-color: rgba(103, 232, 249, .12);
+  background: rgba(103, 232, 249, .045);
+}
+
+.assistantHistoryList button.active {
+  border-color: rgba(103, 232, 249, .2);
+  background: linear-gradient(90deg, rgba(96, 165, 250, .12), rgba(103, 232, 249, .06));
+}
+
+.assistantHistoryList button b,
+.assistantHistoryList button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assistantHistoryList button b {
+  font-size: 10px;
+  font-weight: 850;
+}
+
+.assistantHistoryList button span,
+.assistantHistoryList > p {
+  margin: 0;
+  color: rgba(203, 225, 235, .42);
+  font-size: 8px;
+  line-height: 1.35;
 }
 
 .assistantDecisionCommands {
@@ -104,16 +216,8 @@
   background: radial-gradient(circle at 15% 0%, rgba(103, 232, 249, .08), transparent 42%), rgba(255, 255, 255, .025);
 }
 
-.assistantDecisionWelcome small {
-  color: rgba(103, 232, 249, .78);
-  font-size: 9px;
-  font-weight: 950;
-  letter-spacing: .12em;
-  text-transform: uppercase;
-}
-
 .assistantDecisionWelcome h2 {
-  margin: 8px 0 10px;
+  margin: 0 0 10px;
   font-size: clamp(26px, 3vw, 40px);
   letter-spacing: -.045em;
 }
@@ -137,6 +241,54 @@
   white-space: pre-wrap;
 }
 
+.assistantMobileHistoryButton {
+  display: none;
+}
+
+.assistantHistoryMobileOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  display: flex;
+  justify-content: flex-start;
+  background: rgba(1, 5, 14, .76);
+  backdrop-filter: blur(8px);
+}
+
+.assistantHistoryMobileSheet {
+  position: relative;
+  width: min(86vw, 360px);
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid rgba(103, 232, 249, .16);
+  border-radius: 22px;
+  padding: 18px;
+  background: rgba(5, 10, 20, .98);
+  box-shadow: 22px 0 80px rgba(0, 0, 0, .45);
+}
+
+.assistantHistoryMobileClose {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  color: rgba(236, 248, 255, .82);
+  background: rgba(255, 255, 255, .07);
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.assistantHistoryPanel.mobile {
+  margin-top: 30px;
+}
+
+.assistantHistoryPanel.mobile .assistantHistoryList {
+  max-height: calc(100vh - 120px);
+}
+
 @media (max-width: 1180px) {
   .assistantDecisionWorkspace {
     grid-template-columns: 210px minmax(0, 1fr) !important;
@@ -144,6 +296,10 @@
 
   .assistantDecisionWorkspace .assistantWorkspaceSidebar {
     padding: 12px !important;
+  }
+
+  .assistantHistoryList {
+    max-height: 138px;
   }
 
   .assistantDecisionCommands button {
@@ -172,6 +328,10 @@
 
   .assistantDecisionWorkspace .assistantWorkspaceHeader h1 {
     font-size: 22px !important;
+  }
+
+  .assistantMobileHistoryButton {
+    display: inline-flex;
   }
 }
 
@@ -203,5 +363,11 @@
 
   .assistantDecisionWelcome p {
     font-size: 12px;
+  }
+
+  .assistantHistoryMobileSheet {
+    width: min(92vw, 340px);
+    border-radius: 18px;
+    padding: 14px;
   }
 }
