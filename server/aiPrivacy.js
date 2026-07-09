@@ -157,8 +157,46 @@ export function compactForAssistant(snapshot = {}, target = {}) {
   };
 }
 
+function safeMediaContext(signal = {}) {
+  const telegram = signal.telegram || {};
+  const attachment = signal.attachment || telegram.attachment || telegram.document || null;
+  const media = [
+    ...(Array.isArray(attachment?.media) ? attachment.media : []),
+    ...(Array.isArray(telegram.media) ? telegram.media : []),
+  ];
+  const seen = new Set();
+  const safeMedia = media.filter((item) => {
+    const key = String(item?.fileUniqueId || item?.fileId || `${item?.kind}:${item?.fileName}:${item?.messageId}`);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 16).map((item) => ({
+    kind: safeText(item.kind || item.type || 'file', 40),
+    fileName: safeText(item.fileName || item.file_name, 220),
+    mimeType: safeText(item.mimeType || item.mime_type, 100),
+    size: Number(item.fileSize || item.file_size || 0),
+    textCaptured: item.textCaptured === true,
+  }));
+
+  if (!attachment && !safeMedia.length) return null;
+  const primary = safeMedia.find((item) => item.fileName) || safeMedia[0] || {};
+  const counts = safeMedia.reduce((acc, item) => {
+    const kind = item.kind || 'file';
+    acc[kind] = Number(acc[kind] || 0) + 1;
+    return acc;
+  }, {});
+  return {
+    mediaGroup: Boolean(attachment?.mediaGroupId || telegram.mediaGroupId),
+    items: safeMedia,
+    counts,
+    fileName: safeText(attachment?.fileName || primary.fileName, 220),
+    mimeType: safeText(attachment?.mimeType || primary.mimeType, 100),
+    size: Number(attachment?.fileSize || primary.size || 0),
+    textCaptured: attachment?.textCaptured === true || safeMedia.some((item) => item.textCaptured),
+  };
+}
+
 export function buildSafeInboxPayload(signal = {}, snapshot = {}) {
-  const document = signal.telegram?.document || signal.attachment || null;
   const focusProject = canonicalLabel(snapshot.currentFocus?.project).toLowerCase();
   const activeWork = [...(snapshot.tasks || [])]
     .filter(activeTask)
@@ -189,12 +227,7 @@ export function buildSafeInboxPayload(signal = {}, snapshot = {}) {
       heuristicPriority: safeText(signal.priority, 30),
       text: safeText(signal.rawText || signal.summary, 5000),
       sourceHost: (() => { try { return new URL(signal.sourceUrl || '').hostname; } catch { return ''; } })(),
-      attachment: document ? {
-        fileName: safeText(document.fileName || document.file_name, 220),
-        mimeType: safeText(document.mimeType || document.mime_type, 100),
-        size: Number(document.fileSize || document.file_size || 0),
-        textCaptured: document.textCaptured === true,
-      } : null,
+      attachment: safeMediaContext(signal),
     },
   };
 }
