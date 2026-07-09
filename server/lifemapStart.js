@@ -93,6 +93,11 @@ export function createLifeMapApp({ deferTask = null } = {}) {
   }
 
   async function syncTelegramWebhook() {
+    if (process.env.CODESPACES === 'true' && process.env.TELEGRAM_WEBHOOK_RUNTIME !== 'codespaces') {
+      console.log('LifeMap Telegram webhook sync skipped in Codespaces; production Vercel remains the webhook owner.');
+      return;
+    }
+
     const { telegramBotToken, telegramWebhookSecret } = runtime.config;
     if (!telegramBotToken) return;
     const webhookUrl = codespacesPublicUrl();
