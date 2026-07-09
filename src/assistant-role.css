@@ -1,5 +1,5 @@
 .assistantDecisionWorkspace {
-  grid-template-columns: minmax(238px, 286px) minmax(0, 1fr) !important;
+  grid-template-columns: minmax(228px, 272px) minmax(0, 1fr) !important;
 }
 
 .assistantDecisionWorkspace .assistantWorkspaceSidebar {
@@ -10,25 +10,21 @@
   min-width: 0;
 }
 
-.assistantContextPulse {
-  display: grid;
-  gap: 4px;
-  margin-top: 10px;
+/* Keep the sidebar focused on identity, one AI resource gauge, decisions and write access. */
+.assistantBrandCompact > p,
+.assistantContextPulse,
+.assistantDecisionWorkspace .assistantWorkspaceHeader > div > small,
+.assistantBrandIdentity small,
+.assistantWriteAccess summary b {
+  display: none !important;
 }
 
-.assistantContextPulse span {
-  font-size: 10px;
-  font-weight: 900;
+.assistantBrandCompact {
+  margin-bottom: 2px;
 }
 
-.assistantContextPulse small {
-  display: -webkit-box;
-  overflow: hidden;
-  color: rgba(203, 225, 235, .48);
-  font-size: 9px;
-  line-height: 1.35;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+.assistantBrandIdentity h2 {
+  margin-top: 0 !important;
 }
 
 .assistantDecisionCommands {
@@ -82,14 +78,6 @@
   color: rgba(226, 246, 255, .74);
   font-size: 10px;
   font-weight: 850;
-}
-
-.assistantWriteAccess summary b {
-  color: rgba(103, 232, 249, .72);
-  font-size: 8px;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: .05em;
 }
 
 .assistantWriteAccess[open] {
@@ -151,7 +139,7 @@
 
 @media (max-width: 1180px) {
   .assistantDecisionWorkspace {
-    grid-template-columns: 220px minmax(0, 1fr) !important;
+    grid-template-columns: 210px minmax(0, 1fr) !important;
   }
 
   .assistantDecisionWorkspace .assistantWorkspaceSidebar {
