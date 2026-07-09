@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths-ignore:
       - docs/LM_INBOX_PRODUCTION_STATUS.json
+      - docs/LM_INBOX_DATA_STATUS.json
   workflow_dispatch:
 
 permissions:
@@ -21,6 +22,7 @@ jobs:
         run: |
           set -euo pipefail
           endpoint="https://lifemap-gamma.vercel.app/api/telegram/status"
+          inbox_endpoint="https://lifemap-gamma.vercel.app/api/life-os/inbox/assets"
           body=""
           for attempt in {1..20}; do
             body="$(curl --fail --silent --show-error --max-time 20 "$endpoint" || true)"
@@ -51,11 +53,33 @@ jobs:
               json.dump(data, f, ensure_ascii=False, indent=2)
               f.write('\n')
           PY
+
+              inbox_body="$(curl --fail --silent --show-error --max-time 30 "$inbox_endpoint")"
+              INBOX_BODY="$inbox_body" python - <<'PY'
+          import json, os
+          payload = json.loads(os.environ['INBOX_BODY'])
+          signals = payload.get('signals') if isinstance(payload, dict) else []
+          signals = signals if isinstance(signals, list) else []
+          status = {
+              'ok': True,
+              'visibleRecords': len(signals),
+              'analyzedRecords': sum(1 for s in signals if s.get('aiProcessingVersion')),
+              'trulyMissingAnalysis': sum(1 for s in signals if s.get('needsReprocessing') is True),
+              'stalePolicyRecords': sum(1 for s in signals if s.get('staleProcessingVersion') is True),
+              'bundledRecords': sum(1 for s in signals if int(s.get('bundleCount') or 1) > 1),
+              'bundledChildRowsHiddenFromUi': sum(max(0, int(s.get('bundleCount') or 1) - 1) for s in signals),
+          }
+          with open('docs/LM_INBOX_DATA_STATUS.json', 'w', encoding='utf-8') as f:
+              json.dump(status, f, ensure_ascii=False, indent=2)
+              f.write('\n')
+          print(json.dumps(status, ensure_ascii=False, indent=2))
+          PY
+
               echo "$body" | python -m json.tool
               git config user.name "github-actions[bot]"
               git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-              git add docs/LM_INBOX_PRODUCTION_STATUS.json
-              git commit -m "Record production Telegram status [skip ci]" || true
+              git add docs/LM_INBOX_PRODUCTION_STATUS.json docs/LM_INBOX_DATA_STATUS.json
+              git commit -m "Record production LM Inbox health [skip ci]" || true
               git push
               exit 0
             fi
