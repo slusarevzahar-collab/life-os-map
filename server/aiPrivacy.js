@@ -14,8 +14,19 @@ export function sanitizeTextForAi(value = '', limit = 6000) {
   return clip(text, limit);
 }
 
+function canonicalLabel(value = '') {
+  const text = String(value || '').trim();
+  if (/^life\s*os$/i.test(text)) return 'LifeMap';
+  if (/^ai\s*inbox$/i.test(text)) return 'LM Inbox';
+  return text;
+}
+
 function safeText(value, limit) {
   return sanitizeTextForAi(value, limit);
+}
+
+function safeLabel(value, limit) {
+  return safeText(canonicalLabel(value), limit);
 }
 
 function safeTarget(target = {}) {
@@ -23,29 +34,29 @@ function safeTarget(target = {}) {
     id: safeText(target.id, 120),
     kind: safeText(target.kind, 80),
     title: safeText(target.title, 240),
-    project: safeText(target.project, 160),
-    goalName: safeText(target.goalName, 200),
+    project: safeLabel(target.project, 160),
+    goalName: safeLabel(target.goalName, 200),
     type: safeText(target.type, 80),
   };
 }
 
 function taskScore(task = {}, target = {}, currentFocus = {}) {
   let score = 0;
-  const targetProject = String(target.project || '').toLowerCase();
-  const targetGoal = String(target.goalName || target.title || '').toLowerCase();
+  const targetProject = canonicalLabel(target.project).toLowerCase();
+  const targetGoal = canonicalLabel(target.goalName || target.title).toLowerCase();
   if (task.id && task.id === target.id) score += 100;
   if (task.id && task.id === currentFocus?.id) score += 90;
-  if (targetProject && String(task.project || '').toLowerCase() === targetProject) score += 50;
-  if (targetGoal && String(task.goalName || '').toLowerCase() === targetGoal) score += 40;
+  if (targetProject && canonicalLabel(task.project).toLowerCase() === targetProject) score += 50;
+  if (targetGoal && canonicalLabel(task.goalName).toLowerCase() === targetGoal) score += 40;
   if (/now|сейчас|in progress|в работе/i.test(String(task.status || ''))) score += 25;
   if (Number(task.priority) > 0) score += Math.max(0, 20 - Number(task.priority));
   return score;
 }
 
 function signalScore(signal = {}, target = {}, currentFocus = {}) {
-  const targetProject = String(target.project || target.title || '').toLowerCase();
-  const focusProject = String(currentFocus?.project || '').toLowerCase();
-  const related = Array.isArray(signal.relatedProjects) ? signal.relatedProjects.map((name) => String(name).toLowerCase()) : [];
+  const targetProject = canonicalLabel(target.project || target.title).toLowerCase();
+  const focusProject = canonicalLabel(currentFocus?.project).toLowerCase();
+  const related = Array.isArray(signal.relatedProjects) ? signal.relatedProjects.map((name) => canonicalLabel(name).toLowerCase()) : [];
   let score = Number(signal.relevanceScore || signal.relevance || 0);
   if (/new|inbox|нов|вход/i.test(String(signal.status || ''))) score += 12;
   if (targetProject && related.includes(targetProject)) score += 40;
@@ -61,8 +72,8 @@ function activeTask(task = {}) {
 
 export function projectNamesFromSnapshot(snapshot = {}) {
   return [...new Set([
-    ...(snapshot.projectAreas || []).map((item) => item.name),
-    ...(snapshot.tasks || []).map((task) => task.project),
+    ...(snapshot.projectAreas || []).map((item) => canonicalLabel(item.name)),
+    ...(snapshot.tasks || []).map((task) => canonicalLabel(task.project)),
   ].filter(Boolean).map((name) => safeText(name, 120)))].slice(0, 30);
 }
 
@@ -72,7 +83,7 @@ export function compactForAssistant(snapshot = {}, target = {}) {
     id: safeText(snapshot.currentFocus.id, 120),
     code: safeText(snapshot.currentFocus.code, 40),
     title: safeText(snapshot.currentFocus.title, 240),
-    project: safeText(snapshot.currentFocus.project, 160),
+    project: safeLabel(snapshot.currentFocus.project, 160),
     status: safeText(snapshot.currentFocus.status, 80),
     progress: Number(snapshot.currentFocus.progress || 0),
     nextAction: safeText(snapshot.currentFocus.nextAction, 500),
@@ -86,8 +97,8 @@ export function compactForAssistant(snapshot = {}, target = {}) {
       id: safeText(task.id, 120),
       code: safeText(task.code, 40),
       title: safeText(task.title, 260),
-      project: safeText(task.project, 160),
-      goalName: safeText(task.goalName, 200),
+      project: safeLabel(task.project, 160),
+      goalName: safeLabel(task.goalName, 200),
       status: safeText(task.status, 80),
       priority: Number(task.priority || 0),
       progress: Number(task.progress || 0),
@@ -98,7 +109,7 @@ export function compactForAssistant(snapshot = {}, target = {}) {
   const goals = (snapshot.goals || []).slice(0, 10).map((goal) => ({
     id: safeText(goal.id, 120),
     title: safeText(goal.title, 240),
-    area: safeText(goal.area, 160),
+    area: safeLabel(goal.area, 160),
     status: safeText(goal.status, 80),
     progress: Number(goal.progress || 0),
     nextAction: safeText(goal.nextAction, 500),
@@ -115,7 +126,7 @@ export function compactForAssistant(snapshot = {}, target = {}) {
       status: safeText(signal.status, 80),
       priority: safeText(signal.priority, 40),
       relevanceScore: Number(signal.relevanceScore || signal.relevance || 0),
-      relatedProjects: (signal.relatedProjects || []).slice(0, 6).map((name) => safeText(name, 120)),
+      relatedProjects: (signal.relatedProjects || []).slice(0, 6).map((name) => safeLabel(name, 120)),
       summary: safeText(signal.summary, 700),
       assistantNote: safeText(signal.assistantNote, 520),
       possibleUse: safeText(signal.possibleUse, 500),
@@ -148,19 +159,19 @@ export function compactForAssistant(snapshot = {}, target = {}) {
 
 export function buildSafeInboxPayload(signal = {}, snapshot = {}) {
   const document = signal.telegram?.document || signal.attachment || null;
-  const focusProject = String(snapshot.currentFocus?.project || '').toLowerCase();
+  const focusProject = canonicalLabel(snapshot.currentFocus?.project).toLowerCase();
   const activeWork = [...(snapshot.tasks || [])]
     .filter(activeTask)
     .sort((a, b) => {
-      const aFocus = focusProject && String(a.project || '').toLowerCase() === focusProject ? 1 : 0;
-      const bFocus = focusProject && String(b.project || '').toLowerCase() === focusProject ? 1 : 0;
+      const aFocus = focusProject && canonicalLabel(a.project).toLowerCase() === focusProject ? 1 : 0;
+      const bFocus = focusProject && canonicalLabel(b.project).toLowerCase() === focusProject ? 1 : 0;
       if (aFocus !== bFocus) return bFocus - aFocus;
       return Number(a.priority || 999) - Number(b.priority || 999);
     })
     .slice(0, 6)
     .map((task) => ({
       title: safeText(task.title, 180),
-      project: safeText(task.project, 100),
+      project: safeLabel(task.project, 100),
       nextAction: safeText(task.nextAction, 260),
     }));
 
@@ -168,7 +179,7 @@ export function buildSafeInboxPayload(signal = {}, snapshot = {}) {
     availableProjects: projectNamesFromSnapshot(snapshot),
     currentFocus: snapshot.currentFocus ? {
       title: safeText(snapshot.currentFocus.title, 220),
-      project: safeText(snapshot.currentFocus.project, 140),
+      project: safeLabel(snapshot.currentFocus.project, 140),
       nextAction: safeText(snapshot.currentFocus.nextAction, 360),
     } : null,
     activeWork,
