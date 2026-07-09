@@ -23,14 +23,24 @@ function productionWebhookUrl() {
   return runtime.config.telegramWebhookUrl || '';
 }
 
+function productionIntakeReady() {
+  const config = runtime.config;
+  return Boolean(
+    config.telegramBotToken &&
+    config.telegramWebhookSecret &&
+    config.telegramAllowedUserIds &&
+    config.notionToken &&
+    config.signalsDbId &&
+    productionWebhookUrl()
+  );
+}
+
 function ensureProductionTelegramWebhook() {
   if (process.env.VERCEL_ENV !== 'production') return;
   if (webhookSyncState === 'pending' || webhookSyncState === 'ready') return;
-  if (!runtime.config.telegramBotToken) return;
+  if (!productionIntakeReady()) return;
 
   const webhookUrl = productionWebhookUrl();
-  if (!webhookUrl) return;
-
   webhookSyncState = 'pending';
   waitUntil((async () => {
     try {
