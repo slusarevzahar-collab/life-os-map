@@ -1,4 +1,4 @@
-export const AI_POLICY_VERSION = '2026-07-09.1';
+export const AI_POLICY_VERSION = '2026-07-09.4';
 
 export const EXECUTABLE_ACTIONS = [
   'update_task',
