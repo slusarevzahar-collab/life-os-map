@@ -1,0 +1,35 @@
+{
+  "ok": true,
+  "configured": true,
+  "hasSecret": true,
+  "allowedUsersLocked": true,
+  "signalsDb": true,
+  "localSignals": 0,
+  "computedWebhookUrl": "https://lifemap-gamma.vercel.app/api/telegram/webhook",
+  "webhook": {
+    "ok": true,
+    "result": {
+      "url": "https://lifemap-gamma.vercel.app/api/telegram/webhook",
+      "has_custom_certificate": false,
+      "pending_update_count": 0,
+      "max_connections": 40,
+      "ip_address": "64.29.17.3",
+      "allowed_updates": [
+        "message",
+        "edited_message",
+        "channel_post",
+        "edited_channel_post"
+      ]
+    }
+  },
+  "intake": {
+    "secureReady": true,
+    "durableFirst": true,
+    "backgroundScheduler": "vercel-waitUntil"
+  },
+  "dedupe": {
+    "inFlight": 0,
+    "recentlyCompleted": 0,
+    "ttlMs": 21600000
+  }
+}
