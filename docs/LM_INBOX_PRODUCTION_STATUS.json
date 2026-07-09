@@ -29,7 +29,7 @@
   },
   "dedupe": {
     "inFlight": 0,
-    "recentlyCompleted": 0,
+    "recentlyCompleted": 1,
     "ttlMs": 21600000
   }
 }
