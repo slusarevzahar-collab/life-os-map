@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { buildActionMap, findNode } from '../src/lib/actionMapModel.js';
-import { dedupeInboxSignals } from '../src/lib/lifeMapRuntime.js';
+import { dedupeInboxSignals, encodeLifeMapSecretHeader } from '../src/lib/lifeMapRuntime.js';
 import { compactForAssistant } from '../server/aiPrivacy.js';
+import { decodeLifeMapSecretHeader } from '../server/lifemapRuntime.js';
 
 const snapshot = {
   meta: {
@@ -76,5 +77,13 @@ const duplicateSignals = dedupeInboxSignals([
 ]);
 assert.equal(duplicateSignals.length, 1);
 assert.equal(duplicateSignals[0].id, 'live-copy');
+
+const unicodeSecret = 'Ключ LifeMap — Захар 🔐';
+const encodedSecret = encodeLifeMapSecretHeader(unicodeSecret);
+assert(encodedSecret.startsWith('uri:'));
+assert(/^[\x00-\x7F]+$/.test(encodedSecret));
+assert.equal(decodeLifeMapSecretHeader(encodedSecret), unicodeSecret);
+assert.equal(decodeLifeMapSecretHeader('legacy-ascii-secret'), 'legacy-ascii-secret');
+assert.equal(decodeLifeMapSecretHeader('uri:%E0%A4%A'), '');
 
 console.log('LifeMap data model regression tests passed.');
