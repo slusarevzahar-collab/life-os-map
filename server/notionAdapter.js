@@ -71,7 +71,7 @@ function canonicalProjectName(value = '') {
   if (['lm inbox', 'ai inbox', 'ai signals inbox'].includes(key)) return 'LM Inbox';
   return text;
 }
-function notionSessionProjectName(value = '') { const canonical = canonicalProjectName(value || 'LifeMap'); if (canonical === 'LifeMap') return 'Life OS'; if (canonical === 'LM Inbox') return 'AI Inbox'; return canonical; }
+function notionSessionProjectName(value = '') { return canonicalProjectName(value || 'LifeMap') || 'LifeMap'; }
 function normalizeSessionStatus(value = 'Finished') { const raw = useful(value) || 'Finished'; return SESSION_STATUS_MAP.get(normalizeKey(raw)) || raw; }
 function looksLikePageId(value = '') { return /^[0-9a-f]{32}$/i.test(String(value).replace(/-/g, '')); }
 
@@ -154,7 +154,7 @@ function mapNotionSignal(page) {
 function mapNotionSession(page) {
   const props = page.properties || {};
   const taskIds = relationIds(findProp(props, ['Task', 'Задача']));
-  return { id: page.id, title: firstTitle(props, ['Session', 'Name', 'Название', 'Сессия']) || 'Work session', taskIds, task: firstRichText(props, ['Task name', 'Task Name', 'Задача текстом']) || '', project: canonicalProjectName(firstSelect(props, ['Project', 'Проект']) || 'LifeMap') || 'LifeMap', status: firstSelect(props, ['Status', 'Статус']) || 'unknown', energy: firstSelect(props, ['Energy', 'Энергия']) || '', startedAt: firstDate(props, ['Started At', 'Start', 'Начало']) || null, finishedAt: firstDate(props, ['Finished At', 'Finish', 'Конец', 'Завершено']) || null, durationMin: firstNumber(props, ['Duration Min', 'Duration', 'Минуты', 'Длительность']) || 0, result: firstRichText(props, ['Result', 'Результат']) || '', nextStep: firstRichText(props, ['Next Step', 'Next Action', 'Следующий шаг']) || '' };
+  return { id: page.id, title: firstTitle(props, ['Session', 'Name', 'Название', 'Сессия']) || 'Work session', taskIds, scope: firstSelect(props, ['Scope']) || '', task: firstRichText(props, ['Task name', 'Task Name', 'Задача текстом']) || '', project: canonicalProjectName(firstSelect(props, ['Project', 'Проект']) || 'LifeMap') || 'LifeMap', status: firstSelect(props, ['Status', 'Статус']) || 'unknown', energy: firstSelect(props, ['Energy', 'Энергия']) || '', startedAt: firstDate(props, ['Started At', 'Start', 'Начало']) || null, finishedAt: firstDate(props, ['Finished At', 'Finish', 'Конец', 'Завершено']) || null, durationMin: firstNumber(props, ['Duration Min', 'Duration', 'Минуты', 'Длительность']) || 0, result: firstRichText(props, ['Result', 'Результат']) || '', nextStep: firstRichText(props, ['Next Step', 'Next Action', 'Следующий шаг']) || '' };
 }
 
 function attachGoalsToTasks(tasks, goals) {
@@ -217,7 +217,8 @@ function chooseCurrentFocus(tasks) { return tasks.find((task) => String(task.sta
 function snapshotDataQuality({ tasks, goals, sessions, projectAreas, dreams, signals }) {
   return {
     counts: { tasks: tasks.length, goals: goals.length, sessions: sessions.length, projectAreas: projectAreas.length, dreams: dreams.length, signals: signals.length },
-    unlinkedSessions: sessions.filter((session) => !(session.taskIds || []).length).length,
+    unlinkedSessions: sessions.filter((session) => !(session.taskIds || []).length && !['project', 'historical'].includes(normalizeKey(session.scope))).length,
+    standaloneSessions: sessions.filter((session) => !(session.taskIds || []).length && ['project', 'historical'].includes(normalizeKey(session.scope))).length,
     tasksWithoutNextAction: tasks.filter((task) => !useful(task.nextAction) && !/done|готов/i.test(task.status || '')).length,
     goalsWithoutSuccessCriteria: goals.filter((goal) => !useful(goal.successCriteria)).length,
     goalsWithoutWhy: goals.filter((goal) => !useful(goal.why)).length,
@@ -291,12 +292,13 @@ export async function createWorkSession({ notionToken, sessionsDbId, payload = {
   const finishedAt = payload.finishedAt || (status === 'Finished' ? new Date().toISOString() : null);
   const rawTaskIds = [...(Array.isArray(payload.taskIds) ? payload.taskIds : []), payload.taskId, looksLikePageId(payload.task) ? payload.task : ''].filter(Boolean);
   const taskIds = uniqueList(rawTaskIds);
+  const scope = payload.scope || (taskIds.length ? 'Task' : 'Project');
   const properties = cleanProperties({
-    Session: titleProperty(payload.title || payload.session || 'LifeMap session'), Task: relationProperty(taskIds), Project: selectProperty(notionSessionProjectName(payload.project || 'LifeMap')),
+    Session: titleProperty(payload.title || payload.session || 'LifeMap session'), Task: relationProperty(taskIds), Scope: selectProperty(scope), Project: selectProperty(notionSessionProjectName(payload.project || 'LifeMap')),
     Status: selectProperty(status), Energy: selectProperty(payload.energy), 'Started At': dateProperty(startedAt), 'Finished At': dateProperty(finishedAt), 'Duration Min': numberProperty(payload.durationMin), Result: textProperty(payload.result || ''), 'Next Step': textProperty(payload.nextStep || ''),
   });
   const page = await notion.pages.create({ parent: { database_id: sessionsDbId }, properties });
-  return { id: page.id, created: true, taskIds, status };
+  return { id: page.id, created: true, taskIds, scope, status };
 }
 
 function normalizedSignalStatus(status = 'Inbox') { const value = String(status || 'Inbox'); return value === 'New' ? 'Inbox' : value; }
