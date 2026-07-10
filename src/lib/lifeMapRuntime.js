@@ -53,6 +53,11 @@ function writeAccessSecret(value = '') {
   } catch {}
 }
 
+export function encodeLifeMapSecretHeader(value = '') {
+  const secret = String(value || '');
+  return secret ? `uri:${encodeURIComponent(secret)}` : '';
+}
+
 function mutatingMethod(options = {}) {
   const method = String(options.method || 'GET').toUpperCase();
   return !['GET', 'HEAD', 'OPTIONS'].includes(method);
@@ -64,12 +69,13 @@ function requestNeedsSecret(options = {}) {
 
 function fetchOptions(options = {}, secret = '') {
   const { requiresSecret: _requiresSecret, ...clean } = options;
+  const encodedSecret = encodeLifeMapSecretHeader(secret);
   return {
     ...clean,
     credentials: 'include',
     headers: {
       ...(clean.headers || {}),
-      ...(secret ? { 'X-LifeMap-Assistant-Secret': secret } : {}),
+      ...(encodedSecret ? { 'X-LifeMap-Assistant-Secret': encodedSecret } : {}),
     },
   };
 }
