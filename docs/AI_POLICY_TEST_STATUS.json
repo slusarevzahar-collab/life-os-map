@@ -1,8 +1,8 @@
 {
   "ok": true,
   "policyVersion": "2026-07-09.4",
-  "commit": "3452eff32136982c3d1df2e1776881b44802b778",
-  "checkedAt": "2026-07-10T07:52:05.269379Z",
+  "commit": "be26d0d53bec22621f8e17fb70608c73f87f0324",
+  "checkedAt": "2026-07-10T08:32:42.010851Z",
   "exitCode": 0,
   "logTail": [
     "npm warn config optional Use `--omit=optional` to exclude optional dependencies, or",
