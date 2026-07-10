@@ -1,5 +1,11 @@
-import { isLeafNode, shortText } from '../lib/actionMapModel.js';
+import { isLeafNode } from '../lib/actionMapModel.js';
 import { canRenameNode } from '../lib/lifeMapSelectors.js';
+
+function shortText(value = '', limit = 52) {
+  const text = String(value || '').trim();
+  if (text.length <= limit) return text;
+  return `${text.slice(0, Math.max(1, limit - 1)).trim()}…`;
+}
 
 export function ContextMenu({ menu, onClose, onFocusNow, onFocusNext, onRename, onCreateObject, onDeleteObject }) {
   if (!menu) return null;
