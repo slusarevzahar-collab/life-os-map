@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { buildActionMap, findNode } from '../src/lib/actionMapModel.js';
+import { dedupeInboxSignals } from '../src/lib/lifeMapRuntime.js';
 import { compactForAssistant } from '../server/aiPrivacy.js';
 
 const snapshot = {
@@ -64,5 +65,12 @@ assert.equal(assistant.projectAreas[0].focusLevel, 'Primary');
 assert.equal(assistant.dreams[0].linkedProject, 'LifeMap');
 assert.equal(assistant.tasks[0].sessionCount, 1);
 assert.equal(assistant.dataQuality.counts.sessions, 1);
+
+const duplicateSignals = dedupeInboxSignals([
+  { id: 'old-copy', title: 'Same signal', sourceUrl: 'https://t.me/source/1', status: 'Archived', summary: 'old', aiProcessingVersion: 'v1' },
+  { id: 'live-copy', title: 'Same signal', sourceUrl: 'https://t.me/source/1', status: 'New', summary: 'current', aiProcessingVersion: 'v1' },
+]);
+assert.equal(duplicateSignals.length, 1);
+assert.equal(duplicateSignals[0].id, 'live-copy');
 
 console.log('LifeMap data model regression tests passed.');
