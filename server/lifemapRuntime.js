@@ -63,18 +63,18 @@ function normalizePayload(payload = {}) {
   return payload && typeof payload === 'object' ? payload : {};
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
 function signalAnalysisKey(signal = {}) {
   if (signal.sourceUrl) return `url:${signal.sourceUrl}`;
   return `${String(signal.title || '').trim().toLowerCase()}|${String(signal.summary || '').trim().toLowerCase().slice(0, 700)}`;
 }
 
-function publicJob(job) {
-  return JSON.parse(JSON.stringify(job));
+function hasStoredAnalysis(signal = {}) {
+  return Boolean(signal.aiProcessingVersion || signal.assistantNote || (Array.isArray(signal.assets) && signal.assets.length));
 }
+
+function publicJob(job) { return JSON.parse(JSON.stringify(job)); }
 
 export function createLifeMapRuntime({ envLoaded = false } = {}) {
   const config = {
@@ -96,18 +96,8 @@ export function createLifeMapRuntime({ envLoaded = false } = {}) {
   };
   const ai = createLifeMapAiService(process.env);
   let reprocessJob = {
-    id: '',
-    status: 'idle',
-    scanned: 0,
-    total: 0,
-    processed: 0,
-    failed: 0,
-    reused: 0,
-    current: '',
-    resumeAfter: '',
-    startedAt: '',
-    finishedAt: '',
-    results: [],
+    id: '', status: 'idle', scanned: 0, total: 0, processed: 0, failed: 0, reused: 0,
+    current: '', resumeAfter: '', startedAt: '', finishedAt: '', results: [],
   };
 
   function makeMockResponse(reason) {
@@ -181,10 +171,7 @@ export function createLifeMapRuntime({ envLoaded = false } = {}) {
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
         return await ai.analyzeInboxSignal({
-          signal: {
-            ...signal,
-            rawText: signal.summary || signal.assistantNote || signal.possibleUse || '',
-          },
+          signal: { ...signal, rawText: signal.originalText || signal.summary || signal.assistantNote || signal.possibleUse || '' },
           snapshot,
         });
       } catch (error) {
@@ -204,17 +191,26 @@ export function createLifeMapRuntime({ envLoaded = false } = {}) {
       const snapshot = await buildLiveSnapshot();
       const records = await listInboxAssets();
       if (reprocessJob.id !== jobId) return;
-      const candidates = records.filter((signal) => !onlyMissing || !signal.aiProcessingVersion);
+
+      const candidates = records.filter((signal) => !onlyMissing || signal.needsReprocessing === true);
+      const candidateIds = new Set(candidates.map((signal) => signal.id));
       const cache = new Map();
-      records.filter((signal) => signal.aiProcessingVersion).forEach((signal) => {
+      records.filter((signal) => !candidateIds.has(signal.id) && hasStoredAnalysis(signal)).forEach((signal) => {
         cache.set(signalAnalysisKey(signal), {
           ...signal,
           assets: Array.isArray(signal.assets) ? signal.assets : [],
-          aiProcessing: { policyVersion: signal.aiProcessingVersion },
+          aiProcessing: signal.aiProcessingVersion ? { policyVersion: signal.aiProcessingVersion } : undefined,
         });
       });
       reprocessJob.scanned = records.length;
       reprocessJob.total = candidates.length;
+
+      if (!candidates.length) {
+        reprocessJob.status = 'completed';
+        reprocessJob.current = '';
+        reprocessJob.finishedAt = new Date().toISOString();
+        return;
+      }
 
       for (let index = 0; index < candidates.length; index += 1) {
         const signal = candidates[index];
@@ -227,9 +223,8 @@ export function createLifeMapRuntime({ envLoaded = false } = {}) {
         try {
           let analysis = cache.get(key);
           const wasReused = Boolean(analysis);
-          if (wasReused) {
-            reprocessJob.reused += 1;
-          } else {
+          if (wasReused) reprocessJob.reused += 1;
+          else {
             analysis = await analyzeWithRetry(signal, snapshot);
             cache.set(key, analysis);
           }
@@ -274,26 +269,14 @@ export function createLifeMapRuntime({ envLoaded = false } = {}) {
     if (['running', 'waiting_rate_limit'].includes(reprocessJob.status)) return publicJob(reprocessJob);
     const jobId = `inbox-${Date.now()}`;
     reprocessJob = {
-      id: jobId,
-      status: 'running',
-      scanned: 0,
-      total: 0,
-      processed: 0,
-      failed: 0,
-      reused: 0,
-      current: '',
-      resumeAfter: '',
-      startedAt: new Date().toISOString(),
-      finishedAt: '',
-      results: [],
+      id: jobId, status: 'running', scanned: 0, total: 0, processed: 0, failed: 0, reused: 0,
+      current: '', resumeAfter: '', startedAt: new Date().toISOString(), finishedAt: '', results: [],
     };
     runReprocessJob(jobId, { onlyMissing }).catch((error) => console.warn(`LifeMap Inbox reprocess job failed: ${error.message}`));
     return publicJob(reprocessJob);
   }
 
-  function inboxReprocessJobStatus() {
-    return publicJob(reprocessJob);
-  }
+  function inboxReprocessJobStatus() { return publicJob(reprocessJob); }
 
   async function executeAction(action = {}) {
     const type = action.type || action.name || '';
