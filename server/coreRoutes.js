@@ -6,7 +6,7 @@ import {
 } from './notionAdapter.js';
 import { telegramApi } from './telegramAdapter.js';
 import { EXECUTABLE_ACTIONS } from './lifemapAiPolicy.js';
-import { requireTrustedWrite, trustedLifeMapUi } from './requestTrust.js';
+import { requireLifeMapAccess, requireTrustedWrite } from './requestTrust.js';
 
 const EXECUTABLE = new Set(EXECUTABLE_ACTIONS);
 
@@ -31,8 +31,6 @@ export function registerCoreRoutes(app, runtime) {
     ai,
     buildLiveSnapshot,
     executeActions,
-    makeMockResponse,
-    prepareSnapshot,
     assistantSecretOk,
     listInboxAssets,
     inboxSignal,
@@ -40,10 +38,11 @@ export function registerCoreRoutes(app, runtime) {
     inboxReprocessJobStatus,
   } = runtime;
 
-  app.get('/api/life-os/snapshot', async (_req, res) => {
+  app.get('/api/life-os/snapshot', async (req, res) => {
+    if (!requireLifeMapAccess(req, res, assistantSecretOk)) return;
     noStore(res);
     try { res.json(await buildLiveSnapshot()); }
-    catch (error) { res.status(500).json({ error: 'Failed to build LifeMap snapshot', details: error.message, fallback: prepareSnapshot(makeMockResponse(error.message)) }); }
+    catch (error) { res.status(500).json({ ok: false, error: 'Failed to build LifeMap snapshot', details: error.message }); }
   });
 
   app.get('/api/life-os/data-health', async (_req, res) => {
@@ -106,7 +105,8 @@ export function registerCoreRoutes(app, runtime) {
     } catch (error) { res.status(500).json({ ok: false, error: error.message }); }
   });
 
-  app.get('/api/life-os/inbox/assets', async (_req, res) => {
+  app.get('/api/life-os/inbox/assets', async (req, res) => {
+    if (!requireLifeMapAccess(req, res, assistantSecretOk)) return;
     noStore(res);
     try { res.json({ ok: true, signals: await listInboxAssets() }); }
     catch (error) { res.status(500).json({ ok: false, error: error.message }); }
@@ -120,16 +120,14 @@ export function registerCoreRoutes(app, runtime) {
     } catch (error) { res.status(500).json({ ok: false, error: error.message }); }
   });
 
-  app.get('/api/life-os/inbox/reprocess/status', (_req, res) => {
+  app.get('/api/life-os/inbox/reprocess/status', (req, res) => {
+    if (!requireLifeMapAccess(req, res, assistantSecretOk)) return;
     noStore(res);
     res.json({ ok: true, job: inboxReprocessJobStatus() });
   });
 
   app.get('/api/life-os/inbox/files/:signalId', async (req, res) => {
-    if (!trustedLifeMapUi(req) && !assistantSecretOk(req)) {
-      res.status(403).json({ ok: false, error: 'Attachment access is allowed only from LifeMap UI.' });
-      return;
-    }
+    if (!requireLifeMapAccess(req, res, assistantSecretOk)) return;
     try {
       if (!config.telegramBotToken) throw new Error('TELEGRAM_BOT_TOKEN is missing.');
       const signal = await inboxSignal(req.params.signalId);
@@ -154,13 +152,14 @@ export function registerCoreRoutes(app, runtime) {
     }
   });
 
-  app.get('/api/life-os/assistant/status', (_req, res) => {
+  app.get('/api/life-os/assistant/status', (req, res) => {
+    if (!requireLifeMapAccess(req, res, assistantSecretOk)) return;
     noStore(res);
-    res.json({ ok: true, ...ai.status(), executionProtected: true, chatProtected: true, canExecuteActions: Boolean(config.assistantSecret) });
+    res.json({ ok: true, ...ai.status(), executionProtected: true, chatProtected: true, privateReadsProtected: true, canExecuteActions: Boolean(config.assistantSecret) });
   });
 
   app.post('/api/life-os/assistant/chat', async (req, res) => {
-    if (!requireTrustedWrite(req, res, assistantSecretOk)) return;
+    if (!requireLifeMapAccess(req, res, assistantSecretOk)) return;
     noStore(res);
     try {
       const snapshot = await buildLiveSnapshot();
@@ -172,6 +171,7 @@ export function registerCoreRoutes(app, runtime) {
   });
 
   app.post('/api/life-os/assistant/actions', async (req, res) => {
+    if (!requireTrustedWrite(req, res, assistantSecretOk)) return;
     try {
       const actions = enforceActionConfirmation(req.body?.actions || []);
       res.json({ ok: true, executedActions: await executeActions({ actions, req }) });
@@ -180,6 +180,7 @@ export function registerCoreRoutes(app, runtime) {
 
   app.get('/api/life-os/health', (_req, res) => {
     noStore(res);
+    const reprocess = inboxReprocessJobStatus();
     res.json({
       ok: true,
       service: 'lifemap-api',
@@ -189,8 +190,8 @@ export function registerCoreRoutes(app, runtime) {
         token: Boolean(config.notionToken), tasks: Boolean(config.tasksDbId), goals: Boolean(config.goalsDbId), sessions: Boolean(config.sessionsDbId), projects: Boolean(config.projectsDbId), dreams: Boolean(config.dreamsDbId), signals: Boolean(config.signalsDbId),
       },
       telegram: { token: Boolean(config.telegramBotToken), secret: Boolean(config.telegramWebhookSecret), allowedUsersLocked: Boolean(config.telegramAllowedUserIds) },
-      assistant: { ...ai.status(), actionSecret: Boolean(config.assistantSecret), chatProtected: true },
-      inboxReprocess: inboxReprocessJobStatus(),
+      assistant: { configured: ai.status().configured, actionSecret: Boolean(config.assistantSecret), chatProtected: true, privateReadsProtected: true },
+      inboxReprocess: { status: reprocess.status, total: reprocess.total, processed: reprocess.processed, failed: reprocess.failed },
     });
   });
 }
