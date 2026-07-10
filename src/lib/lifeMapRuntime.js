@@ -113,6 +113,31 @@ async function requestJson(path, options = {}) {
   throw new Error(errors.join(' | '));
 }
 
+function normalizedSignalKey(signal = {}) {
+  if (signal.sourceUrl) return `url:${String(signal.sourceUrl).trim().toLowerCase()}`;
+  const title = String(signal.title || '').trim().toLowerCase();
+  const summary = String(signal.summary || signal.originalText || '').trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 500);
+  return `text:${title}|${summary}`;
+}
+
+function signalQuality(signal = {}) {
+  const archivedPenalty = /archived|архив/i.test(String(signal.status || '')) ? -100000 : 0;
+  const analysisScore = signal.aiProcessingVersion ? 5000 : 0;
+  const assetScore = Array.isArray(signal.assets) ? signal.assets.length * 500 : 0;
+  const contentScore = String(signal.summary || '').length + String(signal.assistantNote || '').length + String(signal.possibleUse || '').length;
+  return archivedPenalty + analysisScore + assetScore + contentScore;
+}
+
+export function dedupeInboxSignals(signals = []) {
+  const byKey = new Map();
+  signals.forEach((signal) => {
+    const key = normalizedSignalKey(signal);
+    const existing = byKey.get(key);
+    if (!existing || signalQuality(signal) > signalQuality(existing)) byKey.set(key, signal);
+  });
+  return [...byKey.values()];
+}
+
 export async function fetchSnapshot() {
   const data = await requestJson('/api/life-os/snapshot');
   return { ...data, meta: { ...(data.meta || {}), apiUrl: data.meta?.apiUrl || '/api/life-os/snapshot' } };
@@ -132,7 +157,7 @@ export async function patchItemTitle(node, title) {
 
 export async function fetchInboxAssets() {
   const data = await requestJson('/api/life-os/inbox/assets');
-  return Array.isArray(data.signals) ? data.signals : [];
+  return dedupeInboxSignals(Array.isArray(data.signals) ? data.signals : []);
 }
 
 export async function reprocessInboxSignals({ secret = '', onlyMissing = true } = {}) {
