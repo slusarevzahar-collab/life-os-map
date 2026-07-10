@@ -7,8 +7,9 @@ const snapshot = {
   meta: {
     source: 'test',
     dataQuality: {
-      counts: { tasks: 2, goals: 2, sessions: 1, projectAreas: 2, dreams: 2, signals: 1 },
+      counts: { tasks: 2, goals: 2, sessions: 2, projectAreas: 2, dreams: 2, signals: 1 },
       unlinkedSessions: 0,
+      standaloneSessions: 1,
       tasksWithoutNextAction: 0,
       goalsWithoutSuccessCriteria: 0,
       goalsWithoutWhy: 0,
@@ -31,7 +32,8 @@ const snapshot = {
     { id: 'goal-2', title: 'Goal without tasks', area: 'Learning', status: 'Next', horizon: '6 months', progress: 0, why: 'Still important', successCriteria: 'Defined later', nextAction: 'Clarify scope' },
   ],
   sessions: [
-    { id: 'session-1', title: 'Data review', task: 'Review LifeMap data', taskCode: 'LM-101', taskIds: ['task-1'], project: 'LifeMap', status: 'Finished', energy: 'High', startedAt: '2026-07-10T09:00:00Z', finishedAt: '2026-07-10T09:45:00Z', durationMin: 45, result: 'Mapped missing fields', nextStep: 'Run regression tests' },
+    { id: 'session-1', title: 'Data review', task: 'Review LifeMap data', taskCode: 'LM-101', taskIds: ['task-1'], project: 'LifeMap', scope: 'Task', status: 'Finished', energy: 'High', startedAt: '2026-07-10T09:00:00Z', finishedAt: '2026-07-10T09:45:00Z', durationMin: 45, result: 'Mapped missing fields', nextStep: 'Run regression tests' },
+    { id: 'session-2', title: 'Historical architecture review', task: '', taskCode: '', taskIds: [], project: 'LifeMap', scope: 'Historical', status: 'Finished', energy: 'Medium', startedAt: '2026-06-01T09:00:00Z', finishedAt: '2026-06-01T09:30:00Z', durationMin: 30, result: 'Architecture captured', nextStep: '' },
   ],
   projectAreas: [
     { id: 'project-lm', name: 'LifeMap', type: 'Meta-system', status: 'Active', focusLevel: 'Primary', goal: 'Personal operating system', currentState: 'Reviewing data layer', nextAction: 'Finish audit', why: 'Source of truth' },
@@ -61,10 +63,12 @@ const assistant = compactForAssistant(snapshot, { project: 'LifeMap' });
 assert.equal(assistant.goals[0].why, 'Trust the system');
 assert.equal(assistant.goals[0].successCriteria, 'All core DB data is visible');
 assert.equal(assistant.sessions[0].result, 'Mapped missing fields');
+assert.equal(assistant.sessions[0].scope, 'Task');
 assert.equal(assistant.projectAreas[0].focusLevel, 'Primary');
 assert.equal(assistant.dreams[0].linkedProject, 'LifeMap');
 assert.equal(assistant.tasks[0].sessionCount, 1);
-assert.equal(assistant.dataQuality.counts.sessions, 1);
+assert.equal(assistant.dataQuality.counts.sessions, 2);
+assert.equal(assistant.dataQuality.standaloneSessions, 1);
 
 const duplicateSignals = dedupeInboxSignals([
   { id: 'old-copy', title: 'Same signal', sourceUrl: 'https://t.me/source/1', status: 'Archived', summary: 'old', aiProcessingVersion: 'v1' },
