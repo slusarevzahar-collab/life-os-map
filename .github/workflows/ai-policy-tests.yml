@@ -1,11 +1,13 @@
-name: AI policy regression checks
+name: LifeMap regression checks
 
 on:
   push:
     branches: [main]
     paths:
       - 'server/**'
+      - 'src/lib/**'
       - 'scripts/test-ai-policy.mjs'
+      - 'scripts/test-data-model.mjs'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/ai-policy-tests.yml'
@@ -15,7 +17,7 @@ permissions:
   contents: write
 
 jobs:
-  test-ai-policy:
+  test-lifemap:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,11 +26,11 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - name: Run and record AI regression checks
+      - name: Run and record LifeMap regression checks
         shell: bash
         run: |
           set +e
-          npm run test:ai > /tmp/ai-policy-test.log 2>&1
+          npm test > /tmp/lifemap-test.log 2>&1
           code=$?
           set -e
 
@@ -38,15 +40,16 @@ jobs:
           from datetime import datetime, timezone
 
           code = int(os.environ.get('TEST_EXIT_CODE', '1'))
-          with open('/tmp/ai-policy-test.log', 'r', encoding='utf-8', errors='replace') as f:
+          with open('/tmp/lifemap-test.log', 'r', encoding='utf-8', errors='replace') as f:
               lines = f.read().splitlines()
           status = {
               'ok': code == 0,
               'policyVersion': '2026-07-09.4',
+              'suite': 'AI policy + data model',
               'commit': os.environ.get('GITHUB_SHA', ''),
               'checkedAt': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
               'exitCode': code,
-              'logTail': lines[-30:],
+              'logTail': lines[-40:],
           }
           with open('docs/AI_POLICY_TEST_STATUS.json', 'w', encoding='utf-8') as f:
               json.dump(status, f, ensure_ascii=False, indent=2)
@@ -56,8 +59,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs/AI_POLICY_TEST_STATUS.json
-          git commit -m "Record AI policy regression result [skip ci]" || true
+          git commit -m "Record LifeMap regression result [skip ci]" || true
           git push
 
-          cat /tmp/ai-policy-test.log
+          cat /tmp/lifemap-test.log
           exit "$code"
