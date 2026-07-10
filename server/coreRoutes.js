@@ -156,10 +156,11 @@ export function registerCoreRoutes(app, runtime) {
 
   app.get('/api/life-os/assistant/status', (_req, res) => {
     noStore(res);
-    res.json({ ok: true, ...ai.status(), executionProtected: true, canExecuteActions: Boolean(config.assistantSecret) });
+    res.json({ ok: true, ...ai.status(), executionProtected: true, chatProtected: true, canExecuteActions: Boolean(config.assistantSecret) });
   });
 
   app.post('/api/life-os/assistant/chat', async (req, res) => {
+    if (!requireTrustedWrite(req, res, assistantSecretOk)) return;
     noStore(res);
     try {
       const snapshot = await buildLiveSnapshot();
@@ -188,7 +189,7 @@ export function registerCoreRoutes(app, runtime) {
         token: Boolean(config.notionToken), tasks: Boolean(config.tasksDbId), goals: Boolean(config.goalsDbId), sessions: Boolean(config.sessionsDbId), projects: Boolean(config.projectsDbId), dreams: Boolean(config.dreamsDbId), signals: Boolean(config.signalsDbId),
       },
       telegram: { token: Boolean(config.telegramBotToken), secret: Boolean(config.telegramWebhookSecret), allowedUsersLocked: Boolean(config.telegramAllowedUserIds) },
-      assistant: { ...ai.status(), actionSecret: Boolean(config.assistantSecret) },
+      assistant: { ...ai.status(), actionSecret: Boolean(config.assistantSecret), chatProtected: true },
       inboxReprocess: inboxReprocessJobStatus(),
     });
   });
