@@ -52,7 +52,9 @@ const snapshot = {
 };
 
 const map = buildActionMap(snapshot);
-assert(findNode(map, 'sphere-sessions').children.some((item) => item.kind === 'session'));
+const sessionsSphere = findNode(map, 'sphere-sessions');
+assert.equal(listItems(sessionsSphere).length, 2);
+assert(listItems(sessionsSphere).every((item) => item.kind === 'session'));
 assert(findNode(map, 'goal-goal-2').title === 'Goal without tasks');
 assert(findNode(map, 'task-task-1').progress === 65);
 assert(findNode(map, 'task-task-1').details.some((item) => String(item).includes('Сессий: 1')));
