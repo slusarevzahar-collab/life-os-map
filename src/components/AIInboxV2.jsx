@@ -178,11 +178,7 @@ function relevanceForAsset(asset = {}, snapshot = {}, activeFocus = null) {
   }
 
   if (relationScore === 0) {
-    return {
-      score: 0,
-      level: 'low',
-      reasons: ['прямой связи с текущим фокусом и активными задачами пока не найдено'],
-    };
+    return { score: 0, level: 'low', reasons: ['прямой связи с текущим фокусом и активными задачами пока не найдено'] };
   }
 
   let score = relationScore;
@@ -253,6 +249,8 @@ function normalizeSignalFromMap(item) {
     capturedAt: raw.capturedAt || '',
     assets: Array.isArray(raw.assets) ? raw.assets : [],
     aiProcessingVersion: raw.aiProcessingVersion || '',
+    needsReprocessing: raw.needsReprocessing === true,
+    staleProcessingVersion: raw.staleProcessingVersion === true,
     attachment: raw.attachment || null,
   };
 }
@@ -424,7 +422,7 @@ export function AIInboxV2({ map, snapshot = {}, activeFocus = null }) {
         signalsRef.current = mapSignals;
         setSignals(mapSignals);
       }
-      setError(`Не удалось обновить AI Inbox: ${err.message}`);
+      setError(`Не удалось обновить LM Inbox: ${err.message}`);
     } finally {
       if (initial) setLoading(false);
     }
@@ -506,7 +504,7 @@ export function AIInboxV2({ map, snapshot = {}, activeFocus = null }) {
   const visibleSignals = rankedSignals.filter((signal) => tab === 'done'
     ? processedSignal(localStatus[signal.id] || signal.status)
     : !processedSignal(localStatus[signal.id] || signal.status));
-  const unprocessedCount = rankedSignals.filter((signal) => !signal.aiProcessingVersion).length;
+  const unprocessedCount = rankedSignals.filter((signal) => signal.needsReprocessing === true).length;
   const jobDone = Number(job?.processed || 0) + Number(job?.failed || 0);
   const jobTotal = Number(job?.total || 0);
 
@@ -516,8 +514,8 @@ export function AIInboxV2({ map, snapshot = {}, activeFocus = null }) {
       const nextAction = status === 'Reviewed'
         ? 'Сигнал разобран вручную в LifeMap.'
         : status === 'Archived'
-          ? 'Сигнал отправлен в архив LifeMap AI Inbox.'
-          : 'Сигнал возвращён во входящие LifeMap AI Inbox.';
+          ? 'Сигнал отправлен в архив LM Inbox.'
+          : 'Сигнал возвращён во входящие LM Inbox.';
       await patchSignal(signal.id, { status, nextAction });
       setLocalStatus((state) => ({ ...state, [signal.id]: status }));
       setNotice(status === 'New' ? 'Сигнал возвращён во входящие.' : 'Статус сохранён в Notion.');
@@ -557,7 +555,7 @@ export function AIInboxV2({ map, snapshot = {}, activeFocus = null }) {
   return (
     <aside className="sideList inboxPanel inboxV2Panel" onClick={(event) => event.stopPropagation()}>
       <div className="sideListHead inboxHead inboxV2Head">
-        <div><small>AI Inbox</small><strong>Библиотека сигналов</strong></div>
+        <div><small>LM Inbox</small><strong>Библиотека сигналов</strong></div>
         {(unprocessedCount > 0 || reprocessing) ? <button className="reprocessButton" type="button" disabled={reprocessing} onClick={reprocess}>{reprocessLabel}</button> : null}
       </div>
 
@@ -575,7 +573,7 @@ export function AIInboxV2({ map, snapshot = {}, activeFocus = null }) {
       {reprocessing && jobTotal > 0 ? <div className="inboxJobProgress"><span style={{ width: `${Math.min(100, (jobDone / jobTotal) * 100)}%` }} /></div> : null}
       {notice ? <div className="inboxNotice">{notice}</div> : null}
       {error ? <div className="inboxError">{error}</div> : null}
-      {loading ? <div className="emptySide"><b>Загружаю AI Inbox…</b></div> : null}
+      {loading ? <div className="emptySide"><b>Загружаю LM Inbox…</b></div> : null}
 
       {!loading && assetMode ? <div className="compactInboxList">
         {visibleAssets.length
