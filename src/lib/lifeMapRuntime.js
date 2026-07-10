@@ -16,7 +16,7 @@ export function emptySnapshot(source = 'loading', warning = '') {
       project: 'LifeMap',
       status: isOffline ? 'offline' : 'loading',
       progress: 0,
-      nextAction: isOffline ? 'Запусти backend: npm run api, затем обнови карту.' : 'Жду ответ backend API.',
+      nextAction: isOffline ? 'Проверь доступ к LifeMap и состояние backend API.' : 'Жду ответ backend API.',
     },
     goals: [], tasks: [], sessions: [], projectAreas: [], dreams: [], signals: [],
     planning: { onTrack: 0, next: 0, waiting: 0, overdue: 0, done: 0 },
@@ -40,12 +40,12 @@ export function apiCandidates(path) {
   return [...new Set(candidates)];
 }
 
-function readWriteSecret() {
+function readAccessSecret() {
   if (typeof window === 'undefined') return '';
   try { return window.sessionStorage.getItem(SECRET_KEY) || ''; } catch { return ''; }
 }
 
-function writeWriteSecret(value = '') {
+function writeAccessSecret(value = '') {
   if (typeof window === 'undefined') return;
   try {
     if (value) window.sessionStorage.setItem(SECRET_KEY, value);
@@ -58,26 +58,36 @@ function mutatingMethod(options = {}) {
   return !['GET', 'HEAD', 'OPTIONS'].includes(method);
 }
 
-function withWriteSecret(options = {}, secret = '') {
-  if (!mutatingMethod(options) || !secret) return options;
+function requestNeedsSecret(options = {}) {
+  return options.requiresSecret === true || mutatingMethod(options);
+}
+
+function fetchOptions(options = {}, secret = '') {
+  const { requiresSecret: _requiresSecret, ...clean } = options;
   return {
-    ...options,
+    ...clean,
+    credentials: 'include',
     headers: {
-      ...(options.headers || {}),
-      'X-LifeMap-Assistant-Secret': secret,
+      ...(clean.headers || {}),
+      ...(secret ? { 'X-LifeMap-Assistant-Secret': secret } : {}),
     },
   };
 }
 
+function promptForAccessKey() {
+  if (typeof window === 'undefined') return '';
+  return window.prompt('Введите ключ доступа LifeMap:') || '';
+}
+
 async function requestJson(path, options = {}) {
   const errors = [];
-  const isWrite = mutatingMethod(options);
-  let writeSecret = isWrite ? readWriteSecret() : '';
+  const needsSecret = requestNeedsSecret(options);
+  let secret = needsSecret ? readAccessSecret() : '';
   let prompted = false;
 
   for (const url of apiCandidates(path)) {
     while (true) {
-      const effectiveOptions = withWriteSecret(options, writeSecret);
+      const effectiveOptions = fetchOptions(options, secret);
       try {
         const response = await fetch(url, {
           ...effectiveOptions,
@@ -89,11 +99,12 @@ async function requestJson(path, options = {}) {
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok || data.ok === false) {
-          if (isWrite && response.status === 403 && !prompted && typeof window !== 'undefined') {
+          if (response.status === 403 && needsSecret && !prompted) {
             prompted = true;
-            writeSecret = window.prompt('Введите ключ LifeMap для изменения данных:') || '';
-            if (writeSecret) {
-              writeWriteSecret(writeSecret);
+            if (secret) writeAccessSecret('');
+            secret = promptForAccessKey();
+            if (secret) {
+              writeAccessSecret(secret);
               continue;
             }
           }
@@ -139,7 +150,7 @@ export function dedupeInboxSignals(signals = []) {
 }
 
 export async function fetchSnapshot() {
-  const data = await requestJson('/api/life-os/snapshot');
+  const data = await requestJson('/api/life-os/snapshot', { requiresSecret: true });
   return { ...data, meta: { ...(data.meta || {}), apiUrl: data.meta?.apiUrl || '/api/life-os/snapshot' } };
 }
 
@@ -156,20 +167,20 @@ export async function patchItemTitle(node, title) {
 }
 
 export async function fetchInboxAssets() {
-  const data = await requestJson('/api/life-os/inbox/assets');
+  const data = await requestJson('/api/life-os/inbox/assets', { requiresSecret: true });
   return dedupeInboxSignals(Array.isArray(data.signals) ? data.signals : []);
 }
 
 export async function reprocessInboxSignals({ secret = '', onlyMissing = true } = {}) {
+  if (secret) writeAccessSecret(secret);
   return requestJson('/api/life-os/inbox/reprocess', {
     method: 'POST',
-    headers: secret ? { 'X-LifeMap-Assistant-Secret': secret } : {},
     body: JSON.stringify({ onlyMissing }),
   });
 }
 
 export async function fetchInboxReprocessStatus() {
-  return requestJson('/api/life-os/inbox/reprocess/status');
+  return requestJson('/api/life-os/inbox/reprocess/status', { requiresSecret: true });
 }
 
 export function attachmentDownloadUrl(signalId) {
@@ -177,21 +188,21 @@ export function attachmentDownloadUrl(signalId) {
 }
 
 export async function fetchAssistantStatus() {
-  return requestJson('/api/life-os/assistant/status');
+  return requestJson('/api/life-os/assistant/status', { requiresSecret: true });
 }
 
 export async function postAssistantChat({ message, messages = [], target = null, context = {}, executeActions = false, secret = '' }) {
+  if (secret) writeAccessSecret(secret);
   return requestJson('/api/life-os/assistant/chat', {
     method: 'POST',
-    headers: secret ? { 'X-LifeMap-Assistant-Secret': secret } : {},
     body: JSON.stringify({ message, messages, target, context, executeActions }),
   });
 }
 
 export async function executeAssistantActions({ actions = [], secret = '' }) {
+  if (secret) writeAccessSecret(secret);
   return requestJson('/api/life-os/assistant/actions', {
     method: 'POST',
-    headers: secret ? { 'X-LifeMap-Assistant-Secret': secret } : {},
     body: JSON.stringify({ actions }),
   });
 }
