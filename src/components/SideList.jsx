@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { isDoneNode, isLeafNode } from '../lib/actionMapModel.js';
+import { fetchSnapshot } from '../lib/lifeMapRuntime.js';
 import { canPatchTask, listItems } from '../lib/lifeMapSelectors.js';
 import { ChevronDown } from './ChevronDown.jsx';
 import { AIInboxV2 } from './AIInboxV2.jsx';
@@ -24,10 +25,7 @@ function highlightRowStyle(active) {
 }
 function openAssistantFor(target, context = {}) { window.dispatchEvent(new CustomEvent('lifemap:assistant-target', { detail: { target, context } })); }
 function itemNoun(kind = '') { if (kind === 'session') return 'сессий'; if (kind === 'dream') return 'мечтаний'; if (kind === 'signal') return 'сигналов'; return 'задач'; }
-function branchNoun(items = []) {
-  const kinds = [...new Set(items.map((item) => item.kind))];
-  return kinds.length === 1 ? itemNoun(kinds[0]) : 'объектов';
-}
+function branchNoun(items = []) { const kinds = [...new Set(items.map((item) => item.kind))]; return kinds.length === 1 ? itemNoun(kinds[0]) : 'объектов'; }
 function assistantMode(item = {}) { if (item.kind === 'session') return 'session'; if (item.kind === 'dream') return 'dream'; if (item.kind === 'signal') return 'signal'; return 'task'; }
 
 function InlineTitleEditor({ value, onChange, onSubmit, onCancel }) {
@@ -81,6 +79,7 @@ export function SideList({
   const items = listItems(map).filter((item) => isLeafNode(item));
   const [expandedId, setExpandedId] = useState(null);
   const [notesDraft, setNotesDraft] = useState({});
+  const [liveSnapshot, setLiveSnapshot] = useState(null);
   const listRef = useRef(null);
   const inboxMode = map?.id === 'sphere-inbox' || map?.kind === 'inbox' || ((map?.title === 'AI Inbox' || map?.title === 'LM Inbox') && items.some((item) => item.kind === 'signal'));
   const activeItems = items.filter((item) => !isDoneNode(item));
@@ -88,13 +87,22 @@ export function SideList({
   const visibleItems = viewMode === 'done' ? doneItems : activeItems;
   const mapProgress = progressValue(map);
   const noun = branchNoun(items);
+  const sharedContext = typeof window !== 'undefined' ? window.__lifemapContext || {} : {};
+  const effectiveSnapshot = snapshot?.tasks?.length ? snapshot : liveSnapshot || sharedContext.snapshot || {};
+  const effectiveFocus = activeFocus || sharedContext.activeFocus || effectiveSnapshot.currentFocus || null;
 
   useEffect(() => {
     if (highlightedItemId && listRef.current) listRef.current.querySelector('.highlightedTask')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }, [highlightedItemId, visibleItems.length]);
 
-  const sharedContext = typeof window !== 'undefined' ? window.__lifemapContext || {} : {};
-  if (inboxMode) return <AIInboxV2 map={map} snapshot={snapshot || sharedContext.snapshot || {}} activeFocus={activeFocus || sharedContext.activeFocus || null} highlightedItemId={highlightedItemId} />;
+  useEffect(() => {
+    if (!inboxMode || snapshot?.tasks?.length) return undefined;
+    let active = true;
+    fetchSnapshot().then((value) => { if (active) setLiveSnapshot(value); }).catch(() => {});
+    return () => { active = false; };
+  }, [inboxMode, snapshot?.tasks?.length]);
+
+  if (inboxMode) return <AIInboxV2 map={map} snapshot={effectiveSnapshot} activeFocus={effectiveFocus} highlightedItemId={highlightedItemId} />;
 
   return (
     <aside className="sideList" onClick={(event) => event.stopPropagation()}>
