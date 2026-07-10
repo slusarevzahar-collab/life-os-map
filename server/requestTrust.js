@@ -30,8 +30,12 @@ export function trustedWriteRequest(req, assistantSecretOk) {
   return Boolean(assistantSecretOk?.(req));
 }
 
-export function requireTrustedWrite(req, res, assistantSecretOk) {
-  if (trustedWriteRequest(req, assistantSecretOk)) return true;
-  res.status(403).json({ ok: false, error: 'LifeMap write secret required.' });
+export function requireLifeMapAccess(req, res, assistantSecretOk) {
+  if (assistantSecretOk?.(req)) return true;
+  res.status(403).json({ ok: false, error: 'LifeMap access key required.' });
   return false;
+}
+
+export function requireTrustedWrite(req, res, assistantSecretOk) {
+  return requireLifeMapAccess(req, res, assistantSecretOk);
 }
