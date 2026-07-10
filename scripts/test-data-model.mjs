@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { buildActionMap, findNode } from '../src/lib/actionMapModel.js';
 import { dedupeInboxSignals, encodeLifeMapSecretHeader } from '../src/lib/lifeMapRuntime.js';
+import { listItems, topItems } from '../src/lib/lifeMapSelectors.js';
 import { compactForAssistant } from '../server/aiPrivacy.js';
 import { decodeLifeMapSecretHeader } from '../server/lifemapRuntime.js';
 
@@ -59,6 +60,12 @@ assert(findNode(map, 'project-lifemap').children.some((item) => item.id === 'dre
 assert(findNode(map, 'sphere-backlog').children.some((item) => item.id === 'dream-dream-2'));
 const projects = findNode(map, 'sphere-projects').children;
 assert.equal(projects[0].title, 'LifeMap');
+
+const inboxSphere = findNode(map, 'sphere-inbox');
+assert.equal(topItems(inboxSphere).length, 0);
+assert.equal(listItems(inboxSphere).length, 1);
+assert.equal(listItems(inboxSphere)[0].kind, 'signal');
+assert.equal(listItems(inboxSphere)[0].sourceId, 'signal-1');
 
 const assistant = compactForAssistant(snapshot, { project: 'LifeMap' });
 assert.equal(assistant.goals[0].why, 'Trust the system');
