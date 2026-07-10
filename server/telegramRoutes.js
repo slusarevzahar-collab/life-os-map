@@ -4,6 +4,7 @@ import {
   mergeInboxSignalMedia,
   persistSignalAnalysis,
 } from './inboxAssetStore.js';
+import { findInboxSignalBySourceUrl } from './inboxDedupeStore.js';
 import { createSignal } from './notionAdapter.js';
 import {
   allowedTelegramUser,
@@ -82,7 +83,21 @@ export function registerTelegramRoutes(app, runtime, { codespacesPublicUrl, defe
           });
           if (existing?.id) {
             await mergeInboxSignalMedia({ notionToken: config.notionToken, signalId: existing.id, signal: baseSignal });
-            return { storage: 'notion', signalId: existing.id, joined: true };
+            return { storage: 'notion', signalId: existing.id, joined: true, dedupe: 'media-group' };
+          }
+        }
+
+        if (baseSignal.sourceUrl) {
+          const existingSource = await findInboxSignalBySourceUrl({
+            notionToken: config.notionToken,
+            signalsDbId: config.signalsDbId,
+            sourceUrl: baseSignal.sourceUrl,
+          });
+          if (existingSource?.id) {
+            if (baseSignal.attachment) {
+              await mergeInboxSignalMedia({ notionToken: config.notionToken, signalId: existingSource.id, signal: baseSignal });
+            }
+            return { storage: 'notion', signalId: existingSource.id, joined: true, dedupe: 'source-url' };
           }
         }
 
@@ -96,18 +111,18 @@ export function registerTelegramRoutes(app, runtime, { codespacesPublicUrl, defe
         if (baseSignal.attachment || baseSignal.rawText) {
           await mergeInboxSignalMedia({ notionToken: config.notionToken, signalId: result.id, signal: baseSignal });
         }
-        return { storage: 'notion', signalId: result.id, joined: false };
+        return { storage: 'notion', signalId: result.id, joined: false, dedupe: '' };
       } catch (error) {
         if (isServerlessRuntime()) throw error;
         appendLocalSignal({ ...baseSignal, storageError: error.message });
-        return { storage: 'local-fallback', signalId: '', joined: false };
+        return { storage: 'local-fallback', signalId: '', joined: false, dedupe: '' };
       }
     }
 
     const error = new Error('Notion signal storage is not configured.');
     if (isServerlessRuntime()) throw error;
     appendLocalSignal({ ...baseSignal, storageError: error.message });
-    return { storage: 'local-fallback', signalId: '', joined: false };
+    return { storage: 'local-fallback', signalId: '', joined: false, dedupe: '' };
   }
 
   async function processAcceptedSignal(baseSignal, key, stored) {
@@ -240,7 +255,8 @@ export function registerTelegramRoutes(app, runtime, { codespacesPublicUrl, defe
         durable: true,
         storage: stored.storage,
         signalId: stored.signalId,
-        joinedMediaGroup: true,
+        joinedMediaGroup: stored.dedupe === 'media-group',
+        duplicateSource: stored.dedupe === 'source-url',
       });
       return;
     }
@@ -301,6 +317,7 @@ export function registerTelegramRoutes(app, runtime, { codespacesPublicUrl, defe
           durableFirst: true,
           backgroundScheduler: typeof deferTask === 'function' ? 'vercel-waitUntil' : 'process-lifetime',
           mediaGroupBundling: true,
+          persistentSourceDedupe: true,
         },
         dedupe: {
           inFlight: inFlightUpdates.size,
