@@ -45,7 +45,8 @@ export function registerCoreRoutes(app, runtime) {
     catch (error) { res.status(500).json({ ok: false, error: 'Failed to build LifeMap snapshot', details: error.message }); }
   });
 
-  app.get('/api/life-os/data-health', async (_req, res) => {
+  app.get('/api/life-os/data-health', async (req, res) => {
+    if (!requireLifeMapAccess(req, res, assistantSecretOk)) return;
     noStore(res);
     try {
       const snapshot = await buildLiveSnapshot();
