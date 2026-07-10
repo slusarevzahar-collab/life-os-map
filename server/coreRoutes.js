@@ -6,6 +6,7 @@ import {
 } from './notionAdapter.js';
 import { telegramApi } from './telegramAdapter.js';
 import { EXECUTABLE_ACTIONS } from './lifemapAiPolicy.js';
+import { requireTrustedWrite, trustedLifeMapUi } from './requestTrust.js';
 
 const EXECUTABLE = new Set(EXECUTABLE_ACTIONS);
 
@@ -16,26 +17,12 @@ function enforceActionConfirmation(actions = []) {
   });
 }
 
-function trustedLifeMapUi(req) {
-  if (String(req.get('Sec-Fetch-Site') || '').toLowerCase() === 'same-origin') return true;
-  const candidates = [req.get('Origin'), req.get('Referer')].filter(Boolean);
-  if (!candidates.length) return false;
-  const codespaceName = process.env.CODESPACE_NAME;
-  const domain = process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN || 'app.github.dev';
-  const port = Number(process.env.API_PORT || 3001);
-  return candidates.some((candidate) => {
-    try {
-      const url = new URL(candidate);
-      if (['localhost', '127.0.0.1'].includes(url.hostname)) return true;
-      return Boolean(codespaceName) && url.hostname === `${codespaceName}-${port}.${domain}`;
-    } catch {
-      return false;
-    }
-  });
-}
-
 function safeFilename(value = 'attachment') {
   return String(value || 'attachment').replace(/[\r\n"\\/]/g, '_').slice(0, 180) || 'attachment';
+}
+
+function noStore(res) {
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
 }
 
 export function registerCoreRoutes(app, runtime) {
@@ -54,11 +41,41 @@ export function registerCoreRoutes(app, runtime) {
   } = runtime;
 
   app.get('/api/life-os/snapshot', async (_req, res) => {
+    noStore(res);
     try { res.json(await buildLiveSnapshot()); }
     catch (error) { res.status(500).json({ error: 'Failed to build LifeMap snapshot', details: error.message, fallback: prepareSnapshot(makeMockResponse(error.message)) }); }
   });
 
+  app.get('/api/life-os/data-health', async (_req, res) => {
+    noStore(res);
+    try {
+      const snapshot = await buildLiveSnapshot();
+      const counts = snapshot.meta?.dataQuality?.counts || {
+        tasks: snapshot.tasks?.length || 0,
+        goals: snapshot.goals?.length || 0,
+        sessions: snapshot.sessions?.length || 0,
+        projectAreas: snapshot.projectAreas?.length || 0,
+        dreams: snapshot.dreams?.length || 0,
+        signals: snapshot.signals?.length || 0,
+      };
+      res.json({
+        ok: true,
+        source: snapshot.meta?.source || 'unknown',
+        version: snapshot.meta?.version || '',
+        connected: snapshot.meta?.connected || {},
+        counts,
+        dataQuality: snapshot.meta?.dataQuality || {},
+        warnings: snapshot.meta?.warnings || [],
+        notices: snapshot.meta?.notices || [],
+        checkedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
   app.post('/api/life-os/sessions', async (req, res) => {
+    if (!requireTrustedWrite(req, res, assistantSecretOk)) return;
     try {
       const session = await createWorkSession({ notionToken: config.notionToken, sessionsDbId: config.sessionsDbId, payload: req.body || {} });
       res.status(201).json({ ok: true, session });
@@ -66,6 +83,7 @@ export function registerCoreRoutes(app, runtime) {
   });
 
   app.patch('/api/life-os/tasks/:id', async (req, res) => {
+    if (!requireTrustedWrite(req, res, assistantSecretOk)) return;
     try {
       const task = await updateTaskEvent({ notionToken: config.notionToken, taskId: req.params.id, event: req.body || {} });
       res.json({ ok: true, task });
@@ -73,13 +91,15 @@ export function registerCoreRoutes(app, runtime) {
   });
 
   app.patch('/api/life-os/items/:id/title', async (req, res) => {
+    if (!requireTrustedWrite(req, res, assistantSecretOk)) return;
     try {
       const item = await updateItemTitle({ notionToken: config.notionToken, itemId: req.params.id, kind: req.body?.kind, title: req.body?.title });
       res.json({ ok: true, item });
     } catch (error) { res.status(500).json({ ok: false, error: error.message }); }
   });
 
-  app.post('/api/life-os/signals/dedupe', async (_req, res) => {
+  app.post('/api/life-os/signals/dedupe', async (req, res) => {
+    if (!requireTrustedWrite(req, res, assistantSecretOk)) return;
     try {
       const result = await archiveDuplicateSignals({ notionToken: config.notionToken, signalsDbId: config.signalsDbId });
       res.json({ ok: true, result });
@@ -87,15 +107,13 @@ export function registerCoreRoutes(app, runtime) {
   });
 
   app.get('/api/life-os/inbox/assets', async (_req, res) => {
+    noStore(res);
     try { res.json({ ok: true, signals: await listInboxAssets() }); }
     catch (error) { res.status(500).json({ ok: false, error: error.message }); }
   });
 
   app.post('/api/life-os/inbox/reprocess', async (req, res) => {
-    if (!assistantSecretOk(req) && !trustedLifeMapUi(req)) {
-      res.status(403).json({ ok: false, error: 'Reprocessing is allowed only from the trusted LifeMap UI or with assistant secret.' });
-      return;
-    }
+    if (!requireTrustedWrite(req, res, assistantSecretOk)) return;
     try {
       const job = await startInboxReprocessJob({ onlyMissing: req.body?.onlyMissing !== false });
       res.status(202).json({ ok: true, job });
@@ -103,6 +121,7 @@ export function registerCoreRoutes(app, runtime) {
   });
 
   app.get('/api/life-os/inbox/reprocess/status', (_req, res) => {
+    noStore(res);
     res.json({ ok: true, job: inboxReprocessJobStatus() });
   });
 
@@ -128,6 +147,7 @@ export function registerCoreRoutes(app, runtime) {
       res.setHeader('Content-Type', attachment.mimeType || upstream.headers.get('content-type') || 'application/octet-stream');
       res.setHeader('Content-Length', String(buffer.length));
       res.setHeader('Content-Disposition', `attachment; filename="${safeFilename(attachment.fileName)}"`);
+      res.setHeader('Cache-Control', 'private, no-store');
       res.send(buffer);
     } catch (error) {
       res.status(500).json({ ok: false, error: error.message });
@@ -135,10 +155,12 @@ export function registerCoreRoutes(app, runtime) {
   });
 
   app.get('/api/life-os/assistant/status', (_req, res) => {
+    noStore(res);
     res.json({ ok: true, ...ai.status(), executionProtected: true, canExecuteActions: Boolean(config.assistantSecret) });
   });
 
   app.post('/api/life-os/assistant/chat', async (req, res) => {
+    noStore(res);
     try {
       const snapshot = await buildLiveSnapshot();
       const assistant = await ai.chat({ message: req.body?.message || '', messages: req.body?.messages || [], target: req.body?.target || {}, clientContext: req.body?.context || {}, snapshot });
@@ -156,6 +178,7 @@ export function registerCoreRoutes(app, runtime) {
   });
 
   app.get('/api/life-os/health', (_req, res) => {
+    noStore(res);
     res.json({
       ok: true,
       service: 'lifemap-api',
