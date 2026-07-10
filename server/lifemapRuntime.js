@@ -76,6 +76,12 @@ function hasStoredAnalysis(signal = {}) {
 
 function publicJob(job) { return JSON.parse(JSON.stringify(job)); }
 
+export function decodeLifeMapSecretHeader(value = '') {
+  const raw = String(value || '');
+  if (!raw.startsWith('uri:')) return raw;
+  try { return decodeURIComponent(raw.slice(4)); } catch { return ''; }
+}
+
 export function createLifeMapRuntime({ envLoaded = false } = {}) {
   const config = {
     port: Number(process.env.API_PORT || 3001),
@@ -155,7 +161,8 @@ export function createLifeMapRuntime({ envLoaded = false } = {}) {
 
   function assistantSecretOk(req) {
     if (!config.assistantSecret) return false;
-    return req.get('X-LifeMap-Assistant-Secret') === config.assistantSecret;
+    const candidate = decodeLifeMapSecretHeader(req.get('X-LifeMap-Assistant-Secret'));
+    return candidate === config.assistantSecret;
   }
 
   async function listInboxAssets() {
