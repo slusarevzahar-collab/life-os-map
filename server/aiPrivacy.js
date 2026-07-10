@@ -16,18 +16,13 @@ export function sanitizeTextForAi(value = '', limit = 6000) {
 
 function canonicalLabel(value = '') {
   const text = String(value || '').trim();
-  if (/^life\s*os$/i.test(text)) return 'LifeMap';
-  if (/^ai\s*inbox$/i.test(text)) return 'LM Inbox';
+  if (/^(life\s*os|live\s*os|life\s*map)$/i.test(text)) return 'LifeMap';
+  if (/^(ai\s*inbox|lm\s*inbox)$/i.test(text)) return 'LM Inbox';
   return text;
 }
 
-function safeText(value, limit) {
-  return sanitizeTextForAi(value, limit);
-}
-
-function safeLabel(value, limit) {
-  return safeText(canonicalLabel(value), limit);
-}
+function safeText(value, limit) { return sanitizeTextForAi(value, limit); }
+function safeLabel(value, limit) { return safeText(canonicalLabel(value), limit); }
 
 function safeTarget(target = {}) {
   return {
@@ -66,15 +61,35 @@ function signalScore(signal = {}, target = {}, currentFocus = {}) {
   return score;
 }
 
-function activeTask(task = {}) {
-  return !/done|готово|заверш|archived|архив/i.test(String(task.status || ''));
-}
+function activeTask(task = {}) { return !/done|готово|заверш|archived|архив/i.test(String(task.status || '')); }
 
 export function projectNamesFromSnapshot(snapshot = {}) {
   return [...new Set([
     ...(snapshot.projectAreas || []).map((item) => canonicalLabel(item.name)),
     ...(snapshot.tasks || []).map((task) => canonicalLabel(task.project)),
   ].filter(Boolean).map((name) => safeText(name, 120)))].slice(0, 30);
+}
+
+function safeDataQuality(meta = {}) {
+  const quality = meta?.dataQuality || {};
+  const counts = quality.counts || {};
+  return {
+    counts: {
+      tasks: Number(counts.tasks || 0),
+      goals: Number(counts.goals || 0),
+      sessions: Number(counts.sessions || 0),
+      projectAreas: Number(counts.projectAreas || 0),
+      dreams: Number(counts.dreams || 0),
+      signals: Number(counts.signals || 0),
+    },
+    unlinkedSessions: Number(quality.unlinkedSessions || 0),
+    tasksWithoutNextAction: Number(quality.tasksWithoutNextAction || 0),
+    goalsWithoutSuccessCriteria: Number(quality.goalsWithoutSuccessCriteria || 0),
+    goalsWithoutWhy: Number(quality.goalsWithoutWhy || 0),
+    linkedDreams: Number(quality.linkedDreams || 0),
+    hiddenDreams: Number(quality.hiddenDreams || 0),
+    signalsMissingAnalysis: Number(quality.signalsMissingAnalysis || 0),
+  };
 }
 
 export function compactForAssistant(snapshot = {}, target = {}) {
@@ -99,20 +114,72 @@ export function compactForAssistant(snapshot = {}, target = {}) {
       title: safeText(task.title, 260),
       project: safeLabel(task.project, 160),
       goalName: safeLabel(task.goalName, 200),
+      type: safeText(task.type, 80),
+      energy: safeText(task.energy, 40),
       status: safeText(task.status, 80),
       priority: Number(task.priority || 0),
       progress: Number(task.progress || 0),
+      dueDate: safeText(task.dueDate, 60),
+      plannedDate: safeText(task.plannedDate, 60),
       nextAction: safeText(task.nextAction, 500),
       note: safeText(task.note || task.sessionNotes || '', 360),
+      sessionCount: Number(task.sessionCount || 0),
+      sessionDurationMin: Number(task.sessionDurationMin || 0),
+      lastSessionResult: safeText(task.lastSessionResult, 360),
+      lastSessionNextStep: safeText(task.lastSessionNextStep, 360),
     }));
 
-  const goals = (snapshot.goals || []).slice(0, 10).map((goal) => ({
+  const goals = (snapshot.goals || []).slice(0, 12).map((goal) => ({
     id: safeText(goal.id, 120),
     title: safeText(goal.title, 240),
     area: safeLabel(goal.area, 160),
     status: safeText(goal.status, 80),
+    horizon: safeText(goal.horizon, 80),
     progress: Number(goal.progress || 0),
+    targetDate: safeText(goal.targetDate, 60),
+    why: safeText(goal.why, 500),
+    successCriteria: safeText(goal.successCriteria, 500),
     nextAction: safeText(goal.nextAction, 500),
+  }));
+
+  const projectAreas = (snapshot.projectAreas || []).slice(0, 16).map((item) => ({
+    id: safeText(item.id, 120),
+    name: safeLabel(item.name, 220),
+    type: safeText(item.type, 80),
+    status: safeText(item.status, 80),
+    focusLevel: safeText(item.focusLevel, 60),
+    goal: safeText(item.goal, 420),
+    currentState: safeText(item.currentState, 420),
+    nextAction: safeText(item.nextAction, 420),
+    why: safeText(item.why, 420),
+  }));
+
+  const dreams = (snapshot.dreams || []).slice(0, 12).map((dream) => ({
+    id: safeText(dream.id, 120),
+    title: safeText(dream.title, 240),
+    type: safeText(dream.type, 80),
+    status: safeText(dream.status, 80),
+    visibility: safeText(dream.visibility, 80),
+    lifeSphere: safeText(dream.lifeSphere, 120),
+    linkedProject: safeLabel(dream.linkedProject, 160),
+    why: safeText(dream.why, 420),
+    nextStep: safeText(dream.nextStep, 420),
+    targetDate: safeText(dream.targetDate, 60),
+  }));
+
+  const sessions = (snapshot.sessions || []).slice(0, 12).map((session) => ({
+    id: safeText(session.id, 120),
+    title: safeText(session.title, 220),
+    task: safeText(session.task, 220),
+    taskCode: safeText(session.taskCode, 60),
+    project: safeLabel(session.project, 160),
+    status: safeText(session.status, 80),
+    energy: safeText(session.energy, 40),
+    startedAt: safeText(session.startedAt, 60),
+    finishedAt: safeText(session.finishedAt, 60),
+    durationMin: Number(session.durationMin || 0),
+    result: safeText(session.result, 500),
+    nextStep: safeText(session.nextStep, 500),
   }));
 
   const signals = [...(snapshot.signals || [])]
@@ -149,10 +216,14 @@ export function compactForAssistant(snapshot = {}, target = {}) {
       overdue: Number(snapshot.planning?.overdue || 0),
       done: Number(snapshot.planning?.done || 0),
     },
+    dataQuality: safeDataQuality(snapshot.meta),
     target: cleanTarget,
     projectNames: projectNamesFromSnapshot(snapshot),
     tasks,
     goals,
+    projectAreas,
+    dreams,
+    sessions,
     signals,
   };
 }
