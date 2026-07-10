@@ -12,7 +12,7 @@ const EXECUTABLE = new Set(EXECUTABLE_ACTIONS);
 
 function enforceActionConfirmation(actions = []) {
   return actions.map((action) => {
-    const type = String(action?.type || action?.name || '');
+    const type = String(action?.type || action.name || '');
     return EXECUTABLE.has(type) ? { ...action, requiresConfirmation: true } : action;
   });
 }
@@ -64,12 +64,12 @@ export function registerCoreRoutes(app, runtime) {
         connected: snapshot.meta?.connected || {},
         counts,
         dataQuality: snapshot.meta?.dataQuality || {},
-        warnings: snapshot.meta?.warnings || [],
-        notices: snapshot.meta?.notices || [],
+        warningCount: snapshot.meta?.warnings?.length || 0,
+        noticeCount: snapshot.meta?.notices?.length || 0,
         checkedAt: new Date().toISOString(),
       });
-    } catch (error) {
-      res.status(500).json({ ok: false, error: error.message });
+    } catch (_error) {
+      res.status(500).json({ ok: false, error: 'LifeMap data health check failed.' });
     }
   });
 
