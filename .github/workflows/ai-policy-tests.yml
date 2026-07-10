@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - 'server/**'
-      - 'src/lib/**'
+      - 'src/**'
       - 'scripts/test-ai-policy.mjs'
       - 'scripts/test-data-model.mjs'
       - 'package.json'
@@ -26,11 +26,11 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - name: Run and record LifeMap regression checks
+      - name: Run tests, build and record LifeMap regressions
         shell: bash
         run: |
           set +e
-          npm test > /tmp/lifemap-test.log 2>&1
+          (npm test && npm run build) > /tmp/lifemap-test.log 2>&1
           code=$?
           set -e
 
@@ -45,11 +45,11 @@ jobs:
           status = {
               'ok': code == 0,
               'policyVersion': '2026-07-09.4',
-              'suite': 'AI policy + data model',
+              'suite': 'AI policy + data model + frontend build',
               'commit': os.environ.get('GITHUB_SHA', ''),
               'checkedAt': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
               'exitCode': code,
-              'logTail': lines[-40:],
+              'logTail': lines[-60:],
           }
           with open('docs/AI_POLICY_TEST_STATUS.json', 'w', encoding='utf-8') as f:
               json.dump(status, f, ensure_ascii=False, indent=2)
