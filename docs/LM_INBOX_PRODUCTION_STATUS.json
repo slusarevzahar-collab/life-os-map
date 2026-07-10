@@ -13,7 +13,7 @@
       "has_custom_certificate": false,
       "pending_update_count": 0,
       "max_connections": 40,
-      "ip_address": "64.29.17.131",
+      "ip_address": "64.29.17.67",
       "allowed_updates": [
         "message",
         "edited_message",
