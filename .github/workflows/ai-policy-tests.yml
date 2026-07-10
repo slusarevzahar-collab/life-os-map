@@ -64,3 +64,5 @@ jobs:
 
           cat /tmp/lifemap-test.log
           exit "$code"
+
+# Manual review rerun: 2026-07-10
