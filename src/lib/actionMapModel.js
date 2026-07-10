@@ -122,7 +122,7 @@ function sessionToLeaf(session) {
     id: `session-${session.id}`, sourceId: session.id, title: session.title || session.task || 'Рабочая сессия', icon: 'SE', code: `SE-${stableThreeDigits(session.id || session.title)}`,
     status: session.status || 'session', state, progress: done ? 100 : state === 'active' ? 50 : 0, tasks: done ? 0 : 1, completedTasks: done ? 1 : 0, totalTasks: 1,
     summary: useful(session.result) || useful(session.nextStep) || useful(session.task) || 'Рабочая сессия из Notion.',
-    details: [session.project && `Проект: ${session.project}`, session.task && `Задача: ${session.task}`, session.energy && `Энергия: ${session.energy}`, Number(session.durationMin || 0) > 0 && `Длительность: ${session.durationMin} мин`, session.startedAt && `Начало: ${session.startedAt}`, session.finishedAt && `Завершено: ${session.finishedAt}`, useful(session.result), session.nextStep && `Следующий шаг: ${session.nextStep}`].filter(Boolean),
+    details: [session.scope && `Охват: ${session.scope}`, session.project && `Проект: ${session.project}`, session.task && `Задача: ${session.task}`, session.energy && `Энергия: ${session.energy}`, Number(session.durationMin || 0) > 0 && `Длительность: ${session.durationMin} мин`, session.startedAt && `Начало: ${session.startedAt}`, session.finishedAt && `Завершено: ${session.finishedAt}`, useful(session.result), session.nextStep && `Следующий шаг: ${session.nextStep}`].filter(Boolean),
     children: [], taskList: [], kind: 'session', raw: session,
   };
 }
@@ -189,229 +189,175 @@ function countLeaves(node, mode = 'all') {
     if (mode === 'done') return list.filter((item) => item.state === 'done').length;
     return list.length;
   }
-  const childLeaves = (node.children || []).reduce((sum, child) => sum + countLeaves(child, mode), 0);
-  return childLeaves || node.tasks || 0;
+  return (node.children || []).reduce((sum, child) => sum + countLeaves(child, mode), 0);
 }
 
-function completionStatsFor(nodes = []) {
-  const total = nodes.reduce((sum, node) => sum + countLeaves(node, 'all'), 0);
-  const completed = nodes.reduce((sum, node) => sum + countLeaves(node, 'done'), 0);
-  return { total, completed, active: Math.max(total - completed, 0), progress: completionPercent(completed, total) };
-}
-
-function makeGroupNode({ id, title, icon, items = [], summary, kind = 'group', children = [], status, details = [], sourceId = null, raw = null }) {
-  const leafItems = items.map(taskToLeaf);
-  const childItems = children.length ? children : leafItems;
-  const activeLeaves = leafItems.filter((item) => item.state !== 'done');
-  const stats = leafItems.length ? completionStatsFor(leafItems) : completionStatsFor(childItems);
-  const activeChildren = childItems.filter((item) => item.state !== 'done');
-  const state = stats.total && stats.completed === stats.total
-    ? 'done'
-    : activeLeaves.length
-      ? stateFromItems(activeLeaves.map((leaf) => leaf.raw || leaf))
-      : activeChildren.length
-        ? stateFromItems(activeChildren)
-        : statusState(status);
+function branchNode({ id, title, icon, subtitle, items = [], children = [], kind = 'branch', summary = '', details = [], raw = null }) {
+  const taskList = uniqById(items.map((item) => LEAF_KINDS.has(item.kind) ? item : taskToLeaf(item)));
+  const activeCount = taskList.filter((item) => item.state !== 'done').length;
+  const doneCount = taskList.filter((item) => item.state === 'done').length;
+  const state = stateFromItems(taskList.length ? taskList : children);
+  const progress = completionPercent(doneCount, taskList.length, children.length ? completionPercent(children.filter((child) => child.state === 'done').length, children.length) : 0);
   return {
-    id, sourceId, title, icon, status: status || stateLabel(state), state,
-    progress: completionPercent(stats.completed, stats.total, raw?.progress || 0), tasks: stats.active, completedTasks: stats.completed, totalTasks: stats.total,
-    summary: useful(summary) || useful(topTask(activeLeaves.map((leaf) => leaf.raw || leaf))?.nextAction) || `${title}: ${stats.completed}/${stats.total} выполнено.`,
-    details: details.map(useful).filter(Boolean).length ? details.map(useful).filter(Boolean) : activeLeaves.slice(0, 4).map((task) => task.title),
-    children: childItems, taskList: leafItems, kind, raw,
+    id, title, icon, subtitle: subtitle || stateLabel(state), status: stateLabel(state), state,
+    progress, tasks: activeCount, completedTasks: doneCount, totalTasks: taskList.length,
+    summary: summary || (taskList.length ? `${activeCount} активных · ${doneCount} завершено` : `${children.length} направлений`),
+    details, children, taskList, kind, raw,
   };
 }
 
-function groupByProject(tasks = []) {
-  const map = new Map();
-  tasks.forEach((task) => {
-    const title = projectTitle(task);
-    if (!map.has(title)) map.set(title, []);
-    map.get(title).push(task);
-  });
-  return [...map.entries()].map(([title, items]) => makeGroupNode({
-    id: `project-${slug(title)}`,
-    title,
-    icon: iconFor(title, 'PR'),
-    items,
-    summary: useful(topTask(items.filter((task) => !isDoneTask(task)))?.nextAction) || `Проект: ${title}`,
-    kind: 'project',
-  }));
+function goalNode(goal, tasks = []) {
+  const taskLeaves = tasks.map(taskToLeaf);
+  const state = statusState(goal.status) === 'queue' ? stateFromItems(taskLeaves) : statusState(goal.status);
+  const done = taskLeaves.filter((item) => item.state === 'done').length;
+  return {
+    id: `goal-${goal.id}`, sourceId: goal.id, title: goal.title || goal.area || 'Цель', icon: iconFor(goal.area || goal.title, 'GL'),
+    status: goal.status || stateLabel(state), state, progress: taskLeaves.length ? completionPercent(done, taskLeaves.length, goal.progress) : clampPercent(goal.progress || 0),
+    tasks: taskLeaves.filter((item) => item.state !== 'done').length, completedTasks: done, totalTasks: taskLeaves.length,
+    summary: useful(goal.nextAction) || useful(goal.successCriteria) || useful(goal.why) || goal.horizon || 'Цель из Notion.',
+    details: [goal.area && `Сфера: ${goal.area}`, goal.horizon && `Горизонт: ${goal.horizon}`, goal.targetDate && `Целевая дата: ${goal.targetDate}`, useful(goal.why), useful(goal.successCriteria), useful(goal.nextAction)].filter(Boolean),
+    children: [], taskList: taskLeaves, kind: 'goal', raw: goal,
+  };
 }
 
-function areaToProjectNode(area, tasks = []) {
-  const title = area.name || area.title || 'Без названия';
-  const related = matchTasks(tasks, title);
-  return makeGroupNode({
-    id: `project-${slug(title)}`,
-    sourceId: area.id,
-    title,
-    icon: iconFor(title, 'PR'),
-    items: related,
-    summary: area.nextAction || area.currentState || area.goal || `Направление: ${title}`,
-    status: area.status,
-    details: [area.focusLevel && `Фокус: ${area.focusLevel}`, area.goal, area.currentState, area.nextAction, area.why].filter(Boolean),
-    kind: LIFE_TYPES.has(typeKey(area.type)) ? 'lifeArea' : 'project',
-    raw: area,
-  });
-}
-
-function focusRank(node) {
-  const value = key(node?.raw?.focusLevel || '');
-  if (value === 'primary') return 0;
-  if (value === 'secondary') return 1;
-  if (value === 'background') return 2;
+function focusRank(value = '') {
+  const normalized = key(value);
+  if (normalized === 'primary') return 0;
+  if (normalized === 'secondary') return 1;
+  if (normalized === 'background') return 2;
   return 3;
 }
 
-function mergeProjectNodes(declaredNodes = [], fallbackNodes = []) {
-  const map = new Map();
-  [...declaredNodes, ...fallbackNodes].forEach((node) => {
-    const id = `project-${slug(node.title)}`;
-    const existing = map.get(id);
-    if (!existing) {
-      map.set(id, { ...node, id });
-      return;
-    }
-    const taskList = uniqById([...(existing.taskList || []), ...(node.taskList || [])]);
-    const childLeaves = uniqById([...(existing.children || []), ...(node.children || [])]);
-    const stats = taskList.length ? completionStatsFor(taskList) : completionStatsFor(childLeaves);
-    const activeList = taskList.filter((leaf) => leaf.state !== 'done');
-    map.set(id, {
-      ...existing,
-      sourceId: existing.sourceId || node.sourceId || null,
-      raw: existing.raw || node.raw || null,
-      summary: useful(existing.summary) || useful(node.summary),
-      details: existing.details?.length ? existing.details : uniqById(taskList).slice(0, 4).map((item) => item.title),
-      children: childLeaves.length ? childLeaves : taskList,
-      taskList,
-      tasks: stats.active,
-      completedTasks: stats.completed,
-      totalTasks: stats.total,
-      progress: completionPercent(stats.completed, stats.total, existing.progress || node.progress || 0),
-      state: stats.total && stats.completed === stats.total ? 'done' : (activeList.length ? stateFromItems(activeList.map((leaf) => leaf.raw || leaf)) : existing.state),
-    });
-  });
-  return [...map.values()].sort((a, b) => focusRank(a) - focusRank(b) || (b.tasks || 0) - (a.tasks || 0));
-}
-
-function attachLinkedDreamsToProjects(projectNodes = [], dreams = []) {
-  const claimed = new Set();
-  const byProject = new Map();
-  projectNodes.forEach((node) => byProject.set(slug(node.title), node));
-  const mapped = new Map();
-  dreams.forEach((dream) => {
-    if (!dream.linkedProject) return;
-    const node = byProject.get(slug(dream.linkedProject));
-    if (!node) return;
-    claimed.add(dream.id);
-    const list = mapped.get(node.id) || [];
-    list.push(dreamToLeaf(dream));
-    mapped.set(node.id, list);
-  });
+function projectNode(item, taskList = [], linkedDreams = []) {
+  const taskLeaves = taskList.map(taskToLeaf);
+  const dreamLeaves = linkedDreams.map(dreamToLeaf);
+  const children = dreamLeaves;
+  const state = statusState(item.status) === 'queue' ? stateFromItems([...taskLeaves, ...dreamLeaves]) : statusState(item.status);
+  const doneTasks = taskLeaves.filter((task) => task.state === 'done').length;
+  const totalTasks = taskLeaves.length;
   return {
-    nodes: projectNodes.map((node) => ({ ...node, children: uniqById([...(node.children || []), ...(mapped.get(node.id) || [])]) })),
-    claimed,
+    id: `project-${slug(item.name)}`, sourceId: item.id, title: item.name || 'Проект', icon: iconFor(item.name, 'PR'),
+    status: item.status || stateLabel(state), state, progress: completionPercent(doneTasks, totalTasks),
+    tasks: taskLeaves.filter((task) => task.state !== 'done').length, completedTasks: doneTasks, totalTasks,
+    summary: useful(item.nextAction) || useful(item.currentState) || useful(item.goal) || useful(item.why) || 'Проект или сфера из Notion.',
+    details: [item.type && `Тип: ${item.type}`, item.focusLevel && `Фокус: ${item.focusLevel}`, useful(item.goal), useful(item.currentState), useful(item.nextAction), useful(item.why)].filter(Boolean),
+    children, taskList: taskLeaves, kind: typeKey(item.type) && LIFE_TYPES.has(typeKey(item.type)) ? 'lifeArea' : 'project', raw: item,
   };
 }
 
-function buildGoals(goals = [], tasks = []) {
-  return goals.map((goal) => {
-    const related = tasks.filter((task) => task.goalIds?.includes(goal.id) || task.goalName === goal.title);
-    return makeGroupNode({
-      id: `goal-${goal.id}`,
-      sourceId: goal.id,
-      title: goal.title || 'Цель',
-      icon: 'GO',
-      items: related,
-      summary: useful(goal.nextAction) || useful(goal.why) || `Цель: ${goal.title}`,
-      status: goal.status,
-      details: [goal.area && `Область: ${goal.area}`, goal.horizon && `Горизонт: ${goal.horizon}`, goal.targetDate && `Целевая дата: ${goal.targetDate}`, goal.why && `Зачем: ${goal.why}`, goal.successCriteria && `Критерий успеха: ${goal.successCriteria}`, goal.nextAction && `Следующий шаг: ${goal.nextAction}`].filter(Boolean),
-      kind: 'goal',
-      raw: goal,
-    });
+function fallbackProjectNodes(tasks = []) {
+  const names = [...new Set(tasks.filter(isProjectTask).map(projectTitle).filter(Boolean))];
+  return names.map((name) => projectNode({ id: `fallback-${slug(name)}`, name, type: 'Project', status: '', focusLevel: '' }, matchTasks(tasks, name), []));
+}
+
+function declaredProjectNodes(projectAreas = [], tasks = [], dreams = []) {
+  const projects = projectAreas.filter((item) => PROJECT_TYPES.has(typeKey(item.type)));
+  const nodes = projects.map((item) => {
+    const linkedDreams = dreams.filter((dream) => clean(dream.linkedProject) && key(dream.linkedProject) === key(item.name) && key(dream.visibility) !== 'hidden until later');
+    return projectNode(item, matchTasks(tasks, item.name), linkedDreams);
+  });
+  return nodes.sort((a, b) => {
+    const focus = focusRank(a.raw?.focusLevel) - focusRank(b.raw?.focusLevel);
+    if (focus) return focus;
+    const taskCount = b.totalTasks - a.totalTasks;
+    if (taskCount) return taskCount;
+    return clean(a.title).localeCompare(clean(b.title), 'ru');
   });
 }
 
-function byText(tasks, tokens) { return tasks.filter((task) => hasAny(`${task.project} ${task.goalName} ${task.title} ${task.tags?.join(' ')}`, tokens)); }
-function makeLeafSphere({ id, title, icon, leaves, summary, kind = 'sphere' }) { return makeGroupNode({ id, title, icon, children: leaves, summary, kind }); }
+function lifeAreaNodes(projectAreas = [], dreams = []) {
+  const explicit = projectAreas.filter((item) => LIFE_TYPES.has(typeKey(item.type))).map((item) => {
+    const areaDreams = dreams.filter((dream) => key(dream.lifeSphere) === key(item.name) && key(dream.visibility) !== 'hidden until later' && !clean(dream.linkedProject));
+    return branchNode({
+      id: `life-${slug(item.name)}`, sourceId: item.id, title: item.name, icon: iconFor(item.name, 'LF'), subtitle: item.type || 'сфера', items: areaDreams.map(dreamToLeaf), kind: 'lifeArea',
+      summary: useful(item.nextAction) || useful(item.currentState) || useful(item.goal) || useful(item.why),
+      details: [item.focusLevel && `Фокус: ${item.focusLevel}`, useful(item.goal), useful(item.currentState), useful(item.nextAction), useful(item.why)].filter(Boolean), raw: item,
+    });
+  });
 
-function classifySnapshot(snapshot) {
-  const allTasks = snapshot.tasks || [];
-  const activeTasks = allTasks.filter((task) => !isDoneTask(task));
+  const explicitNames = new Set(explicit.map((node) => key(node.title)));
+  const derivedNames = [...new Set(dreams.filter((dream) => key(dream.visibility) !== 'hidden until later' && !clean(dream.linkedProject)).map((dream) => clean(dream.lifeSphere)).filter(Boolean))].filter((name) => !explicitNames.has(key(name)));
+  const derived = derivedNames.map((name) => branchNode({ id: `life-${slug(name)}`, title: name, icon: iconFor(name, 'LF'), subtitle: 'сфера жизни', items: dreams.filter((dream) => key(dream.lifeSphere) === key(name) && key(dream.visibility) !== 'hidden until later' && !clean(dream.linkedProject)).map(dreamToLeaf), kind: 'lifeArea' }));
+  return [...explicit, ...derived];
+}
+
+function signalBranch(signals = []) {
+  const leaves = signals.map(signalToLeaf);
+  return branchNode({ id: 'inbox-signals', title: 'Сигналы', icon: 'IN', subtitle: 'LM Inbox', items: leaves, kind: 'branch', summary: `${leaves.filter((item) => item.state !== 'done').length} активных сигналов` });
+}
+
+function orphanGoalBranch(tasks = []) {
+  return branchNode({ id: 'goal-unlinked', title: 'Без цели', icon: 'UL', subtitle: 'нужно связать', items: tasks.map(taskToLeaf), kind: 'goal', summary: 'Задачи без связи с целью.' });
+}
+
+function laterBranch(dreams = []) {
+  const hidden = dreams.filter((dream) => key(dream.visibility) === 'hidden until later');
+  return branchNode({ id: 'later-dreams', title: 'Позже', icon: 'LT', subtitle: 'не сейчас', items: hidden.map(dreamToLeaf), kind: 'branch', summary: `${hidden.length} отложенных желаний` });
+}
+
+export function buildActionMap(snapshot = {}) {
+  const tasks = snapshot.tasks || [];
   const goals = snapshot.goals || [];
+  const sessions = snapshot.sessions || [];
   const projectAreas = snapshot.projectAreas || [];
   const dreams = snapshot.dreams || [];
   const signals = snapshot.signals || [];
-  const sessions = snapshot.sessions || [];
 
-  const declaredProjects = projectAreas.filter((item) => PROJECT_TYPES.has(typeKey(item.type))).map((area) => areaToProjectNode(area, allTasks));
-  const fallbackProjectTasks = allTasks.filter(isProjectTask);
-  const fallbackProjects = groupByProject(fallbackProjectTasks.length ? fallbackProjectTasks : allTasks);
-  const mergedProjects = mergeProjectNodes(declaredProjects, fallbackProjects);
-  const visibleDreams = dreams.filter((dream) => key(dream.visibility) !== 'hidden until later');
-  const linkedDreams = attachLinkedDreamsToProjects(mergedProjects, visibleDreams);
-  const projectNodes = linkedDreams.nodes;
-  const lifeAreaNodes = projectAreas.filter((item) => LIFE_TYPES.has(typeKey(item.type))).map((area) => areaToProjectNode(area, allTasks));
-  const lifeDreams = visibleDreams.filter((dream) => !linkedDreams.claimed.has(dream.id)).map(dreamToLeaf);
-  const hiddenDreams = dreams.filter((dream) => key(dream.visibility) === 'hidden until later').map(dreamToLeaf);
-  const goalNodes = buildGoals(goals, allTasks);
-  const signalNodes = signals.slice(0, 24).map(signalToLeaf);
-  const sessionNodes = sessions.map(sessionToLeaf);
-  const incomeTasks = byText(activeTasks, ['доход', 'клиент', 'деньги', 'money', 'sales', 'продаж', '4life', 'парсер']).map(taskToLeaf);
-  const backlogTasks = activeTasks.filter((task) => ['queue', 'paused'].includes(statusState(task.status))).map(taskToLeaf);
+  const goalsById = new Map(goals.map((goal) => [goal.id, goal]));
+  const tasksByGoal = new Map();
+  const unlinkedTasks = [];
+  tasks.forEach((task) => {
+    const goalIds = (task.goalIds || []).filter((id) => goalsById.has(id));
+    if (!goalIds.length) {
+      unlinkedTasks.push(task);
+      return;
+    }
+    goalIds.forEach((goalId) => { const list = tasksByGoal.get(goalId) || []; list.push(task); tasksByGoal.set(goalId, list); });
+  });
 
-  const topNodes = [];
-  if (projectNodes.length) topNodes.push(makeGroupNode({ id: 'sphere-projects', title: 'Проекты', icon: 'PR', children: projectNodes, summary: 'Рабочие проекты и направления, отсортированные по уровню фокуса.', kind: 'sphere' }));
-  topNodes.push(makeLeafSphere({ id: 'sphere-inbox', title: 'LM Inbox', icon: 'IN', leaves: signalNodes, summary: signals.length > signalNodes.length ? `Последние ${signalNodes.length} из ${signals.length} сигналов. Полный архив доступен в LM Inbox.` : 'Входящие из Telegram-бота и других источников: что прислал, когда, что полезно и как применить.' }));
-  if (goalNodes.length) topNodes.push(makeGroupNode({ id: 'sphere-goals', title: 'Цели', icon: 'GO', children: goalNodes, summary: 'Цели из Notion вместе с причинами, критериями успеха, прогрессом и связанными задачами.', kind: 'sphere' }));
-  if (lifeAreaNodes.length || lifeDreams.length) topNodes.push(makeGroupNode({ id: 'sphere-life', title: 'Жизнь', icon: 'LF', children: [...lifeAreaNodes, ...lifeDreams], summary: 'Личные сферы, мечты, навыки, тело, творчество и баланс.', kind: 'sphere' }));
-  if (sessionNodes.length) topNodes.push(makeLeafSphere({ id: 'sphere-sessions', title: 'Сессии', icon: 'SE', leaves: sessionNodes, summary: 'Рабочие сессии: время, результат и следующий шаг.' }));
-  if (incomeTasks.length) topNodes.push(makeLeafSphere({ id: 'sphere-income', title: 'Доход', icon: '₽', leaves: incomeTasks, summary: 'Задачи и направления, связанные с клиентами, деньгами и монетизацией.' }));
-  if (backlogTasks.length || hiddenDreams.length) topNodes.push(makeLeafSphere({ id: 'sphere-backlog', title: 'Идеи / потом', icon: 'BK', leaves: uniqById([...backlogTasks, ...hiddenDreams]), summary: 'Сохранённые задачи, идеи и мечты на потом, которые не должны сбивать текущий фокус.' }));
-  return topNodes;
-}
+  const goalNodes = goals.map((goal) => goalNode(goal, tasksByGoal.get(goal.id) || []));
+  if (unlinkedTasks.length) goalNodes.push(orphanGoalBranch(unlinkedTasks));
 
-export function buildActionMap(snapshot) {
-  const tasks = snapshot.tasks || [];
-  const current = snapshot.currentFocus || {};
-  const children = classifySnapshot(snapshot);
-  const completedTasks = tasks.filter(isDoneTask).length;
-  const totalTasks = tasks.length;
-  const activeCount = Math.max(totalTasks - completedTasks, 0);
-  const progress = completionPercent(completedTasks, totalTasks, current.progress || 0);
-  return {
-    id: 'root',
-    title: 'LifeMap',
-    subtitle: 'Центр системы',
-    icon: 'LM',
-    status: 'центр',
-    state: activeCount ? 'active' : 'done',
-    progress,
-    tasks: activeCount,
-    completedTasks,
-    totalTasks,
-    summary: 'Главная орбита LifeMap: проекты, цели, LM Inbox, жизнь, рабочие сессии, доход и идеи на потом.',
-    details: [],
-    session: {
-      current: current.title || 'LifeMap: сделать карту рабочим навигатором',
-      next: useful(current.nextAction) || 'Выбрать сферу и перейти к ближайшему практическому шагу.',
-    },
-    children,
-    taskList: [],
-    kind: 'root',
+  let projectNodes = declaredProjectNodes(projectAreas, tasks, dreams);
+  if (!projectNodes.length) projectNodes = fallbackProjectNodes(tasks);
+
+  const lifeNodes = lifeAreaNodes(projectAreas, dreams);
+  const sessionLeaves = sessions.map(sessionToLeaf);
+  const inboxChildren = signals.length ? [signalBranch(signals)] : [];
+  const hiddenDreams = laterBranch(dreams);
+
+  const spheres = [
+    branchNode({ id: 'sphere-goals', title: 'Цели', icon: 'GO', subtitle: 'результаты', children: goalNodes, kind: 'sphere', summary: `${goals.length} целей` }),
+    branchNode({ id: 'sphere-projects', title: 'Проекты', icon: 'PR', subtitle: 'активная работа', children: projectNodes, kind: 'sphere', summary: `${projectNodes.length} проектов` }),
+    branchNode({ id: 'sphere-sessions', title: 'Сессии', icon: 'SE', subtitle: 'рабочий журнал', items: sessionLeaves, kind: 'sphere', summary: `${sessionLeaves.length} рабочих сессий` }),
+    branchNode({ id: 'sphere-life', title: 'Жизнь', icon: 'LF', subtitle: 'сферы', children: lifeNodes, kind: 'sphere', summary: `${lifeNodes.length} сфер жизни` }),
+    branchNode({ id: 'sphere-inbox', title: 'LM Inbox', icon: 'IN', subtitle: 'входящие', children: inboxChildren, kind: 'sphere', summary: `${signals.length} сигналов` }),
+    branchNode({ id: 'sphere-backlog', title: 'Идеи / потом', icon: 'ID', subtitle: 'не сейчас', children: hiddenDreams.totalTasks ? [hiddenDreams] : [], kind: 'sphere', summary: `${hiddenDreams.totalTasks} отложено` }),
+  ];
+
+  const activeTasks = tasks.filter((task) => !isDoneTask(task)).length;
+  const doneTasks = tasks.filter(isDoneTask).length;
+  const root = {
+    id: 'root', title: 'LifeMap', icon: 'LM', subtitle: 'личная система', status: 'система', state: stateFromItems(spheres),
+    progress: completionPercent(doneTasks, tasks.length), tasks: activeTasks, completedTasks: doneTasks, totalTasks: tasks.length,
+    summary: snapshot.currentFocus?.nextAction || snapshot.currentFocus?.title || 'Карта решений, проектов и действий.',
+    details: [snapshot.currentFocus?.title && `Фокус: ${snapshot.currentFocus.title}`, snapshot.currentFocus?.project && `Проект: ${snapshot.currentFocus.project}`, snapshot.currentFocus?.nextAction].filter(Boolean),
+    children: spheres, taskList: [], kind: 'root', raw: snapshot,
   };
+  return root;
 }
 
-function findRecursive(node, nodeId) {
-  if (!node) return null;
-  if (node.id === nodeId) return node;
+export function findNode(node, id) {
+  if (!node || !id) return null;
+  if (node.id === id) return node;
+  for (const item of node.taskList || []) if (item.id === id) return item;
   for (const child of node.children || []) {
-    const found = findRecursive(child, nodeId);
+    const found = findNode(child, id);
     if (found) return found;
   }
   return null;
 }
 
-export function findNode(root, nodeId) { return findRecursive(root, nodeId) || root; }
-export function isLeafNode(node) { return LEAF_KINDS.has(node?.kind); }
-export function isDoneNode(node) { return node?.state === 'done'; }
+export function isLeafNode(node) { return Boolean(node && LEAF_KINDS.has(node.kind)); }
+
+export function isDoneNode(node) { return Boolean(node && node.state === 'done'); }
