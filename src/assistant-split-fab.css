@@ -1,0 +1,80 @@
+/* Compact split control: Inbox | AI */
+.app.actionApp .assistantFabRail {
+  gap: 0 !important;
+  overflow: hidden;
+  border: 1px solid rgba(103, 232, 249, .28);
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(9, 26, 42, .94), rgba(6, 18, 31, .96));
+  box-shadow: 0 14px 42px rgba(0, 0, 0, .34), inset 0 1px 0 rgba(255, 255, 255, .05);
+  backdrop-filter: blur(18px);
+}
+
+.app.actionApp .assistantFabRail .assistantInboxFab,
+.app.actionApp .assistantFabRail .assistantFab {
+  min-width: 0 !important;
+  min-height: 44px !important;
+  height: 44px !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 14px !important;
+  color: rgba(236, 248, 255, .9) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transform: none !important;
+  font-size: 11px !important;
+  font-weight: 950 !important;
+  line-height: 1 !important;
+  letter-spacing: .01em;
+}
+
+.app.actionApp .assistantFabRail .assistantInboxFab {
+  border-right: 1px solid rgba(103, 232, 249, .2) !important;
+  font-size: 0 !important;
+}
+
+.app.actionApp .assistantFabRail .assistantInboxFab::before {
+  content: 'Inbox';
+  font-size: 11px;
+  line-height: 1;
+}
+
+.app.actionApp .assistantFabRail .assistantFab {
+  width: 46px !important;
+  padding-inline: 12px !important;
+}
+
+.app.actionApp .assistantFabRail .assistantInboxFab:hover,
+.app.actionApp .assistantFabRail .assistantFab:hover {
+  color: #f8fdff !important;
+  background: linear-gradient(135deg, rgba(96, 165, 250, .2), rgba(103, 232, 249, .11)) !important;
+}
+
+.app.actionApp .assistantFabRail .assistantInboxFab:focus-visible,
+.app.actionApp .assistantFabRail .assistantFab:focus-visible {
+  outline: 2px solid rgba(103, 232, 249, .72);
+  outline-offset: -3px;
+}
+
+@media (max-width: 560px) {
+  .app.actionApp .assistantFabRail {
+    right: 10px !important;
+    bottom: 10px !important;
+    border-radius: 14px;
+  }
+
+  .app.actionApp .assistantFabRail .assistantInboxFab,
+  .app.actionApp .assistantFabRail .assistantFab {
+    min-height: 40px !important;
+    height: 40px !important;
+  }
+
+  .app.actionApp .assistantFabRail .assistantInboxFab {
+    padding-inline: 12px !important;
+  }
+
+  .app.actionApp .assistantFabRail .assistantFab {
+    width: 42px !important;
+    padding-inline: 10px !important;
+  }
+}
