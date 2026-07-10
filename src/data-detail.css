@@ -1,0 +1,24 @@
+.detailMetadata {
+  display: grid;
+  gap: 7px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.detailMetadata li {
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 10px;
+  background: rgba(4, 14, 23, .46);
+  color: rgba(235, 248, 255, .82);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.detailProgressText {
+  margin-top: 7px;
+  color: rgba(190, 233, 247, .74);
+  font-size: 11px;
+}
