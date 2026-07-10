@@ -9,7 +9,9 @@
     "app": "bash scripts/start-lifemap.sh",
     "build": "vite build",
     "public-ports": "bash .devcontainer/set-public-ports.sh",
-    "test:ai": "node scripts/test-ai-policy.mjs"
+    "test:ai": "node scripts/test-ai-policy.mjs",
+    "test:data": "node scripts/test-data-model.mjs",
+    "test": "npm run test:ai && npm run test:data"
   },
   "dependencies": {
     "@notionhq/client": "2.2.15",
