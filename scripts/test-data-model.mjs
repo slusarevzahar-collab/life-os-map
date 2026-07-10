@@ -59,7 +59,9 @@ assert(findNode(map, 'goal-goal-2').title === 'Goal without tasks');
 assert(findNode(map, 'task-task-1').progress === 65);
 assert(findNode(map, 'task-task-1').details.some((item) => String(item).includes('Сессий: 1')));
 assert(findNode(map, 'project-lifemap').children.some((item) => item.id === 'dream-dream-1'));
-assert(findNode(map, 'sphere-backlog').children.some((item) => item.id === 'dream-dream-2'));
+const laterDreams = findNode(map, 'later-dreams');
+assert(laterDreams);
+assert(listItems(laterDreams).some((item) => item.id === 'dream-dream-2'));
 const projects = findNode(map, 'sphere-projects').children;
 assert.equal(projects[0].title, 'LifeMap');
 
