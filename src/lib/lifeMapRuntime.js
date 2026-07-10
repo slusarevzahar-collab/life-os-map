@@ -1,3 +1,5 @@
+const SECRET_KEY = 'lifemap.assistant.writeSecret.session';
+
 export function emptySnapshot(source = 'loading', warning = '') {
   const isOffline = source === 'api-offline';
   return {
@@ -16,12 +18,7 @@ export function emptySnapshot(source = 'loading', warning = '') {
       progress: 0,
       nextAction: isOffline ? 'Запусти backend: npm run api, затем обнови карту.' : 'Жду ответ backend API.',
     },
-    goals: [],
-    tasks: [],
-    sessions: [],
-    projectAreas: [],
-    dreams: [],
-    signals: [],
+    goals: [], tasks: [], sessions: [], projectAreas: [], dreams: [], signals: [],
     planning: { onTrack: 0, next: 0, waiting: 0, overdue: 0, done: 0 },
   };
 }
@@ -43,29 +40,74 @@ export function apiCandidates(path) {
   return [...new Set(candidates)];
 }
 
+function readWriteSecret() {
+  if (typeof window === 'undefined') return '';
+  try { return window.sessionStorage.getItem(SECRET_KEY) || ''; } catch { return ''; }
+}
+
+function writeWriteSecret(value = '') {
+  if (typeof window === 'undefined') return;
+  try {
+    if (value) window.sessionStorage.setItem(SECRET_KEY, value);
+    else window.sessionStorage.removeItem(SECRET_KEY);
+  } catch {}
+}
+
+function mutatingMethod(options = {}) {
+  const method = String(options.method || 'GET').toUpperCase();
+  return !['GET', 'HEAD', 'OPTIONS'].includes(method);
+}
+
+function withWriteSecret(options = {}, secret = '') {
+  if (!mutatingMethod(options) || !secret) return options;
+  return {
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      'X-LifeMap-Assistant-Secret': secret,
+    },
+  };
+}
+
 async function requestJson(path, options = {}) {
   const errors = [];
+  const isWrite = mutatingMethod(options);
+  let writeSecret = isWrite ? readWriteSecret() : '';
+  let prompted = false;
+
   for (const url of apiCandidates(path)) {
-    try {
-      const response = await fetch(url, {
-        ...options,
-        headers: {
-          Accept: 'application/json',
-          ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-          ...(options.headers || {}),
-        },
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || data.ok === false) {
-        const error = new Error(data.error || data.details || `API ${response.status}`);
-        error.apiResponse = true;
-        error.status = response.status;
-        throw error;
+    while (true) {
+      const effectiveOptions = withWriteSecret(options, writeSecret);
+      try {
+        const response = await fetch(url, {
+          ...effectiveOptions,
+          headers: {
+            Accept: 'application/json',
+            ...(effectiveOptions.body ? { 'Content-Type': 'application/json' } : {}),
+            ...(effectiveOptions.headers || {}),
+          },
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.ok === false) {
+          if (isWrite && response.status === 403 && !prompted && typeof window !== 'undefined') {
+            prompted = true;
+            writeSecret = window.prompt('Введите ключ LifeMap для изменения данных:') || '';
+            if (writeSecret) {
+              writeWriteSecret(writeSecret);
+              continue;
+            }
+          }
+          const error = new Error(data.error || data.details || `API ${response.status}`);
+          error.apiResponse = true;
+          error.status = response.status;
+          throw error;
+        }
+        return data;
+      } catch (error) {
+        if (error.apiResponse) throw error;
+        errors.push(`${url}: ${error.message}`);
+        break;
       }
-      return data;
-    } catch (error) {
-      if (error.apiResponse) throw error;
-      errors.push(`${url}: ${error.message}`);
     }
   }
   throw new Error(errors.join(' | '));
