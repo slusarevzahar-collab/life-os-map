@@ -109,3 +109,5 @@ jobs:
           git add server/notionAdapter.js server/aiPrivacy.js src/lib/actionMapModel.js scripts/test-data-model.mjs docs/CODE_REVIEW_2026-07-10.md
           git diff --cached --quiet || git commit -m "Finalize LifeMap database review [skip ci]"
           git push
+
+# Triggered after the workflow was present on the default branch.
