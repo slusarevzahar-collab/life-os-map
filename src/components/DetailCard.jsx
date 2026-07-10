@@ -4,12 +4,57 @@ import { canPatchTask } from '../lib/lifeMapSelectors.js';
 import { Ring } from './Ring.jsx';
 import '../data-detail.css';
 
+function rawMetadata(node = {}) {
+  const raw = node.raw || {};
+  const rows = [];
+  const add = (label, value) => {
+    if (value !== undefined && value !== null && value !== '') rows.push(`${label}: ${value}`);
+  };
+
+  if (node.kind === 'task') {
+    add('Плановая дата', raw.plannedDate);
+    add('Последнее касание', raw.lastTouched);
+    add('Начало', raw.startedAt);
+    add('Завершение', raw.finishedAt);
+    if (Number(raw.durationMin || 0) > 0) add('Длительность задачи', `${raw.durationMin} мин`);
+    if (Number(raw.timeDebt || 0) > 0) add('Долг времени', raw.timeDebt);
+    if (Number(raw.rescheduleCount || 0) > 0) add('Переносов', raw.rescheduleCount);
+    if (Array.isArray(raw.tags) && raw.tags.length) add('Теги', raw.tags.join(', '));
+  }
+
+  if (node.kind === 'goal') {
+    add('Прогресс в Notion', `${Math.round(Number(raw.progress || 0))}%`);
+  }
+
+  if (node.kind === 'project' || node.kind === 'lifeArea') {
+    add('Обновлено', raw.updatedAt);
+  }
+
+  if (node.kind === 'dream') {
+    add('Добавлено', raw.capturedAt);
+  }
+
+  if (node.kind === 'signal') {
+    add('Решение', raw.decision);
+    add('AI-категория', raw.aiCategory);
+    add('Версия AI-разбора', raw.aiProcessingVersion);
+    if (Array.isArray(raw.assets) && raw.assets.length) add('Извлечено объектов', raw.assets.length);
+  }
+
+  return rows;
+}
+
+function mergedDetails(node = {}) {
+  const base = Array.isArray(node.details) ? node.details.filter(Boolean) : [];
+  return [...new Set([...base, ...rawMetadata(node)])];
+}
+
 export function DetailCard({ node, onClose, onComplete, onRestore, onOpenMenu, busyTaskId }) {
   if (!node) return null;
   const patchable = canPatchTask(node);
   const done = isDoneNode(node);
   const showProgress = Number(node.progress || 0) > 0 || (!isLeafNode(node) && Number(node.totalTasks || 0) > 0);
-  const details = Array.isArray(node.details) ? node.details.filter(Boolean) : [];
+  const details = mergedDetails(node);
 
   return (
     <motion.aside
