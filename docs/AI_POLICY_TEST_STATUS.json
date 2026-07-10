@@ -1,9 +1,9 @@
 {
-  "ok": true,
+  "ok": false,
   "policyVersion": "2026-07-09.4",
-  "commit": "e7fe1141c01890460466f6c37c76621833fa403e",
-  "checkedAt": "2026-07-10T08:36:28.232063Z",
-  "exitCode": 0,
+  "commit": "0460bf0ea9bb8edc410609ab3019187ba5764cea",
+  "checkedAt": "2026-07-10T08:39:18.653016Z",
+  "exitCode": 1,
   "logTail": [
     "npm warn config optional Use `--omit=optional` to exclude optional dependencies, or",
     "npm warn config `--include=optional` to include them.",
@@ -13,6 +13,25 @@
     "> life-os-map@0.1.0 test:ai",
     "> node scripts/test-ai-policy.mjs",
     "",
-    "LifeMap AI policy tests passed."
+    "node:internal/modules/run_main:123",
+    "    triggerUncaughtException(",
+    "    ^",
+    "",
+    "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:",
+    "",
+    "  assert(compact.goals.length <= 10)",
+    "",
+    "    at file:///home/runner/work/life-os-map/life-os-map/scripts/test-ai-policy.mjs:24:1",
+    "    at ModuleJob.run (node:internal/modules/esm/module_job:325:25)",
+    "    at async ModuleLoader.import (node:internal/modules/esm/loader:606:24)",
+    "    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5) {",
+    "  generatedMessage: true,",
+    "  code: 'ERR_ASSERTION',",
+    "  actual: false,",
+    "  expected: true,",
+    "  operator: '=='",
+    "}",
+    "",
+    "Node.js v20.20.2"
   ]
 }
