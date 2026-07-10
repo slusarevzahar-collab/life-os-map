@@ -81,7 +81,7 @@ export function SideList({
   const [notesDraft, setNotesDraft] = useState({});
   const [liveSnapshot, setLiveSnapshot] = useState(null);
   const listRef = useRef(null);
-  const inboxMode = map?.id === 'sphere-inbox' || map?.kind === 'inbox' || ((map?.title === 'AI Inbox' || map?.title === 'LM Inbox') && items.some((item) => item.kind === 'signal'));
+  const inboxMode = map?.id === 'sphere-inbox' || map?.id === 'inbox-signals' || map?.kind === 'inbox' || ((map?.title === 'AI Inbox' || map?.title === 'LM Inbox') && items.some((item) => item.kind === 'signal'));
   const activeItems = items.filter((item) => !isDoneNode(item));
   const doneItems = items.filter((item) => isDoneNode(item));
   const visibleItems = viewMode === 'done' ? doneItems : activeItems;
