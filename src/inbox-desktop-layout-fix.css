@@ -1,0 +1,36 @@
+@media (min-width: 901px) {
+  .actionApp.branchView .sideList.inboxPanel.inboxV2Panel {
+    position: absolute !important;
+    top: 28px !important;
+    right: 24px !important;
+    bottom: auto !important;
+    left: auto !important;
+    width: clamp(620px, 52vw, 820px) !important;
+    min-width: 0 !important;
+    max-width: calc(100vw - 520px) !important;
+    height: calc(100vh - 56px) !important;
+    max-height: calc(100vh - 56px) !important;
+    padding: 18px !important;
+    overflow: hidden !important;
+    z-index: 33 !important;
+  }
+
+  .actionApp.branchView .mapStage {
+    transform: translateX(-390px) !important;
+  }
+
+  .actionApp.branchView .inboxV2Panel .compactInboxList {
+    min-height: 0 !important;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1180px) {
+  .actionApp.branchView .sideList.inboxPanel.inboxV2Panel {
+    width: min(640px, calc(100vw - 460px)) !important;
+    max-width: calc(100vw - 460px) !important;
+  }
+
+  .actionApp.branchView .mapStage {
+    transform: translateX(-300px) scale(.92) !important;
+  }
+}
