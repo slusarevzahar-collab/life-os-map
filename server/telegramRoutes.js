@@ -25,6 +25,7 @@ function sleep(ms) {
 }
 
 function webhookKey(signal = {}) {
+  if (signal.sourceUrl) return `source:${String(signal.sourceUrl).trim().toLowerCase()}`;
   const updateId = signal.telegram?.updateId;
   if (updateId !== undefined && updateId !== null) return `update:${updateId}`;
   return `signal:${signal.id || `${signal.telegram?.chatId || 'chat'}:${signal.telegram?.messageId || 'message'}`}`;
@@ -104,7 +105,7 @@ export function registerTelegramRoutes(app, runtime, { codespacesPublicUrl, defe
         const result = await createSignal({
           notionToken: config.notionToken,
           signalsDbId: config.signalsDbId,
-          payload: baseSignal,
+          payload: { ...baseSignal, assistantNote: ' ' },
         });
         if (!result?.id) throw new Error('Notion did not return a signal page id.');
 
@@ -182,7 +183,8 @@ export function registerTelegramRoutes(app, runtime, { codespacesPublicUrl, defe
           signalId: stored.signalId,
           analysis: {
             ...baseSignal,
-            assistantNote: 'AI-разбор временно не завершён. Сигнал сохранён и остаётся доступным для последующего переразбора.',
+            assistantNote: ' ',
+            nextAction: 'AI-разбор временно не завершён. Сигнал сохранён и будет доступен для последующего переразбора.',
             assets: [],
           },
         }).catch((persistError) => console.warn(`LifeMap Telegram failure note could not be stored: ${persistError.message}`));
@@ -248,6 +250,13 @@ export function registerTelegramRoutes(app, runtime, { codespacesPublicUrl, defe
     }
 
     if (stored.joined) {
+      if (stored.dedupe === 'source-url') {
+        await sendTelegramMessage({
+          botToken: config.telegramBotToken,
+          chatId: baseSignal.telegram?.chatId,
+          text: 'Этот пост уже есть в LM Inbox',
+        }).catch((error) => console.warn(`LifeMap Telegram duplicate ack failed: ${error.message}`));
+      }
       markCompleted(key);
       res.status(202).json({
         ok: true,
@@ -318,6 +327,7 @@ export function registerTelegramRoutes(app, runtime, { codespacesPublicUrl, defe
           backgroundScheduler: typeof deferTask === 'function' ? 'vercel-waitUntil' : 'process-lifetime',
           mediaGroupBundling: true,
           persistentSourceDedupe: true,
+          failedAnalysisRecovery: true,
         },
         dedupe: {
           inFlight: inFlightUpdates.size,
