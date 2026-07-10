@@ -27,11 +27,11 @@ export function trustedLifeMapUi(req) {
 }
 
 export function trustedWriteRequest(req, assistantSecretOk) {
-  return Boolean(assistantSecretOk?.(req) || trustedLifeMapUi(req));
+  return Boolean(assistantSecretOk?.(req));
 }
 
 export function requireTrustedWrite(req, res, assistantSecretOk) {
   if (trustedWriteRequest(req, assistantSecretOk)) return true;
-  res.status(403).json({ ok: false, error: 'Write request is allowed only from the trusted LifeMap UI or with assistant secret.' });
+  res.status(403).json({ ok: false, error: 'LifeMap write secret required.' });
   return false;
 }
