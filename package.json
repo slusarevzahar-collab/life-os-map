@@ -7,7 +7,7 @@
     "dev": "npm run app",
     "api": "node server.js",
     "app": "bash scripts/start-lifemap.sh",
-    "build": "vite build",
+    "build": "npm test && vite build",
     "public-ports": "bash .devcontainer/set-public-ports.sh",
     "test:ai": "node scripts/test-ai-policy.mjs",
     "test:data": "node scripts/test-data-model.mjs",
