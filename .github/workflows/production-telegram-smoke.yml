@@ -1,4 +1,4 @@
-name: Production Telegram smoke
+name: Production LifeMap smoke
 
 on:
   push:
@@ -6,6 +6,7 @@ on:
     paths-ignore:
       - docs/LM_INBOX_PRODUCTION_STATUS.json
       - docs/LM_INBOX_DATA_STATUS.json
+      - docs/LIFEMAP_DATA_HEALTH.json
       - docs/AI_POLICY_TEST_STATUS.json
   workflow_dispatch:
 
@@ -13,7 +14,7 @@ permissions:
   contents: write
 
 jobs:
-  telegram-production-status:
+  lifemap-production-status:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,11 +22,11 @@ jobs:
         with:
           node-version: 20
 
-      - name: Run AI policy regressions and save result
+      - name: Run full LifeMap regressions and save result
         shell: bash
         run: |
           set +e
-          npm run test:ai > /tmp/ai-policy-test.log 2>&1
+          npm test > /tmp/lifemap-test.log 2>&1
           code=$?
           set -e
           mkdir -p docs
@@ -33,47 +34,54 @@ jobs:
           import json, os
           from datetime import datetime, timezone
           code = int(os.environ.get('TEST_EXIT_CODE', '1'))
-          with open('/tmp/ai-policy-test.log', 'r', encoding='utf-8', errors='replace') as f:
+          with open('/tmp/lifemap-test.log', 'r', encoding='utf-8', errors='replace') as f:
               lines = f.read().splitlines()
           status = {
               'ok': code == 0,
               'policyVersion': '2026-07-09.4',
+              'suite': 'AI policy + data model',
               'commit': os.environ.get('GITHUB_SHA', ''),
               'checkedAt': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
               'exitCode': code,
-              'logTail': lines[-30:],
+              'logTail': lines[-40:],
           }
           with open('docs/AI_POLICY_TEST_STATUS.json', 'w', encoding='utf-8') as f:
               json.dump(status, f, ensure_ascii=False, indent=2)
               f.write('\n')
           PY
 
-      - name: Wait for production deployment and verify secure intake
+      - name: Wait for production deployment and verify LifeMap health
         shell: bash
         run: |
           set -euo pipefail
-          endpoint="https://lifemap-gamma.vercel.app/api/telegram/status"
+          telegram_endpoint="https://lifemap-gamma.vercel.app/api/telegram/status"
           inbox_endpoint="https://lifemap-gamma.vercel.app/api/life-os/inbox/assets"
+          data_endpoint="https://lifemap-gamma.vercel.app/api/life-os/data-health"
           body=""
-          for attempt in {1..20}; do
-            body="$(curl --fail --silent --show-error --max-time 20 "$endpoint" || true)"
-            if BODY="$body" python - <<'PY'
+          for attempt in {1..24}; do
+            body="$(curl --fail --silent --show-error --max-time 20 "$telegram_endpoint" || true)"
+            data_body="$(curl --fail --silent --show-error --max-time 30 "$data_endpoint" || true)"
+            if BODY="$body" DATA_BODY="$data_body" python - <<'PY'
           import json, os, sys
           try:
-              data = json.loads(os.environ.get('BODY', ''))
+              telegram = json.loads(os.environ.get('BODY', ''))
+              data = json.loads(os.environ.get('DATA_BODY', ''))
           except Exception:
               sys.exit(1)
-          ok = (
-              data.get('ok') is True
-              and data.get('configured') is True
-              and data.get('hasSecret') is True
-              and data.get('allowedUsersLocked') is True
-              and data.get('signalsDb') is True
-              and data.get('intake', {}).get('secureReady') is True
-              and data.get('intake', {}).get('durableFirst') is True
-              and data.get('intake', {}).get('backgroundScheduler') == 'vercel-waitUntil'
+          telegram_ok = (
+              telegram.get('ok') is True
+              and telegram.get('configured') is True
+              and telegram.get('hasSecret') is True
+              and telegram.get('allowedUsersLocked') is True
+              and telegram.get('signalsDb') is True
+              and telegram.get('intake', {}).get('secureReady') is True
+              and telegram.get('intake', {}).get('durableFirst') is True
+              and telegram.get('intake', {}).get('backgroundScheduler') == 'vercel-waitUntil'
           )
-          sys.exit(0 if ok else 1)
+          connected = data.get('connected', {})
+          core_ok = data.get('ok') is True and all(connected.get(key) is True for key in ['tasks', 'goals', 'sessions', 'projectAreas', 'dreams', 'signals'])
+          version_ok = str(data.get('version', '')).startswith('0.9')
+          sys.exit(0 if telegram_ok and core_ok and version_ok else 1)
           PY
             then
               mkdir -p docs
@@ -83,6 +91,15 @@ jobs:
           with open('docs/LM_INBOX_PRODUCTION_STATUS.json', 'w', encoding='utf-8') as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
               f.write('\n')
+          PY
+
+              DATA_BODY="$data_body" python - <<'PY'
+          import json, os
+          data = json.loads(os.environ['DATA_BODY'])
+          with open('docs/LIFEMAP_DATA_HEALTH.json', 'w', encoding='utf-8') as f:
+              json.dump(data, f, ensure_ascii=False, indent=2)
+              f.write('\n')
+          print(json.dumps(data, ensure_ascii=False, indent=2))
           PY
 
               inbox_body="$(curl --fail --silent --show-error --max-time 30 "$inbox_endpoint")"
@@ -106,11 +123,10 @@ jobs:
           print(json.dumps(status, ensure_ascii=False, indent=2))
           PY
 
-              echo "$body" | python -m json.tool
               git config user.name "github-actions[bot]"
               git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-              git add docs/LM_INBOX_PRODUCTION_STATUS.json docs/LM_INBOX_DATA_STATUS.json docs/AI_POLICY_TEST_STATUS.json
-              git commit -m "Record production LM Inbox health [skip ci]" || true
+              git add docs/LM_INBOX_PRODUCTION_STATUS.json docs/LM_INBOX_DATA_STATUS.json docs/LIFEMAP_DATA_HEALTH.json docs/AI_POLICY_TEST_STATUS.json
+              git commit -m "Record production LifeMap health [skip ci]" || true
               git push
 
               python - <<'PY'
@@ -121,10 +137,12 @@ jobs:
           PY
               exit 0
             fi
-            echo "Attempt $attempt: production intake not ready yet"
-            echo "$body"
+            echo "Attempt $attempt: production LifeMap not ready yet"
+            echo "Telegram: $body"
+            echo "Data: $data_body"
             sleep 15
           done
-          echo "Production Telegram intake did not become ready in time"
+          echo "Production LifeMap did not become ready in time"
           echo "$body"
+          echo "$data_body"
           exit 1
