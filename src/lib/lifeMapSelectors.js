@@ -1,11 +1,18 @@
 import { isDoneNode, isLeafNode } from './actionMapModel.js';
 import { RENAMABLE_KINDS } from '../constants/lifeMap.js';
 
+function legacyInboxBranch(node) {
+  if (node?.id !== 'sphere-inbox') return null;
+  return (node.children || []).find((item) => item?.id === 'inbox-signals') || null;
+}
+
 export function hasBranch(node) {
+  if (legacyInboxBranch(node)) return false;
   return Boolean((node?.children || []).some((item) => !isLeafNode(item)));
 }
 
 export function topItems(node) {
+  if (legacyInboxBranch(node)) return [];
   return (node?.children || []).filter((item) => !isLeafNode(item));
 }
 
@@ -18,6 +25,14 @@ export function canRenameNode(node) {
 }
 
 export function listItems(node) {
+  const inboxBranch = legacyInboxBranch(node);
+  if (inboxBranch) {
+    const directLeaves = (inboxBranch.children || []).filter((item) => isLeafNode(item));
+    const taskList = inboxBranch.taskList || [];
+    const merged = [...taskList, ...directLeaves];
+    return merged.filter((item, index, arr) => item?.id && arr.findIndex((next) => next.id === item.id) === index);
+  }
+
   const directLeaves = (node?.children || []).filter((item) => isLeafNode(item));
   const taskList = node?.taskList || [];
   const branchCards = topItems(node);
@@ -120,29 +135,13 @@ export function resolveFocus(rootMap, snapshot, focusQueue = []) {
     project: snapshot.currentFocus?.project || '',
     status: snapshot.currentFocus?.status || '',
     progress: Number(snapshot.currentFocus?.progress) || 0,
-    nextAction: snapshot.currentFocus?.nextAction || 'Следующий шаг не указан.',
-    kind: 'snapshotFocus',
+    nextAction: snapshot.currentFocus?.nextAction || 'Выбери ближайший конкретный шаг.',
+    kind: 'focus',
   };
 }
 
-export function buildFocusSequence(rootMap, activeFocus, focusQueue = []) {
+export function buildFocusSequence(rootMap, activeFocus, queue = []) {
   const nodes = flattenNodes(rootMap);
-  const queued = focusQueue.map((queuedItem) => {
-    const match = nodes.find((node) => !isDoneNode(node) && ((queuedItem.sourceId && node.sourceId === queuedItem.sourceId) || node.id === queuedItem.id));
-    return match ? toFocusItem(match) : queuedItem;
-  });
-  const focusText = `${activeFocus?.title || ''} ${activeFocus?.project || ''}`.toLowerCase();
-  const projectNeedles = ['lifemap', 'life os', 'live os', 'life os map', 'liveos map', 'навигатор', 'notion', 'canvas', 'map'];
-  const relatedTasks = nodes
-    .filter((node) => node.kind === 'task' && !isDoneNode(node))
-    .filter((node) => {
-      const text = `${node.title} ${node.summary} ${node.raw?.project || ''} ${node.raw?.goalName || ''}`.toLowerCase();
-      if (activeFocus?.sourceId && node.sourceId === activeFocus.sourceId) return true;
-      if (activeFocus?.id && node.id === activeFocus.id) return true;
-      if (focusText.includes('sleda') || focusText.includes('след')) return text.includes('sleda') || text.includes('след');
-      if (focusText.includes('inbox')) return text.includes('inbox') || text.includes('telegram') || text.includes('бот');
-      return projectNeedles.some((needle) => text.includes(needle));
-    })
-    .map(toFocusItem);
-  return dedupeFocusItems([activeFocus, ...queued, ...relatedTasks].filter(Boolean)).slice(0, 16);
+  const resolved = queue.map((item) => nodes.find((node) => (item.sourceId && node.sourceId === item.sourceId) || node.id === item.id) || item);
+  return dedupeFocusItems([activeFocus, ...resolved].filter(Boolean));
 }
