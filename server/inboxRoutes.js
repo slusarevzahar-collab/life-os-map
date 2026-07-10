@@ -1,9 +1,11 @@
 import { updateInboxSignalStatus } from './inboxAssetStore.js';
+import { requireTrustedWrite } from './requestTrust.js';
 
 export function registerInboxRoutes(app, runtime) {
-  const { config } = runtime;
+  const { config, assistantSecretOk } = runtime;
 
   app.patch('/api/life-os/signals/:id', async (req, res) => {
+    if (!requireTrustedWrite(req, res, assistantSecretOk)) return;
     try {
       const result = await updateInboxSignalStatus({
         notionToken: config.notionToken,
