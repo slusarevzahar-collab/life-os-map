@@ -4,7 +4,7 @@ import { topItems } from '../lib/lifeMapSelectors.js';
 import { mapVariants } from '../constants/lifeMap.js';
 
 function canonicalTitle(node = {}) {
-  if (node?.id === 'sphere-inbox' || node?.title === 'AI Inbox') return 'LM Inbox';
+  if (node?.id === 'sphere-inbox' || node?.id === 'inbox-signals' || node?.title === 'AI Inbox') return 'LM Inbox';
   return node?.title || '';
 }
 
