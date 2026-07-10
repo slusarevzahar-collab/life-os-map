@@ -21,10 +21,13 @@ const snapshot = {
 
 const compact = compactForAssistant(snapshot, { project: 'LifeMap' });
 assert(compact.tasks.length <= 18);
-assert(compact.goals.length <= 10);
+assert(compact.goals.length <= 12);
 assert(compact.signals.length <= 10);
 assert(compact.signals[0].relevanceScore >= compact.signals.at(-1).relevanceScore);
 assert(Array.isArray(compact.signals[0].assets));
+assert(Array.isArray(compact.sessions));
+assert(Array.isArray(compact.dreams));
+assert(Array.isArray(compact.projectAreas));
 
 const assistantPrompt = buildAssistantSystemPrompt();
 assert(assistantPrompt.includes('Обращайся на «ты»'));
