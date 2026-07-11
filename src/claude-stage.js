@@ -1,5 +1,6 @@
 const DESIGN_WIDTH = 1280;
 const DESIGN_HEIGHT = 800;
+const MORPH_STORAGE_KEY = 'lifemap.claude.morph.v1';
 
 function updateDesignScale() {
   const width = Math.max(320, window.innerWidth || DESIGN_WIDTH);
@@ -11,6 +12,17 @@ function updateDesignScale() {
   root.style.setProperty('--claude-stage-height', `${DESIGN_HEIGHT}px`);
 }
 
+function preparePendingMorphClass() {
+  try {
+    const pending = JSON.parse(window.sessionStorage.getItem(MORPH_STORAGE_KEY) || 'null');
+    const inboxRoute = window.location.hash.includes('sphere-inbox');
+    if (pending?.mode === 'open-inbox' && inboxRoute) {
+      document.documentElement.classList.add('claudePendingInboxMorph');
+    }
+  } catch {}
+}
+
+preparePendingMorphClass();
 updateDesignScale();
 window.addEventListener('resize', updateDesignScale, { passive: true });
 window.addEventListener('orientationchange', updateDesignScale, { passive: true });
