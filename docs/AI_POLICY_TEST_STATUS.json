@@ -2,8 +2,8 @@
   "ok": true,
   "policyVersion": "2026-07-09.4",
   "suite": "AI policy + data model + frontend build",
-  "commit": "4e401cd9f7c653565d3e06d2a9c930c557705df4",
-  "checkedAt": "2026-07-11T16:57:03.989681Z",
+  "commit": "47572d22e7f9f87dcf67b4c501257e5cfac26cdd",
+  "checkedAt": "2026-07-11T19:59:12.305580Z",
   "exitCode": 0,
   "logTail": [
     "npm warn config optional Use `--omit=optional` to exclude optional dependencies, or",
@@ -46,8 +46,8 @@
     "rendering chunks...",
     "computing gzip size...",
     "\u001b[2mdist/\u001b[22m\u001b[32mindex.html                 \u001b[39m\u001b[1m\u001b[2m  0.85 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip:   0.41 kB\u001b[22m",
-    "\u001b[2mdist/\u001b[22m\u001b[2massets/\u001b[22m\u001b[35mindex-9f78ea2e.css  \u001b[39m\u001b[1m\u001b[2m117.43 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip:  21.98 kB\u001b[22m",
-    "\u001b[2mdist/\u001b[22m\u001b[2massets/\u001b[22m\u001b[36mindex-5b53938d.js   \u001b[39m\u001b[1m\u001b[2m341.13 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip: 113.37 kB\u001b[22m",
-    "\u001b[32m✓ built in 2.14s\u001b[39m"
+    "\u001b[2mdist/\u001b[22m\u001b[2massets/\u001b[22m\u001b[35mindex-99e12c2f.css  \u001b[39m\u001b[1m\u001b[2m120.17 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip:  22.50 kB\u001b[22m",
+    "\u001b[2mdist/\u001b[22m\u001b[2massets/\u001b[22m\u001b[36mindex-13dbf7ff.js   \u001b[39m\u001b[1m\u001b[2m357.30 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip: 118.05 kB\u001b[22m",
+    "\u001b[32m✓ built in 2.01s\u001b[39m"
   ]
 }
