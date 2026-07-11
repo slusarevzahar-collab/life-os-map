@@ -1,0 +1,196 @@
+/* Claude Design parity layer: closer to provided screenshots, without changing live data logic. */
+
+.app.actionApp {
+  background:
+    radial-gradient(48% 54% at 66% 49%, rgba(22, 138, 162, .42) 0%, rgba(12, 78, 104, .22) 28%, rgba(5, 8, 16, 0) 64%),
+    radial-gradient(44% 42% at 34% 58%, rgba(10, 88, 118, .34) 0%, rgba(7, 48, 72, .18) 42%, rgba(5, 8, 16, 0) 74%),
+    radial-gradient(28% 26% at 71% 45%, rgba(90, 154, 71, .18) 0%, rgba(87, 224, 168, .08) 26%, rgba(5, 8, 16, 0) 66%),
+    linear-gradient(180deg, #06101a 0%, #040810 54%, #02050b 100%) !important;
+}
+
+.app.actionApp::before {
+  opacity: .9 !important;
+  background-image:
+    radial-gradient(circle at 4% 8%, rgba(255,255,255,.5) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 18% 22%, rgba(244,232,174,.45) 0 1px, transparent 1.4px),
+    radial-gradient(circle at 33% 72%, rgba(255,255,255,.42) 0 1px, transparent 1.4px),
+    radial-gradient(circle at 52% 12%, rgba(255,255,255,.55) 0 1px, transparent 1.4px),
+    radial-gradient(circle at 76% 34%, rgba(246,232,162,.45) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 94% 80%, rgba(255,255,255,.5) 0 1px, transparent 1.4px),
+    radial-gradient(circle at 39% 45%, rgba(255,255,255,.25) 0 1px, transparent 1.3px),
+    radial-gradient(circle at 70% 66%, rgba(255,255,255,.22) 0 1px, transparent 1.3px) !important;
+  background-size: 185px 150px, 260px 210px, 310px 240px, 370px 290px, 430px 330px, 520px 390px, 140px 118px, 225px 175px !important;
+}
+
+.app.actionApp::after {
+  background: radial-gradient(circle at 50% 46%, transparent 0 48%, rgba(2,5,10,.18) 74%, rgba(1,3,7,.56) 100%) !important;
+  opacity: .62 !important;
+}
+
+.stars { opacity: .35 !important; }
+
+.topNav.homeNav {
+  top: 22px !important;
+  left: 34px !important;
+  height: 24px !important;
+  width: auto !important;
+}
+.topNav.homeNav .topTitle { max-width: none !important; }
+.topNav.homeNav .topActions,
+.topNav.homeNav .backButton,
+.topNav.homeNav .centerButton { display: none !important; }
+
+.topTitle .brand,
+.topTitle em,
+.missionTop small,
+.missionCollapsed small,
+.sideListHead small {
+  text-transform: uppercase !important;
+}
+
+.app.actionApp:not(.branchView) .mission {
+  top: 91px !important;
+  left: 33px !important;
+  width: 436px !important;
+  min-height: 200px;
+}
+.app.actionApp:not(.branchView) .focusControls,
+.app.actionApp:not(.branchView) .focusQueueList {
+  display: none !important;
+}
+.app.actionApp:not(.branchView) .missionLine {
+  padding: 16px 17px !important;
+}
+
+.app.actionApp:not(.branchView) .mapStage {
+  transform: translateX(0) !important;
+}
+.app.actionApp:not(.branchView) .mapCanvas {
+  transform: none !important;
+}
+.app.actionApp:not(.branchView) .mapGlow,
+.app.actionApp:not(.branchView) .orbit,
+.app.actionApp:not(.branchView) .coreNode,
+.app.actionApp:not(.branchView) .mapNode.orbitNode {
+  top: 50% !important;
+}
+.app.actionApp:not(.branchView) .coreNode.rootCore {
+  width: 172px !important;
+  height: 172px !important;
+}
+.app.actionApp:not(.branchView) .coreNode.rootCore b {
+  font-size: 27px !important;
+  font-weight: 500 !important;
+}
+.app.actionApp:not(.branchView) .coreNode.rootCore::after {
+  top: calc(50% + 29px) !important;
+}
+.app.actionApp:not(.branchView) .orbit1 { width: 235px !important; height: 235px !important; }
+.app.actionApp:not(.branchView) .orbit2 { width: 390px !important; height: 390px !important; }
+.app.actionApp:not(.branchView) .orbit3 { width: 550px !important; height: 550px !important; }
+.app.actionApp:not(.branchView) .mapNode.orbitNode {
+  --orbit-shift: -242px !important;
+}
+.app.actionApp:not(.branchView) .nodeOrb {
+  width: 116px !important;
+  height: 116px !important;
+  padding: 15px !important;
+}
+.app.actionApp:not(.branchView) .nodeOrb em {
+  max-width: 82px !important;
+  font-size: 15px !important;
+  line-height: 1.08 !important;
+}
+.app.actionApp:not(.branchView) .nodeOrb strong {
+  inset: -2px !important;
+  opacity: .82 !important;
+}
+
+.app.actionApp.branchView .topNav {
+  top: 25px !important;
+  left: 20px !important;
+  height: 66px !important;
+}
+.app.actionApp.branchView .mission {
+  top: 96px !important;
+  left: 20px !important;
+  width: 436px !important;
+  max-height: calc(100vh - 122px) !important;
+}
+.app.actionApp.branchView .mapStage {
+  transform: translateX(-410px) !important;
+}
+.app.actionApp.branchView .sideList {
+  top: 50px !important;
+  right: 28px !important;
+  width: min(608px, calc(100vw - 506px)) !important;
+  min-width: 540px !important;
+  max-height: calc(100vh - 82px) !important;
+}
+.app.actionApp.branchView .sideList.inboxV2Panel {
+  width: min(608px, calc(100vw - 506px)) !important;
+  min-width: 540px !important;
+}
+.app.actionApp.branchView .mapGlow,
+.app.actionApp.branchView .orbit,
+.app.actionApp.branchView .coreNode,
+.app.actionApp.branchView .mapNode.orbitNode {
+  top: 62% !important;
+}
+.app.actionApp.branchView .coreNode.titleCore {
+  width: 148px !important;
+  height: 148px !important;
+}
+.app.actionApp.branchView .mapNode.orbitNode {
+  --orbit-shift: -196px !important;
+}
+.app.actionApp.branchView .nodeOrb {
+  width: min(var(--node-size, 108px), 120px) !important;
+  height: min(var(--node-size, 108px), 120px) !important;
+}
+
+.sideListHead strong { font-size: 30px !important; }
+.sideTabs button,
+.inboxV2Panel .inboxCategoryTabs.inboxV2Tabs button {
+  height: 38px !important;
+  border-radius: 12px !important;
+}
+.sideItemRow,
+.compactInboxRow {
+  min-height: 64px !important;
+  border-radius: 14px !important;
+}
+
+@media (max-width: 1180px) {
+  .app.actionApp.branchView .mapStage { transform: translateX(-320px) !important; }
+  .app.actionApp.branchView .sideList,
+  .app.actionApp.branchView .sideList.inboxV2Panel {
+    right: 22px !important;
+    width: min(600px, calc(100vw - 462px)) !important;
+    min-width: 430px !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .app.actionApp:not(.branchView) .mission,
+  .app.actionApp.branchView .mission {
+    top: 100px !important;
+    left: 12px !important;
+    width: calc(100vw - 24px) !important;
+    min-height: 0;
+  }
+  .app.actionApp:not(.branchView) .focusControls {
+    display: grid !important;
+  }
+  .app.actionApp.branchView .mapStage { transform: none !important; }
+  .app.actionApp.branchView .sideList,
+  .app.actionApp.branchView .sideList.inboxV2Panel {
+    left: 12px !important;
+    right: 12px !important;
+    top: auto !important;
+    bottom: 12px !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-height: 58vh !important;
+  }
+}

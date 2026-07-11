@@ -1,9 +1,18 @@
 import { isDoneNode, isLeafNode } from './actionMapModel.js';
 import { RENAMABLE_KINDS } from '../constants/lifeMap.js';
 
+const PREMIUM_HOME_BRANCH_ORDER = ['sphere-projects', 'sphere-goals', 'sphere-backlog'];
+
 function legacyInboxBranch(node) {
   if (node?.id !== 'sphere-inbox') return null;
   return (node.children || []).find((item) => item?.id === 'inbox-signals') || null;
+}
+
+function premiumHomeBranches(node) {
+  if (node?.id !== 'root') return null;
+  const branches = (node.children || []).filter((item) => !isLeafNode(item));
+  const byId = new Map(branches.map((item) => [item.id, item]));
+  return PREMIUM_HOME_BRANCH_ORDER.map((id) => byId.get(id)).filter(Boolean);
 }
 
 export function hasBranch(node) {
@@ -13,6 +22,8 @@ export function hasBranch(node) {
 
 export function topItems(node) {
   if (legacyInboxBranch(node)) return [];
+  const premiumBranches = premiumHomeBranches(node);
+  if (premiumBranches) return premiumBranches;
   return (node?.children || []).filter((item) => !isLeafNode(item));
 }
 
