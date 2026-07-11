@@ -71,6 +71,13 @@
 .app.actionApp .focusControls { display: grid; }
 .app.actionApp .focusQueueList { display: block; }
 
+.cameraShell {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 50%;
+  will-change: transform, filter;
+}
+
 .app.actionApp:not(.branchView) .mapStage { transform: translateX(0) !important; }
 .app.actionApp:not(.branchView) .mapGlow,
 .app.actionApp:not(.branchView) .orbit,
@@ -101,19 +108,13 @@
 }
 .app.actionApp:not(.branchView) .nodeOrb strong { inset: -2px !important; opacity: .86 !important; }
 
-.mapGlow {
-  animation: glowPulse 5.5s ease-in-out infinite !important;
-}
-.orbit {
-  animation: orbitBreathe 8s ease-in-out infinite alternate !important;
-}
+.mapGlow { animation: glowPulse 5.5s ease-in-out infinite !important; }
+.orbit { animation: orbitBreathe 8s ease-in-out infinite alternate !important; }
 .mapNode.orbitNode .nodeOrb {
   animation: planetFloat 5.8s ease-in-out infinite;
   animation-delay: var(--float-delay, 0s);
 }
-.coreNode {
-  animation: coreGlow 5.5s ease-in-out infinite !important;
-}
+.coreNode { animation: coreGlow 5.5s ease-in-out infinite !important; }
 
 .app.actionApp.branchView .topNav {
   top: 25px !important;
@@ -176,8 +177,8 @@
 }
 
 @keyframes glowPulse {
-  0%, 100% { opacity: .64; transform: translate(-50%, -50%) scale(.96); filter: blur(10px); }
-  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.08); filter: blur(15px); }
+  0%, 100% { opacity: .64; transform: scale(.96); filter: blur(10px); }
+  50% { opacity: 1; transform: scale(1.08); filter: blur(15px); }
 }
 
 @keyframes orbitBreathe {
@@ -230,6 +231,7 @@
 @media (prefers-reduced-motion: reduce) {
   .app.actionApp,
   .app.actionApp::before,
+  .cameraShell,
   .mapGlow,
   .orbit,
   .mapNode.orbitNode .nodeOrb,
