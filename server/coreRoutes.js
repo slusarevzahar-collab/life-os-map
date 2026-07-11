@@ -36,6 +36,7 @@ export function registerCoreRoutes(app, runtime) {
     inboxSignal,
     startInboxReprocessJob,
     inboxReprocessJobStatus,
+    workSessions,
   } = runtime;
 
   app.get('/api/life-os/snapshot', async (req, res) => {
@@ -72,6 +73,51 @@ export function registerCoreRoutes(app, runtime) {
     } catch (_error) {
       res.status(500).json({ ok: false, error: 'LifeMap data health check failed.' });
     }
+  });
+
+  app.post('/api/life-os/work-sessions/start', async (req, res) => {
+    if (!requireTrustedWrite(req, res, assistantSecretOk)) return;
+    noStore(res);
+    try {
+      const result = await workSessions.start({
+        timezone: req.body?.timezone,
+        projectId: req.body?.projectId,
+        project: req.body?.project,
+        taskId: req.body?.taskId,
+        title: req.body?.title,
+      });
+      res.status(result.created ? 201 : 200).json({ ok: true, ...result });
+    } catch (error) {
+      res.status(/invalid|missing|required/i.test(error.message) ? 400 : 500).json({ ok: false, error: 'Не удалось начать рабочую сессию.', details: error.message });
+    }
+  });
+
+  app.post('/api/life-os/work-sessions/pause', async (req, res) => {
+    if (!requireTrustedWrite(req, res, assistantSecretOk)) return;
+    noStore(res);
+    try { res.json({ ok: true, ...(await workSessions.pause({ sessionId: req.body?.sessionId })) }); }
+    catch (error) { res.status(500).json({ ok: false, error: 'Не удалось завершить рабочую сессию.', details: error.message }); }
+  });
+
+  app.get('/api/life-os/work-sessions/active', async (req, res) => {
+    if (!requireLifeMapAccess(req, res, assistantSecretOk)) return;
+    noStore(res);
+    try { res.json({ ok: true, session: await workSessions.getActive({ logRestore: true }) }); }
+    catch (error) { res.status(500).json({ ok: false, error: 'Не удалось восстановить рабочую сессию.', details: error.message }); }
+  });
+
+  app.get('/api/life-os/work-sessions/stats', async (req, res) => {
+    if (!requireLifeMapAccess(req, res, assistantSecretOk)) return;
+    noStore(res);
+    try { res.json({ ok: true, stats: await workSessions.stats({ timezone: req.query.timezone || config.defaultTimezone, from: req.query.from, to: req.query.to }) }); }
+    catch (error) { res.status(/invalid|must not/i.test(error.message) ? 400 : 500).json({ ok: false, error: 'Не удалось получить статистику рабочего времени.', details: error.message }); }
+  });
+
+  app.get('/api/life-os/work-sessions/context', async (req, res) => {
+    if (!requireLifeMapAccess(req, res, assistantSecretOk)) return;
+    noStore(res);
+    try { res.json({ ok: true, context: await workSessions.context({ timezone: req.query.timezone || config.defaultTimezone, days: req.query.days }) }); }
+    catch (error) { res.status(/invalid/i.test(error.message) ? 400 : 500).json({ ok: false, error: 'Не удалось получить контекст рабочего времени.', details: error.message }); }
   });
 
   app.post('/api/life-os/sessions', async (req, res) => {

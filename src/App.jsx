@@ -29,6 +29,7 @@ import { DetailCard } from './components/DetailCard.jsx';
 import { UtilityPanel } from './components/UtilityPanel.jsx';
 import { ContextMenu } from './components/ContextMenu.jsx';
 import { AssistantPanel } from './components/AssistantPanel.jsx';
+import { WorkTimerWidget } from './components/WorkTimerWidget.jsx';
 
 const ROUTE_STORAGE_KEY = 'lifemap.route.v1';
 const SNAPSHOT_REFRESH_MS = 15000;
@@ -501,6 +502,7 @@ function App() {
       <ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} onFocusNow={setFocusNow} onFocusNext={setFocusNext} onRename={beginRenameNode} onCreateObject={beginCreateObject} onDeleteObject={deleteObject} />
       <TextInputDialog editor={objectEditor} busy={editorBusy} onSubmit={submitObjectEditor} onClose={() => setObjectEditor(null)} />
       <AssistantPanel currentMap={currentMap} activeFocus={activeFocus} snapshot={snapshot} />
+      <WorkTimerWidget onSessionChange={() => loadSnapshot().catch(() => {})} />
       {toast ? <div className="toast">{toast}</div> : null}
     </main>
   );

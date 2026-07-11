@@ -85,7 +85,7 @@ function promptForAccessKey() {
   return window.prompt('Введите ключ доступа LifeMap:') || '';
 }
 
-async function requestJson(path, options = {}) {
+export async function requestJson(path, options = {}) {
   const errors = [];
   const needsSecret = requestNeedsSecret(options);
   let secret = needsSecret ? readAccessSecret() : '';

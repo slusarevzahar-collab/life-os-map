@@ -4,14 +4,19 @@ import {
   archiveDuplicateSignals,
   createSignal,
   createWorkSession,
+  getWorkSession,
   getNotionSnapshot,
+  listWorkSessions,
   mockSnapshot,
+  updateWorkSession,
   updateItemTitle,
   updateTaskEvent,
 } from './notionAdapter.js';
 import { readLocalSignals } from './telegramAdapter.js';
 import { createLifeMapAiService } from './lifemapAi.js';
 import { getInboxSignalRecord, listInboxSignalRecords, persistSignalAnalysis } from './inboxAssetStore.js';
+import { createWorkSessionService } from './workSessionService.js';
+import { dateKeyAt, summarizeWorkSessions, validTimezone } from './workTime.js';
 
 export function loadLocalEnv() {
   const envPath = path.resolve(process.cwd(), '.env');
@@ -97,10 +102,19 @@ export function createLifeMapRuntime({ envLoaded = false } = {}) {
     telegramAllowedUserIds: process.env.TELEGRAM_ALLOWED_USER_IDS || '',
     telegramWebhookUrl: process.env.TELEGRAM_WEBHOOK_URL,
     assistantSecret: process.env.LIFEMAP_ASSISTANT_API_SECRET || '',
+    userId: process.env.LIFEMAP_USER_ID || null,
+    defaultTimezone: process.env.LIFEMAP_DEFAULT_TIMEZONE || 'UTC',
     inboxReprocessDelayMs: Math.max(1200, Number(process.env.INBOX_REPROCESS_DELAY_MS || 3000)),
     envLoaded,
   };
   const ai = createLifeMapAiService(process.env);
+  const workSessionStore = {
+    list: (options = {}) => listWorkSessions({ notionToken: config.notionToken, sessionsDbId: config.sessionsDbId, ...options }),
+    get: (sessionId) => getWorkSession({ notionToken: config.notionToken, sessionId }),
+    create: (payload) => createWorkSession({ notionToken: config.notionToken, sessionsDbId: config.sessionsDbId, payload }),
+    update: (sessionId, patch) => updateWorkSession({ notionToken: config.notionToken, sessionsDbId: config.sessionsDbId, sessionId, patch }),
+  };
+  const workSessions = createWorkSessionService({ store: workSessionStore, userId: config.userId });
   let reprocessJob = {
     id: '', status: 'idle', scanned: 0, total: 0, processed: 0, failed: 0, reused: 0,
     current: '', resumeAfter: '', startedAt: '', finishedAt: '', results: [],
@@ -123,9 +137,19 @@ export function createLifeMapRuntime({ envLoaded = false } = {}) {
     const localSignals = readLocalSignals(50);
     const warnings = snapshot.meta?.warnings || [];
     const critical = warnings.filter((message) => /Tasks DB|NOTION_TOKEN|NOTION_TASKS_DB_ID/i.test(message));
+    const timezone = validTimezone(config.defaultTimezone);
+    const now = new Date();
+    const from = dateKeyAt(new Date(now.getTime() - (6 * 24 * 60 * 60 * 1000)), timezone);
+    const to = dateKeyAt(now, timezone);
+    const workTime = summarizeWorkSessions(snapshot.sessions || [], { timezone, from, to, now });
     return {
       ...snapshot,
       planning: computePlanning(snapshot.tasks || []),
+      workTime: {
+        activeSession: (snapshot.sessions || []).find((session) => String(session.status || '').toLowerCase() === 'active' && !session.finishedAt) || null,
+        today: workTime.days.find((day) => day.dateKey === to) || null,
+        period: workTime,
+      },
       signals: uniqueSignals([...localSignals, ...(snapshot.signals || [])]),
       meta: {
         ...(snapshot.meta || {}),
@@ -323,5 +347,6 @@ export function createLifeMapRuntime({ envLoaded = false } = {}) {
     startInboxReprocessJob,
     inboxReprocessJobStatus,
     executeActions,
+    workSessions,
   };
 }

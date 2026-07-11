@@ -180,6 +180,9 @@ export function compactForAssistant(snapshot = {}, target = {}) {
     startedAt: safeText(session.startedAt, 60),
     finishedAt: safeText(session.finishedAt, 60),
     durationMin: Number(session.durationMin || 0),
+    durationSeconds: Number(session.durationSeconds || 0),
+    dateKey: safeText(session.dateKey, 20),
+    timezone: safeText(session.timezone, 80),
     result: safeText(session.result, 500),
     nextStep: safeText(session.nextStep, 500),
   }));
@@ -211,6 +214,19 @@ export function compactForAssistant(snapshot = {}, target = {}) {
 
   return {
     currentFocus,
+    workTime: snapshot.workTime ? {
+      activeSession: snapshot.workTime.activeSession ? {
+        id: safeText(snapshot.workTime.activeSession.id, 120),
+        startedAt: safeText(snapshot.workTime.activeSession.startedAt, 60),
+        taskId: safeText(snapshot.workTime.activeSession.taskId, 120),
+        projectId: safeText(snapshot.workTime.activeSession.projectId, 120),
+      } : null,
+      todaySeconds: Number(snapshot.workTime.today?.totalSeconds || 0),
+      periodSeconds: Number(snapshot.workTime.period?.totalSeconds || 0),
+      averageActiveDaySeconds: Number(snapshot.workTime.period?.averageActiveDaySeconds || 0),
+      mostProductiveDay: safeText(snapshot.workTime.period?.mostProductiveDay?.dateKey, 20),
+      streakDays: Number(snapshot.workTime.period?.streakDays || 0),
+    } : null,
     planning: {
       onTrack: Number(snapshot.planning?.onTrack || 0),
       next: Number(snapshot.planning?.next || 0),
