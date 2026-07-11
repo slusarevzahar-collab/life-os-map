@@ -3,24 +3,33 @@
 :root {
   --premium-bg: #050810;
   --premium-panel: rgba(21, 30, 43, 0.72);
+  --premium-panel-strong: rgba(24, 34, 49, 0.84);
+  --premium-border: rgba(255, 255, 255, 0.11);
+  --premium-border-soft: rgba(255, 255, 255, 0.075);
   --premium-text: #edf3fb;
+  --premium-muted: rgba(205, 216, 230, 0.62);
+  --premium-dim: rgba(205, 216, 230, 0.42);
   --premium-green: #57e0a8;
+  --premium-green-soft: rgba(87, 224, 168, 0.18);
+  --premium-blue: #67dff1;
   --premium-code: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --premium-sans: 'IBM Plex Sans', Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 html, body, #root { background: var(--premium-bg); }
 body { font-family: var(--premium-sans); }
+
 .app.actionApp {
   font-family: var(--premium-sans);
   color: var(--premium-text);
   background:
-    radial-gradient(70% 68% at 62% 51%, rgba(18,127,155,.44) 0%, rgba(13,88,112,.18) 28%, rgba(5,8,16,0) 58%),
-    radial-gradient(70% 52% at 35% 63%, rgba(11,91,121,.38) 0%, rgba(8,54,79,.17) 35%, rgba(5,8,16,0) 70%),
-    radial-gradient(40% 36% at 72% 43%, rgba(106,139,64,.2) 0%, rgba(87,224,168,.08) 20%, rgba(5,8,16,0) 58%),
-    radial-gradient(110% 90% at 50% 56%, rgba(10,41,66,.78) 0%, rgba(6,13,24,.58) 45%, rgba(3,5,10,.96) 100%),
+    radial-gradient(70% 68% at 62% 51%, rgba(18, 127, 155, 0.44) 0%, rgba(13, 88, 112, 0.18) 28%, rgba(5, 8, 16, 0) 58%),
+    radial-gradient(70% 52% at 35% 63%, rgba(11, 91, 121, 0.38) 0%, rgba(8, 54, 79, 0.17) 35%, rgba(5, 8, 16, 0) 70%),
+    radial-gradient(40% 36% at 72% 43%, rgba(106, 139, 64, 0.2) 0%, rgba(87, 224, 168, 0.08) 20%, rgba(5, 8, 16, 0) 58%),
+    radial-gradient(110% 90% at 50% 56%, rgba(10, 41, 66, 0.78) 0%, rgba(6, 13, 24, 0.58) 45%, rgba(3, 5, 10, 0.96) 100%),
     linear-gradient(#050810, #050810) !important;
 }
+
 .app.actionApp::before {
   content: '';
   position: absolute;
@@ -32,81 +41,423 @@ body { font-family: var(--premium-sans); }
     radial-gradient(circle at 39% 17%, rgba(255,255,255,.42) 0 1px, transparent 1.4px),
     radial-gradient(circle at 62% 9%, rgba(255,255,255,.46) 0 1px, transparent 1.4px),
     radial-gradient(circle at 84% 24%, rgba(255,255,255,.55) 0 1px, transparent 1.5px),
-    radial-gradient(circle at 91% 74%, rgba(255,255,255,.48) 0 1px, transparent 1.4px);
-  background-size: 340px 260px, 460px 340px, 520px 390px, 380px 290px, 560px 420px, 620px 460px;
-  opacity: .72;
+    radial-gradient(circle at 91% 74%, rgba(255,255,255,.48) 0 1px, transparent 1.4px),
+    radial-gradient(circle at 25% 38%, rgba(235, 247, 255, .26) 0 1px, transparent 1.2px),
+    radial-gradient(circle at 78% 59%, rgba(235, 247, 255, .24) 0 1px, transparent 1.2px);
+  background-size: 340px 260px, 460px 340px, 520px 390px, 380px 290px, 560px 420px, 620px 460px, 210px 170px, 260px 210px;
+  opacity: .7;
 }
+
 .app.actionApp::after {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(circle at 50% 46%, transparent 0 44%, rgba(2,5,10,.34) 75%, rgba(1,3,7,.68) 100%),
-    linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+    radial-gradient(circle at 50% 46%, transparent 0 44%, rgba(2, 5, 10, .34) 75%, rgba(1, 3, 7, .68) 100%),
+    linear-gradient(rgba(255, 255, 255, .025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, .025) 1px, transparent 1px);
   background-size: auto, 70px 70px, 70px 70px;
   opacity: .44;
 }
+
 .stars { opacity: .42; mix-blend-mode: screen; }
-.stars i { background: rgba(247,251,255,.76); box-shadow: 0 0 5px rgba(205,228,255,.72), 0 0 12px rgba(160,200,255,.28); }
-.topNav { top: 22px !important; left: 34px !important; width: auto !important; height: 74px !important; }
-.topTitle { border: 0 !important; padding: 0 !important; background: transparent !important; backdrop-filter: none !important; gap: 12px !important; }
+.stars i { background: rgba(247, 251, 255, .76); box-shadow: 0 0 5px rgba(205,228,255,.72), 0 0 12px rgba(160,200,255,.28); }
+
+.topNav {
+  top: 22px !important;
+  left: 34px !important;
+  width: auto !important;
+  height: 74px !important;
+}
+.topTitle {
+  border: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  gap: 12px !important;
+}
 .topTitle .brand { letter-spacing: .18em; font-family: var(--premium-code); font-weight: 600; }
 .topTitle .brand b, .topTitle .brand strong { color: #f4f8ff !important; }
-.topTitle em { color: var(--premium-green) !important; font-family: var(--premium-code); font-size: 10px !important; letter-spacing: .18em; text-shadow: 0 0 16px rgba(87,224,168,.3); }
-.backButton, .centerButton, .errorButton { min-width: 122px; height: 42px; border-radius: 12px !important; border-color: rgba(255,255,255,.11) !important; color: rgba(238,243,251,.9) !important; background: rgba(30,39,53,.82) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 18px 42px rgba(0,0,0,.22); font-size: 13px !important; font-weight: 600 !important; }
-.backButton { background: rgba(9,44,63,.72) !important; border-color: rgba(87,224,168,.12) !important; }
-.mission, .missionCollapsed { top: 92px !important; left: 34px !important; width: 436px !important; border-radius: 24px !important; border: 1px solid rgba(255,255,255,.085) !important; background: rgba(20,30,43,.82) !important; box-shadow: 0 30px 80px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.045) !important; backdrop-filter: blur(22px) saturate(135%) !important; }
+.topTitle em { color: var(--premium-green) !important; font-family: var(--premium-code); font-size: 10px !important; letter-spacing: .18em; text-shadow: 0 0 16px rgba(87, 224, 168, .3); }
+.backButton, .centerButton, .errorButton {
+  min-width: 122px;
+  height: 42px;
+  border-radius: 12px !important;
+  border-color: rgba(255,255,255,.11) !important;
+  color: rgba(238, 243, 251, .9) !important;
+  background: rgba(30, 39, 53, .82) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 18px 42px rgba(0,0,0,.22);
+  font-size: 13px !important;
+  font-weight: 600 !important;
+}
+.backButton { background: rgba(9, 44, 63, .72) !important; border-color: rgba(87, 224, 168, .12) !important; }
+.topActions { gap: 12px !important; }
+
+.mission, .missionCollapsed {
+  top: 92px !important;
+  left: 34px !important;
+  width: 436px !important;
+  border-radius: 24px !important;
+  border: 1px solid rgba(255,255,255,.085) !important;
+  background: rgba(20, 30, 43, .82) !important;
+  box-shadow: 0 30px 80px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.045) !important;
+  backdrop-filter: blur(22px) saturate(135%) !important;
+}
 .mission { padding: 22px !important; }
 .missionCollapsed { padding: 15px !important; }
-.missionTop small, .missionCollapsed small, .sideListHead small, .assistantHeader small, .assistantBlock small { color: var(--premium-green) !important; font-family: var(--premium-code); font-size: 10px !important; font-weight: 600 !important; letter-spacing: .22em !important; }
+.missionTop small, .missionCollapsed small, .sideListHead small, .assistantHeader small, .assistantBlock small {
+  color: var(--premium-green) !important;
+  font-family: var(--premium-code);
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: .22em !important;
+}
 .missionTop small em { background: var(--premium-green) !important; box-shadow: 0 0 18px rgba(87,224,168,.9) !important; }
 .missionTop h1 { display: none !important; }
-.collapseMission { right: 22px !important; top: 18px !important; border-radius: 12px !important; background: rgba(255,255,255,.08) !important; color: rgba(238,243,251,.68) !important; font-weight: 500 !important; }
-.missionLine, .warningLine { margin-top: 12px !important; border-radius: 12px !important; padding: 16px !important; font-size: 13px !important; font-weight: 500; line-height: 1.45 !important; }
-.activeLine { border-color: rgba(87,224,168,.16) !important; background: rgba(20,75,76,.42) !important; }
-.nextLine { border-color: rgba(255,255,255,.08) !important; background: rgba(46,57,74,.68) !important; color: rgba(225,232,242,.72) !important; }
+.collapseMission {
+  right: 22px !important;
+  top: 18px !important;
+  border-radius: 12px !important;
+  background: rgba(255,255,255,.08) !important;
+  color: rgba(238,243,251,.68) !important;
+  font-weight: 500 !important;
+}
+.missionLine, .warningLine {
+  margin-top: 12px !important;
+  border-radius: 12px !important;
+  padding: 16px 16px !important;
+  font-size: 13px !important;
+  font-weight: 500;
+  line-height: 1.45 !important;
+}
+.activeLine { border-color: rgba(87,224,168,.16) !important; background: rgba(20, 75, 76, .42) !important; }
+.nextLine { border-color: rgba(255,255,255,.08) !important; background: rgba(46, 57, 74, .68) !important; color: rgba(225, 232, 242, .72) !important; }
 .focusControls { grid-template-columns: 1fr 98px !important; }
 .focusControls button { height: 38px; border-radius: 12px !important; font-weight: 600 !important; }
+.focusQueueList { max-height: 232px !important; }
+
 .mapStage { z-index: 4; }
 .mapCanvas { position: absolute; inset: 0; }
-.mapGlow { top: 50% !important; width: min(56vw,560px) !important; height: min(56vw,560px) !important; background: radial-gradient(circle, rgba(87,224,168,.22) 0%, rgba(12,122,147,.16) 40%, transparent 67%) !important; filter: blur(10px) !important; }
+.mapGlow {
+  top: 50% !important;
+  width: min(56vw, 560px) !important;
+  height: min(56vw, 560px) !important;
+  background: radial-gradient(circle, rgba(87,224,168,.22) 0%, rgba(12, 122, 147, .16) 40%, transparent 67%) !important;
+  filter: blur(10px) !important;
+}
 .orbit { top: 50% !important; border-color: rgba(255,255,255,.055) !important; border-style: solid !important; }
 .orbit1 { width: 235px !important; height: 235px !important; opacity: .5; }
 .orbit2 { width: 390px !important; height: 390px !important; opacity: .45; }
 .orbit3 { width: 550px !important; height: 550px !important; opacity: .38; }
-.coreNode { top: 50% !important; border-color: rgba(87,224,168,.18) !important; background: radial-gradient(circle at 38% 32%, #1b2430 0%, #121821 60%, #0b0e15 100%) !important; box-shadow: inset 0 0 54px rgba(255,255,255,.045), inset -10px -14px 44px rgba(0,0,0,.62), 0 38px 90px rgba(0,0,0,.38), 0 0 120px rgba(87,224,168,.1) !important; }
+.coreNode {
+  top: 50% !important;
+  border-color: rgba(87,224,168,.18) !important;
+  background: radial-gradient(circle at 38% 32%, #1b2430 0%, #121821 60%, #0b0e15 100%) !important;
+  box-shadow: inset 0 0 54px rgba(255,255,255,.045), inset -10px -14px 44px rgba(0,0,0,.62), 0 38px 90px rgba(0,0,0,.38), 0 0 120px rgba(87,224,168,.1) !important;
+}
 .coreNode.rootCore { width: 172px !important; height: 172px !important; }
 .coreNode.titleCore { width: 148px !important; height: 148px !important; }
 .coreNode b { color: #f4f8ff !important; font-size: 24px !important; font-weight: 500 !important; letter-spacing: -.03em !important; }
 .coreNode.titleCore b { font-size: 18px !important; }
-.coreNode.rootCore::after { content: 'HOME'; position: absolute; left: 0; right: 0; top: calc(50% + 25px); color: var(--premium-green); font: 500 9px var(--premium-code); letter-spacing: .24em; opacity: .8; }
+.coreNode.rootCore::after {
+  content: 'HOME';
+  position: absolute;
+  left: 0; right: 0; top: calc(50% + 25px);
+  color: var(--premium-green);
+  font: 500 9px var(--premium-code);
+  letter-spacing: .24em;
+  opacity: .8;
+}
+.coreNode.titleCore::after {
+  content: attr(title);
+  display: none;
+}
 .mapNode.orbitNode { top: 50% !important; --orbit-shift: clamp(-248px, -21vw, -198px); }
-.nodeOrb { border-color: rgba(255,255,255,.12) !important; background: radial-gradient(circle at 38% 32%, #1a212c 0%, #11161f 68%, #0c0f16 100%) !important; box-shadow: inset 0 0 38px rgba(255,255,255,.035), inset -7px -10px 34px rgba(0,0,0,.6), 0 28px 64px rgba(0,0,0,.34) !important; }
+.nodeOrb {
+  border-color: rgba(255,255,255,.12) !important;
+  background: radial-gradient(circle at 38% 32%, #1a212c 0%, #11161f 68%, #0c0f16 100%) !important;
+  box-shadow: inset 0 0 38px rgba(255,255,255,.035), inset -7px -10px 34px rgba(0,0,0,.6), 0 28px 64px rgba(0,0,0,.34) !important;
+}
 .nodeOrb em { color: #eef2f8 !important; font-weight: 500 !important; letter-spacing: -.01em !important; }
 .mapNode:hover .nodeOrb { border-color: rgba(87,224,168,.48) !important; box-shadow: 0 0 18px rgba(87,224,168,.28), inset 0 0 36px rgba(255,255,255,.04) !important; }
 .state-active .nodeOrb, .state-next .nodeOrb { border-color: rgba(87,224,168,.42) !important; }
 .nodeOrb strong { background: conic-gradient(var(--premium-green) var(--node-progress), rgba(255,255,255,.095) 0) !important; box-shadow: 0 0 20px rgba(87,224,168,.24) !important; }
+
 .branchView .mapStage { transform: translateX(-410px) !important; }
-.branchView .sideList { top: 50px !important; right: 42px !important; width: min(608px, calc(100vw - 530px)) !important; min-width: 540px !important; max-height: calc(100vh - 82px) !important; border-radius: 18px !important; padding: 24px !important; border-color: rgba(255,255,255,.12) !important; background: rgba(28,38,53,.66) !important; box-shadow: 0 30px 80px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.045) !important; }
+.branchView .sideList {
+  top: 50px !important;
+  right: 42px !important;
+  width: min(608px, calc(100vw - 530px)) !important;
+  min-width: 540px !important;
+  max-height: calc(100vh - 82px) !important;
+  border-radius: 18px !important;
+  padding: 24px !important;
+  border-color: rgba(255,255,255,.12) !important;
+  background: rgba(28, 38, 53, .66) !important;
+  box-shadow: 0 30px 80px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.045) !important;
+}
 .sideListHead { margin-bottom: 18px !important; }
 .sideListHead strong { margin-top: 6px !important; color: #f2f6fb; font-size: 28px !important; font-weight: 600 !important; letter-spacing: -.04em; }
-.miniProgressRing { width: 52px !important; height: 52px !important; border-radius: 50% !important; color: #f4f8ff !important; background: conic-gradient(var(--premium-green) var(--pct), rgba(255,255,255,.12) 0) !important; }
-.miniProgressRing::after { background: rgba(10,15,24,.95) !important; }
+.miniProgressRing {
+  width: 52px !important; height: 52px !important;
+  border-radius: 50% !important;
+  color: #f4f8ff !important;
+  background: conic-gradient(var(--premium-green) var(--pct), rgba(255,255,255,.12) 0) !important;
+}
+.miniProgressRing::after { background: rgba(10, 15, 24, .95) !important; }
 .sideTabs { gap: 8px !important; border-radius: 16px !important; padding: 4px !important; background: rgba(255,255,255,.035) !important; }
 .sideTabs button { border-radius: 12px !important; height: 38px; font-weight: 600 !important; color: rgba(238,243,251,.62) !important; }
 .sideTabs button.active { color: #d9fff1 !important; background: rgba(87,224,168,.16) !important; }
 .sideItems { gap: 10px !important; }
-.sideItemRow { min-height: 64px; border-radius: 14px !important; padding: 8px !important; border-color: rgba(255,255,255,.075) !important; background: rgba(37,48,64,.54) !important; }
-.sideItemRow:hover { border-color: rgba(87,224,168,.22) !important; background: rgba(40,62,70,.54) !important; }
-.taskCodeBadge, .sideItems .sideItemMain > span { height: 30px !important; min-width: 58px !important; border-radius: 10px !important; color: #8ff6d1 !important; background: rgba(87,224,168,.14) !important; font-family: var(--premium-code) !important; letter-spacing: .02em; }
+.sideItemRow {
+  min-height: 64px;
+  border-radius: 14px !important;
+  padding: 8px !important;
+  border-color: rgba(255,255,255,.075) !important;
+  background: rgba(37, 48, 64, .54) !important;
+}
+.sideItemRow:hover { border-color: rgba(87,224,168,.22) !important; background: rgba(40, 62, 70, .54) !important; }
+.taskCodeBadge, .sideItems .sideItemMain > span {
+  height: 30px !important;
+  min-width: 58px !important;
+  border-radius: 10px !important;
+  color: #8ff6d1 !important;
+  background: rgba(87,224,168,.14) !important;
+  font-family: var(--premium-code) !important;
+  letter-spacing: .02em;
+}
 .sideItemMain b { color: rgba(238,243,251,.9) !important; font-size: 13px !important; font-weight: 500 !important; }
-.expandMini, .taskAiChat, .doneMini, .restoreMini, .archiveMini, .ghostInboxAction { border-radius: 9px !important; border-color: rgba(255,255,255,.1) !important; background: rgba(255,255,255,.07) !important; color: rgba(238,243,251,.74) !important; font-weight: 600 !important; }
+.expandMini, .taskAiChat, .doneMini, .restoreMini, .archiveMini, .ghostInboxAction {
+  border-radius: 9px !important;
+  border-color: rgba(255,255,255,.1) !important;
+  background: rgba(255,255,255,.07) !important;
+  color: rgba(238,243,251,.74) !important;
+  font-weight: 600 !important;
+}
 .doneMini { color: #a8f6d2 !important; background: rgba(87,224,168,.14) !important; border-color: rgba(87,224,168,.25) !important; }
-.assistantFabRail { right: 28px !important; bottom: 32px !important; border-radius: 16px !important; border-color: rgba(87,224,168,.18) !important; background: rgba(32,43,56,.84) !important; box-shadow: 0 18px 42px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.06) !important; }
+
+.assistantFabRail {
+  right: 28px !important;
+  bottom: 32px !important;
+  border-radius: 16px !important;
+  border-color: rgba(87,224,168,.18) !important;
+  background: rgba(32, 43, 56, .84) !important;
+  box-shadow: 0 18px 42px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.06) !important;
+}
 .assistantFabRail .assistantInboxFab, .assistantFabRail .assistantFab { height: 52px !important; min-height: 52px !important; font-weight: 600 !important; }
 .assistantFabRail .assistantInboxFab { border-right-color: rgba(255,255,255,.18) !important; }
-.detailCard, .utilityPanel, .assistantPanel { border-color: rgba(255,255,255,.12) !important; background: rgba(18,27,40,.88) !important; box-shadow: 0 30px 90px rgba(0,0,0,.46) !important; }
-@media (max-width: 1180px) { .branchView .mapStage { transform: translateX(-310px) !important; } .branchView .sideList { width: min(600px, calc(100vw - 460px)) !important; min-width: 430px !important; right: 24px !important; } }
-@media (max-width: 900px) { .topNav { top: 12px !important; left: 14px !important; right: 14px !important; height: 86px !important; } .topTitle em { display: inline !important; font-size: 9px !important; } .backButton, .centerButton { min-width: 96px; height: 40px; } .mission, .missionCollapsed { top: 100px !important; left: 12px !important; width: calc(100vw - 24px) !important; } .mission { padding: 16px !important; } .coreNode.rootCore { width: 138px !important; height: 138px !important; } .coreNode b { font-size: 21px !important; } .mapNode.orbitNode { --orbit-shift: -168px; } .branchView .mapStage { transform: none !important; } .branchView .sideList { left: 12px !important; right: 12px !important; top: auto !important; bottom: 12px !important; width: auto !important; min-width: 0 !important; max-height: 50vh !important; padding: 16px !important; } .sideListHead strong { font-size: 22px !important; } .assistantFabRail { right: 12px !important; bottom: 12px !important; } }
+
+.detailCard, .utilityPanel, .assistantPanel {
+  border-color: rgba(255,255,255,.12) !important;
+  background: rgba(18, 27, 40, .88) !important;
+  box-shadow: 0 30px 90px rgba(0,0,0,.46) !important;
+}
+
+@media (max-width: 1180px) {
+  .branchView .mapStage { transform: translateX(-310px) !important; }
+  .branchView .sideList { width: min(600px, calc(100vw - 460px)) !important; min-width: 430px !important; right: 24px !important; }
+}
+
+@media (max-width: 900px) {
+  .topNav { top: 12px !important; left: 14px !important; right: 14px !important; height: 86px !important; }
+  .topTitle em { display: inline !important; font-size: 9px !important; }
+  .backButton, .centerButton { min-width: 96px; height: 40px; }
+  .mission, .missionCollapsed { top: 100px !important; left: 12px !important; width: calc(100vw - 24px) !important; }
+  .mission { padding: 16px !important; }
+  .coreNode.rootCore { width: 138px !important; height: 138px !important; }
+  .coreNode b { font-size: 21px !important; }
+  .mapNode.orbitNode { --orbit-shift: -168px; }
+  .branchView .mapStage { transform: none !important; }
+  .branchView .sideList { left: 12px !important; right: 12px !important; top: auto !important; bottom: 12px !important; width: auto !important; min-width: 0 !important; max-height: 50vh !important; padding: 16px !important; }
+  .sideListHead strong { font-size: 22px !important; }
+  .assistantFabRail { right: 12px !important; bottom: 12px !important; }
+}
+
+/* Premium integration pass 2: keep Claude look while preserving live workspace behavior */
+.app.actionApp * {
+  -webkit-font-smoothing: antialiased;
+}
+
+.app.actionApp .mapCanvas {
+  transition: transform 180ms ease;
+}
+
+.app.actionApp .mission.queueExpanded {
+  max-height: calc(100vh - 128px);
+  overflow: hidden;
+}
+
+.app.actionApp .focusQueueList {
+  padding-right: 10px;
+}
+
+.app.actionApp .focusQueueItem,
+.app.actionApp .emptyQueue {
+  border-radius: 12px !important;
+}
+
+.app.actionApp.branchView .sideList.inboxV2Panel {
+  width: min(780px, calc(100vw - 520px)) !important;
+  min-width: 620px !important;
+}
+
+.app.actionApp .inboxV2Panel {
+  grid-template-rows: auto auto auto auto auto minmax(0, 1fr) !important;
+  background: rgba(22, 32, 46, .72) !important;
+}
+
+.app.actionApp .inboxV2Head {
+  align-items: flex-start !important;
+  padding-bottom: 14px !important;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+
+.app.actionApp .inboxV2Head strong {
+  font-size: 30px !important;
+  letter-spacing: -.045em;
+}
+
+.app.actionApp .reprocessButton {
+  border-radius: 12px !important;
+  color: rgba(226, 255, 244, .92) !important;
+  background: rgba(87,224,168,.1) !important;
+  border-color: rgba(87,224,168,.22) !important;
+  font-weight: 600 !important;
+}
+
+.app.actionApp .inboxQuotaRow {
+  margin: 14px 0 12px;
+}
+
+.app.actionApp .inboxV2Panel .inboxCategoryTabs.inboxV2Tabs {
+  gap: 10px !important;
+  padding-bottom: 14px !important;
+}
+
+.app.actionApp .inboxV2Panel .inboxCategoryTabs.inboxV2Tabs button,
+.app.actionApp .inboxV2Panel .assetSubtabs button {
+  border-color: rgba(255,255,255,.075) !important;
+  background: rgba(37, 48, 64, .46) !important;
+  color: rgba(238,243,251,.66) !important;
+  font-weight: 600 !important;
+}
+
+.app.actionApp .inboxV2Panel .inboxCategoryTabs.inboxV2Tabs button.active,
+.app.actionApp .inboxV2Panel .assetSubtabs button.active {
+  color: #d9fff1 !important;
+  background: rgba(87,224,168,.16) !important;
+  border-color: rgba(87,224,168,.24) !important;
+}
+
+.app.actionApp .compactInboxList {
+  gap: 10px !important;
+  padding-right: 10px !important;
+}
+
+.app.actionApp .compactInboxRow {
+  min-height: 64px;
+  border-color: rgba(255,255,255,.075) !important;
+  background: rgba(37,48,64,.54) !important;
+}
+
+.app.actionApp .compactInboxRow:hover,
+.app.actionApp .compactInboxRow.expanded {
+  border-color: rgba(87,224,168,.22) !important;
+  background: rgba(40,62,70,.54) !important;
+}
+
+.app.actionApp .compactInboxMain {
+  min-height: 64px;
+  grid-template-columns: minmax(92px, 150px) minmax(0, 1fr) 74px 30px !important;
+}
+
+.app.actionApp .compactInboxBadge {
+  min-height: 30px;
+  border-radius: 10px !important;
+  color: #8ff6d1 !important;
+  background: rgba(87,224,168,.14) !important;
+  border-color: rgba(87,224,168,.18) !important;
+  font-family: var(--premium-code) !important;
+  font-weight: 600 !important;
+}
+
+.app.actionApp .compactInboxText b {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+}
+
+.app.actionApp .compactInboxText small {
+  color: rgba(205,216,230,.58) !important;
+  font-weight: 400 !important;
+}
+
+.app.actionApp .relevancePill {
+  border-radius: 999px !important;
+  color: rgba(238,243,251,.75) !important;
+  background: rgba(255,255,255,.07) !important;
+  border-color: rgba(255,255,255,.1) !important;
+  font-family: var(--premium-code) !important;
+  font-weight: 600 !important;
+}
+
+.app.actionApp .relevancePill.high {
+  color: #d9fff1 !important;
+  background: rgba(87,224,168,.15) !important;
+  border-color: rgba(87,224,168,.24) !important;
+}
+
+.app.actionApp .compactInboxDetails,
+.app.actionApp .inlineTaskDetails {
+  border-radius: 14px !important;
+  background: rgba(7,12,20,.28) !important;
+  border-color: rgba(255,255,255,.08) !important;
+}
+
+.app.actionApp .assetCardActions button,
+.app.actionApp .primaryAssetButton,
+.app.actionApp .inboxAttachmentBlock button {
+  border-radius: 10px !important;
+  font-weight: 600 !important;
+}
+
+.app.actionApp .primaryAssetButton {
+  color: #07120e !important;
+  background: linear-gradient(90deg, #57e0a8, #67dff1) !important;
+}
+
+.app.actionApp .assistantOverlay {
+  background: rgba(0,0,0,.42) !important;
+  backdrop-filter: blur(10px) !important;
+}
+
+.app.actionApp .assistantPanel {
+  border-radius: 24px !important;
+}
+
+@media (max-width: 1180px) {
+  .app.actionApp.branchView .sideList.inboxV2Panel {
+    width: min(660px, calc(100vw - 430px)) !important;
+    min-width: 480px !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .app.actionApp.branchView .sideList.inboxV2Panel {
+    width: auto !important;
+    min-width: 0 !important;
+    max-height: 60vh !important;
+  }
+  .app.actionApp .inboxV2Head strong {
+    font-size: 22px !important;
+  }
+  .app.actionApp .inboxV2Panel .inboxCategoryTabs.inboxV2Tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  .app.actionApp .compactInboxMain {
+    grid-template-columns: minmax(72px, 96px) minmax(0, 1fr) 26px !important;
+  }
+  .app.actionApp .compactInboxMain .relevancePill {
+    display: none !important;
+  }
+}
