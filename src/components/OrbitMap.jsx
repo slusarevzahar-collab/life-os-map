@@ -136,98 +136,105 @@ export function OrbitMap({
   const coreTitle = canonicalTitle(map);
   const cameraVariants = isRoot
     ? {
-        initial: { opacity: 0, scale: 1.12, filter: 'blur(3px)' },
-        animate: { opacity: 1, scale: 1, filter: 'blur(0px)' },
-        exit: { opacity: 0, scale: 1.72, filter: 'blur(4px)' },
+        initial: { scale: 1.12, filter: 'blur(3px)' },
+        animate: { scale: 1, filter: 'blur(0px)' },
+        exit: { scale: 1.72, filter: 'blur(4px)' },
       }
     : {
-        initial: { opacity: 0, scale: 0.7, filter: 'blur(3px)' },
-        animate: { opacity: 1, scale: 1, filter: 'blur(0px)' },
-        exit: { opacity: 0, scale: 0.84, filter: 'blur(3px)' },
+        initial: { scale: 0.7, filter: 'blur(3px)' },
+        animate: { scale: 1, filter: 'blur(0px)' },
+        exit: { scale: 0.84, filter: 'blur(3px)' },
       };
 
   return (
     <motion.section
       key={map.id}
       className={`mapStage ${hasSide ? 'mapWithSide' : ''} ${draggingCanvas ? 'draggingCanvas' : ''}`}
-      variants={cameraVariants}
-      initial="initial"
-      animate="animate"
-      exit="exit"
-      transition={{ duration: 0.68, ease: [0.22, 0.1, 0.12, 1] }}
-      style={{ transformOrigin: '50% 50%' }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.62, ease: [0.22, 0.1, 0.12, 1] }}
       onPointerDown={startCanvasDrag}
       onPointerMove={moveCanvasDrag}
       onPointerUp={endCanvasDrag}
       onPointerCancel={endCanvasDrag}
       onWheel={zoomCanvas}
     >
-      <div className="mapCanvas" style={{ transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})` }}>
-        <div className="mapGlow" />
-        <div className="orbit orbit1" />
-        <div className="orbit orbit2" />
-        <div className="orbit orbit3" />
-        <motion.button
-          className={`coreNode ${isRoot ? 'rootCore' : 'titleCore'} ${coreEditing ? 'editingTitle' : ''}`}
-          onClick={(event) => coreEditing ? event.stopPropagation() : onOpenMenu(map, event)}
-          onContextMenu={(event) => onOpenMenu(map, event)}
-          initial={{ scale: 0.9 }}
-          animate={{ scale: 1 }}
-          transition={{ duration: 0.34, ease: 'easeOut' }}
-        >
-          {coreEditing ? (
-            <PlanetTitleEditor
-              value={inlineEditor.value}
-              onChange={onInlineRenameChange}
-              onSubmit={(event) => onSubmitInlineRename(map, event)}
-              onCancel={onCancelInlineRename}
-            />
-          ) : <b>{isRoot ? 'LifeMap' : coreTitle}</b>}
-        </motion.button>
-        {children.map((node, index) => {
-          const title = canonicalTitle(node);
-          const angle = (360 / Math.max(children.length, 1)) * index;
-          const size = planetSize(title);
-          const fontSize = planetFontSize(title);
-          const progress = progressValue(node);
-          const editing = inlineEditor?.nodeId === node.id;
-          const progressText = progressTitle(node);
-          const style = { '--angle': `${angle}deg`, '--angle-back': `${-angle}deg`, '--orbit-shift': orbitShift, '--node-size': `${size}px`, '--node-font': `${fontSize}px`, '--node-progress': `${progress}%`, '--float-delay': `${index * -0.7}s` };
-          const content = (
-            <span className="nodeOrb">
-              {editing ? (
-                <PlanetTitleEditor
-                  value={inlineEditor.value}
-                  onChange={onInlineRenameChange}
-                  onSubmit={(event) => onSubmitInlineRename(node, event)}
-                  onCancel={onCancelInlineRename}
-                />
-              ) : <em>{title}</em>}
-              <strong aria-label={progressText} title={progressText} style={progressRingStyle(progress)} />
-            </span>
-          );
+      <motion.div
+        className="cameraShell"
+        variants={cameraVariants}
+        initial="initial"
+        animate="animate"
+        exit="exit"
+        transition={{ duration: 0.68, ease: [0.22, 0.1, 0.12, 1] }}
+      >
+        <div className="mapCanvas" style={{ transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})` }}>
+          <div className="mapGlow" />
+          <div className="orbit orbit1" />
+          <div className="orbit orbit2" />
+          <div className="orbit orbit3" />
+          <motion.button
+            className={`coreNode ${isRoot ? 'rootCore' : 'titleCore'} ${coreEditing ? 'editingTitle' : ''}`}
+            onClick={(event) => coreEditing ? event.stopPropagation() : onOpenMenu(map, event)}
+            onContextMenu={(event) => onOpenMenu(map, event)}
+            initial={{ scale: 0.9 }}
+            animate={{ scale: 1 }}
+            transition={{ duration: 0.34, ease: 'easeOut' }}
+          >
+            {coreEditing ? (
+              <PlanetTitleEditor
+                value={inlineEditor.value}
+                onChange={onInlineRenameChange}
+                onSubmit={(event) => onSubmitInlineRename(map, event)}
+                onCancel={onCancelInlineRename}
+              />
+            ) : <b>{isRoot ? 'LifeMap' : coreTitle}</b>}
+          </motion.button>
+          {children.map((node, index) => {
+            const title = canonicalTitle(node);
+            const angle = (360 / Math.max(children.length, 1)) * index;
+            const size = planetSize(title);
+            const fontSize = planetFontSize(title);
+            const progress = progressValue(node);
+            const editing = inlineEditor?.nodeId === node.id;
+            const progressText = progressTitle(node);
+            const style = { '--angle': `${angle}deg`, '--angle-back': `${-angle}deg`, '--orbit-shift': orbitShift, '--node-size': `${size}px`, '--node-font': `${fontSize}px`, '--node-progress': `${progress}%`, '--float-delay': `${index * -0.7}s` };
+            const content = (
+              <span className="nodeOrb">
+                {editing ? (
+                  <PlanetTitleEditor
+                    value={inlineEditor.value}
+                    onChange={onInlineRenameChange}
+                    onSubmit={(event) => onSubmitInlineRename(node, event)}
+                    onCancel={onCancelInlineRename}
+                  />
+                ) : <em>{title}</em>}
+                <strong aria-label={progressText} title={progressText} style={progressRingStyle(progress)} />
+              </span>
+            );
 
-          if (editing) {
-            return <div key={node.id} className={`mapNode orbitNode state-${node.state} editingTitle`} style={style}>{content}</div>;
-          }
+            if (editing) {
+              return <div key={node.id} className={`mapNode orbitNode state-${node.state} editingTitle`} style={style}>{content}</div>;
+            }
 
-          return (
-            <button
-              key={node.id}
-              className={`mapNode orbitNode state-${node.state}`}
-              style={style}
-              title={`${title} · ${progressText}`}
-              onContextMenu={(event) => onOpenMenu(node, event)}
-              onPointerDown={(event) => startPress(node, event)}
-              onPointerUp={clearPress}
-              onPointerLeave={clearPress}
-              onClick={() => onOpen(node.id)}
-            >
-              {content}
-            </button>
-          );
-        })}
-      </div>
+            return (
+              <button
+                key={node.id}
+                className={`mapNode orbitNode state-${node.state}`}
+                style={style}
+                title={`${title} · ${progressText}`}
+                onContextMenu={(event) => onOpenMenu(node, event)}
+                onPointerDown={(event) => startPress(node, event)}
+                onPointerUp={clearPress}
+                onPointerLeave={clearPress}
+                onClick={() => onOpen(node.id)}
+              >
+                {content}
+              </button>
+            );
+          })}
+        </div>
+      </motion.div>
     </motion.section>
   );
 }
