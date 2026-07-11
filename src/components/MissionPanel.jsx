@@ -1,29 +1,8 @@
 import { useState } from 'react';
 import { ChevronDown } from './ChevronDown.jsx';
 
-const jumpLineStyle = {
-  width: '100%',
-  display: 'block',
-  textAlign: 'left',
-  cursor: 'pointer',
-};
-
-const queueItemStyle = {
-  width: '100%',
-  display: 'grid',
-  gridTemplateColumns: '30px minmax(0, 1fr)',
-  alignItems: 'center',
-  gap: 10,
-  border: 0,
-  color: 'inherit',
-  background: 'transparent',
-  textAlign: 'left',
-  cursor: 'pointer',
-};
-
 export function MissionPanel({ focus, focusQueueItems, snapshot, apiState, onDone, onOpenFocus }) {
-  const [open, setOpen] = useState(true);
-  const [queueOpen, setQueueOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const isMock = snapshot.meta?.source?.includes('mock');
   const isOffline = apiState === 'api offline' || snapshot.meta?.source === 'api-offline';
   const isLoading = apiState === 'loading' || snapshot.meta?.source === 'loading';
@@ -31,52 +10,53 @@ export function MissionPanel({ focus, focusQueueItems, snapshot, apiState, onDon
   const nextItem = focusQueueItems?.[1];
   const nextAction = nextItem?.title || focus?.nextAction || 'Следующий шаг не указан.';
   const queueItems = (focusQueueItems || []).slice(2, 12);
+  const label = isOffline
+    ? 'API OFFLINE · НЕТ ДАННЫХ ДЛЯ КАРТЫ'
+    : isMock
+      ? 'MOCK DATA · ПРОВЕРЬ BACKEND'
+      : isLoading
+        ? 'LOADING · ЖДУ BACKEND'
+        : 'MISSION CONTROL';
 
   const openFocusItem = (item) => {
     if (!item || !onOpenFocus) return;
     onOpenFocus(item);
   };
 
-  if (!open) {
-    const label = isOffline ? 'API OFFLINE' : isMock ? 'MOCK DATA' : isLoading ? 'LOADING' : 'ФОКУС СЕЙЧАС';
-    return (
-      <section className="mission missionCollapsed" onClick={(event) => event.stopPropagation()}>
-        <button onClick={() => setOpen(true)}>
-          <span>FO</span>
-          <div><small>{label}</small><b>{currentTitle}</b></div>
-        </button>
-      </section>
-    );
-  }
-
   return (
-    <section className={`mission ${queueOpen ? 'queueExpanded' : ''}`} onClick={(event) => event.stopPropagation()}>
-      <button className="collapseMission" onClick={() => setOpen(false)}>Свернуть</button>
+    <section className={`mission ${expanded ? 'queueExpanded' : ''}`} onClick={(event) => event.stopPropagation()}>
+      <button className="collapseMission" type="button" onClick={() => setExpanded((value) => !value)}>
+        {expanded ? 'Свернуть' : 'Развернуть'}
+      </button>
+
       <div className="missionTop">
-        <div>
-          <small><em /> {isOffline ? 'API OFFLINE · нет данных для карты' : isMock ? 'MOCK DATA · проверь backend/.env' : isLoading ? 'LOADING · жду backend' : 'MISSION CONTROL'}</small>
-          <h1><span>FO</span>Рабочий фокус</h1>
-        </div>
+        <div><small><em /> {label}</small></div>
       </div>
-      {isOffline ? <div className="warningLine">Карта не показывает запасные данные: backend API недоступен. Запусти LifeMap и обнови страницу.</div> : null}
-      {isMock ? <div className="warningLine">Сейчас карта получает mock-данные. Backend должен видеть NOTION_TOKEN и NOTION_TASKS_DB_ID.</div> : null}
-      <button className="missionLine activeLine missionJumpLine" style={jumpLineStyle} onClick={() => openFocusItem(focus)}>Сейчас · {currentTitle}</button>
-      <button className="missionLine nextLine missionJumpLine" style={jumpLineStyle} onClick={() => openFocusItem(nextItem || focus)}>Далее · {nextAction}</button>
+
+      {isOffline ? <div className="warningLine">Backend API недоступен. Обнови страницу после восстановления LifeMap.</div> : null}
+      {isMock ? <div className="warningLine">Сейчас отображаются mock-данные. Проверь подключение Notion.</div> : null}
+
+      <button className="missionLine activeLine missionJumpLine" type="button" onClick={() => openFocusItem(focus)}>
+        <span>Сейчас · </span>{currentTitle}
+      </button>
+      <button className="missionLine nextLine missionJumpLine" type="button" onClick={() => openFocusItem(nextItem || focus)}>
+        <span>Далее · </span>{nextAction}
+      </button>
+
       <div className="focusControls">
-        <button className="queueToggle" onClick={() => setQueueOpen((value) => !value)}>
-          {queueOpen ? 'Скрыть очередь' : `Очередь ${queueItems.length}`} <ChevronDown open={queueOpen} />
+        <button className="queueToggle" type="button" onClick={() => setExpanded((value) => !value)}>
+          {expanded ? 'Скрыть очередь' : `Показать очередь · ${queueItems.length}`} <ChevronDown open={expanded} />
         </button>
-        <button className="doneArchiveButton" onClick={onDone}>Выполнено</button>
+        <button className="doneArchiveButton" type="button" onClick={onDone}>Выполнено</button>
       </div>
-      {queueOpen ? (
-        <div className="focusQueueList">
-          {queueItems.length ? queueItems.map((item, index) => (
-            <button key={`${item.sourceId || item.id}-${index}`} className="focusQueueItem" style={queueItemStyle} onClick={() => openFocusItem(item)}>
-              <b>{index + 1}</b><span>{item.title}</span>
-            </button>
-          )) : <div className="emptyQueue"><b>—</b><span>Дополнительной очереди пока нет.</span></div>}
-        </div>
-      ) : null}
+
+      <div className="focusQueueList">
+        {queueItems.length ? queueItems.map((item, index) => (
+          <button key={`${item.sourceId || item.id}-${index}`} className="focusQueueItem" type="button" onClick={() => openFocusItem(item)}>
+            <b>{String(index + 1).padStart(2, '0')}</b><span>{item.title}</span>
+          </button>
+        )) : <div className="emptyQueue"><b>—</b><span>Дополнительной очереди пока нет.</span></div>}
+      </div>
     </section>
   );
 }
