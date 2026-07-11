@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ChevronDown } from './ChevronDown.jsx';
 
 export function MissionPanel({ focus, focusQueueItems, snapshot, apiState, onDone, onOpenFocus }) {
@@ -17,6 +17,13 @@ export function MissionPanel({ focus, focusQueueItems, snapshot, apiState, onDon
       : isLoading
         ? 'LOADING · ЖДУ BACKEND'
         : 'MISSION CONTROL';
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('lifemap:focus-zoom', { detail: { open: expanded } }));
+    return () => {
+      window.dispatchEvent(new CustomEvent('lifemap:focus-zoom', { detail: { open: false } }));
+    };
+  }, [expanded]);
 
   const openFocusItem = (item) => {
     if (!item || !onOpenFocus) return;
