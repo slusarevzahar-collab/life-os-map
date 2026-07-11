@@ -22,7 +22,7 @@ const queueItemStyle = {
 };
 
 export function MissionPanel({ focus, focusQueueItems, snapshot, apiState, onDone, onOpenFocus }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const [queueOpen, setQueueOpen] = useState(false);
   const isMock = snapshot.meta?.source?.includes('mock');
   const isOffline = apiState === 'api offline' || snapshot.meta?.source === 'api-offline';
