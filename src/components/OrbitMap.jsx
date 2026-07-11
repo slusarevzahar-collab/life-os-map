@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { topItems } from '../lib/lifeMapSelectors.js';
-import { mapVariants } from '../constants/lifeMap.js';
 
 function canonicalTitle(node = {}) {
   if (node?.id === 'sphere-inbox' || node?.id === 'inbox-signals' || node?.title === 'AI Inbox') return 'LM Inbox';
@@ -52,8 +51,8 @@ function progressRingStyle(progress) {
     color: 'transparent',
     fontSize: 0,
     lineHeight: 0,
-    background: `conic-gradient(rgba(103, 232, 249, 0.98) ${progress}%, rgba(255,255,255,0.1) 0)`,
-    boxShadow: '0 0 18px rgba(103, 232, 249, 0.28), inset 0 0 10px rgba(103, 232, 249, 0.12)',
+    background: `conic-gradient(rgba(87, 224, 168, 0.98) ${progress}%, rgba(255,255,255,0.1) 0)`,
+    boxShadow: '0 0 18px rgba(87, 224, 168, 0.28), inset 0 0 10px rgba(87, 224, 168, 0.12)',
     WebkitMask: 'radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px))',
     mask: 'radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px))',
     pointerEvents: 'none',
@@ -135,16 +134,28 @@ export function OrbitMap({
   const orbitShift = children.length <= 2 ? 'clamp(-215px, -20vw, -170px)' : 'clamp(-220px, -21vw, -190px)';
   const coreEditing = inlineEditor?.nodeId === map.id;
   const coreTitle = canonicalTitle(map);
+  const cameraVariants = isRoot
+    ? {
+        initial: { opacity: 0, scale: 1.12, filter: 'blur(3px)' },
+        animate: { opacity: 1, scale: 1, filter: 'blur(0px)' },
+        exit: { opacity: 0, scale: 1.72, filter: 'blur(4px)' },
+      }
+    : {
+        initial: { opacity: 0, scale: 0.7, filter: 'blur(3px)' },
+        animate: { opacity: 1, scale: 1, filter: 'blur(0px)' },
+        exit: { opacity: 0, scale: 0.84, filter: 'blur(3px)' },
+      };
 
   return (
     <motion.section
       key={map.id}
       className={`mapStage ${hasSide ? 'mapWithSide' : ''} ${draggingCanvas ? 'draggingCanvas' : ''}`}
-      variants={mapVariants}
+      variants={cameraVariants}
       initial="initial"
       animate="animate"
       exit="exit"
-      transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: 0.68, ease: [0.22, 0.1, 0.12, 1] }}
+      style={{ transformOrigin: '50% 50%' }}
       onPointerDown={startCanvasDrag}
       onPointerMove={moveCanvasDrag}
       onPointerUp={endCanvasDrag}
@@ -162,7 +173,7 @@ export function OrbitMap({
           onContextMenu={(event) => onOpenMenu(map, event)}
           initial={{ scale: 0.9 }}
           animate={{ scale: 1 }}
-          transition={{ duration: 0.24, ease: 'easeOut' }}
+          transition={{ duration: 0.34, ease: 'easeOut' }}
         >
           {coreEditing ? (
             <PlanetTitleEditor
@@ -181,7 +192,7 @@ export function OrbitMap({
           const progress = progressValue(node);
           const editing = inlineEditor?.nodeId === node.id;
           const progressText = progressTitle(node);
-          const style = { '--angle': `${angle}deg`, '--angle-back': `${-angle}deg`, '--orbit-shift': orbitShift, '--node-size': `${size}px`, '--node-font': `${fontSize}px`, '--node-progress': `${progress}%` };
+          const style = { '--angle': `${angle}deg`, '--angle-back': `${-angle}deg`, '--orbit-shift': orbitShift, '--node-size': `${size}px`, '--node-font': `${fontSize}px`, '--node-progress': `${progress}%`, '--float-delay': `${index * -0.7}s` };
           const content = (
             <span className="nodeOrb">
               {editing ? (
