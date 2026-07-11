@@ -1,66 +1,105 @@
-import { useRef, useState } from 'react';
-import { motion } from 'framer-motion';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { motion, useAnimationControls } from 'framer-motion';
 import { topItems } from '../lib/lifeMapSelectors.js';
+
+const ROOT_ORDER = ['sphere-projects', 'sphere-goals', 'sphere-backlog', 'sphere-sessions', 'sphere-life'];
+const ROOT_POSITIONS = {
+  'sphere-projects': { x: 640, y: 150 },
+  'sphere-goals': { x: 890, y: 400 },
+  'sphere-backlog': { x: 390, y: 400 },
+  'sphere-sessions': { x: 810, y: 625 },
+  'sphere-life': { x: 470, y: 625 },
+};
 
 function canonicalTitle(node = {}) {
   if (node?.id === 'sphere-inbox' || node?.id === 'inbox-signals' || node?.title === 'AI Inbox') return 'LM Inbox';
   return node?.title || '';
 }
 
-function planetSize(title = '') {
-  const len = String(title).length;
-  if (len > 54) return 226;
-  if (len > 42) return 206;
-  if (len > 30) return 184;
-  if (len > 18) return 150;
-  return 118;
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
 }
 
-function planetFontSize(title = '') {
-  const len = String(title).length;
-  if (len > 54) return 11;
-  if (len > 42) return 12;
-  if (len > 30) return 13;
-  if (len > 18) return 14;
-  return 16;
+function stageScale() {
+  if (typeof window === 'undefined') return 1;
+  const value = getComputedStyle(document.documentElement).getPropertyValue('--claude-stage-scale');
+  return Number.parseFloat(value) || 1;
+}
+
+function visualItems(map) {
+  const isRoot = map?.id === 'root';
+  const items = topItems(map).filter((node) => !(isRoot && node.id === 'sphere-inbox'));
+  if (!isRoot) return items;
+  const rank = new Map(ROOT_ORDER.map((id, index) => [id, index]));
+  return [...items].sort((a, b) => (rank.get(a.id) ?? 99) - (rank.get(b.id) ?? 99));
+}
+
+function radialPositions(count) {
+  if (!count) return [];
+  const center = { x: 640, y: 410 };
+  const rings = [
+    { capacity: 6, radiusX: 190, radiusY: 170 },
+    { capacity: 10, radiusX: 300, radiusY: 260 },
+    { capacity: 14, radiusX: 410, radiusY: 335 },
+  ];
+  const result = [];
+  let remaining = count;
+  let offset = 0;
+  rings.forEach((ring, ringIndex) => {
+    if (remaining <= 0) return;
+    const amount = Math.min(remaining, ring.capacity);
+    for (let index = 0; index < amount; index += 1) {
+      const angle = -Math.PI / 2 + ((Math.PI * 2) / amount) * index + ringIndex * 0.16;
+      result.push({
+        x: center.x + Math.cos(angle) * ring.radiusX,
+        y: center.y + Math.sin(angle) * ring.radiusY,
+      });
+    }
+    remaining -= amount;
+    offset += amount;
+  });
+  while (result.length < count) {
+    const index = result.length - offset;
+    result.push({ x: 640 + (index % 5) * 126 - 252, y: 742 + Math.floor(index / 5) * 124 });
+  }
+  return result;
+}
+
+function positionFor(node, index, items, isRoot) {
+  if (isRoot && ROOT_POSITIONS[node.id]) return ROOT_POSITIONS[node.id];
+  return radialPositions(items.length)[index] || { x: 640, y: 150 };
 }
 
 function progressValue(node) {
-  return Math.max(0, Math.min(100, Math.round(Number(node.progress) || 0)));
+  return Math.max(0, Math.min(100, Math.round(Number(node?.progress) || 0)));
 }
 
-function progressTitle(node) {
-  const progress = progressValue(node);
-  const done = Number(node.completedTasks) || 0;
+function planetMeta(node = {}) {
+  const active = Number(node.tasks) || 0;
   const total = Number(node.totalTasks) || 0;
-  return total > 0 ? `${progress}% · ${done}/${total}` : `${progress}%`;
+  if (node.id === 'sphere-projects') return `${active} active`;
+  if (node.id === 'sphere-goals') return `${progressValue(node)}%`;
+  if (node.id === 'sphere-backlog') return `${total} later`;
+  if (node.id === 'sphere-sessions') return `${total} logs`;
+  if (node.id === 'sphere-life') return `${node.children?.length || total} areas`;
+  if (active) return `${active} active`;
+  if (total) return `${total} items`;
+  return `${progressValue(node)}%`;
 }
 
-function progressRingStyle(progress) {
-  return {
-    position: 'absolute',
-    inset: '-5px',
-    top: '-5px',
-    right: '-5px',
-    width: 'auto',
-    minWidth: 0,
-    height: 'auto',
-    padding: 0,
-    border: 0,
-    borderRadius: 999,
-    color: 'transparent',
-    fontSize: 0,
-    lineHeight: 0,
-    background: `conic-gradient(rgba(87, 224, 168, 0.98) ${progress}%, rgba(255,255,255,0.1) 0)`,
-    boxShadow: '0 0 18px rgba(87, 224, 168, 0.28), inset 0 0 10px rgba(87, 224, 168, 0.12)',
-    WebkitMask: 'radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px))',
-    mask: 'radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px))',
-    pointerEvents: 'none',
-  };
-}
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
+function initialCameraPose(isRoot) {
+  if (typeof window === 'undefined') return { opacity: 0, scale: isRoot ? 0.96 : 0.55, filter: 'blur(3px)' };
+  const origin = window.__lifemapCameraOrigin;
+  if (isRoot && origin) {
+    return {
+      opacity: 0,
+      x: 640 - Number(origin.x || 640),
+      y: 400 - Number(origin.y || 400),
+      scale: 3.4,
+      filter: 'blur(3px)',
+    };
+  }
+  return { opacity: 0, scale: isRoot ? 0.96 : 0.55, filter: 'blur(3px)' };
 }
 
 function PlanetTitleEditor({ value, onChange, onSubmit, onCancel }) {
@@ -92,13 +131,34 @@ export function OrbitMap({
   onCancelInlineRename,
 }) {
   const isRoot = map.id === 'root';
-  const children = topItems(map).filter((node) => !(isRoot && node.id === 'sphere-inbox'));
+  const children = useMemo(() => visualItems(map), [map]);
+  const controls = useAnimationControls();
   const pressTimer = useRef(null);
   const panRef = useRef(null);
   const [viewport, setViewport] = useState({ x: 0, y: 0, scale: 1 });
   const [draggingCanvas, setDraggingCanvas] = useState(false);
+  const [flying, setFlying] = useState(false);
+  const coreEditing = inlineEditor?.nodeId === map.id;
+  const coreTitle = canonicalTitle(map);
+  const initialPose = useMemo(() => initialCameraPose(isRoot), [map.id, isRoot]);
 
-  const clearPress = () => { if (pressTimer.current) window.clearTimeout(pressTimer.current); pressTimer.current = null; };
+  useEffect(() => {
+    controls.start({ opacity: 1, x: 0, y: 0, scale: 1, filter: 'blur(0px)' }, {
+      duration: isRoot ? 0.35 : 0.34,
+      ease: [0.22, 1, 0.36, 1],
+    });
+    if (isRoot && typeof window !== 'undefined') {
+      const timer = window.setTimeout(() => { window.__lifemapCameraOrigin = null; }, 900);
+      return () => window.clearTimeout(timer);
+    }
+    return undefined;
+  }, [controls, isRoot, map.id]);
+
+  const clearPress = () => {
+    if (pressTimer.current) window.clearTimeout(pressTimer.current);
+    pressTimer.current = null;
+  };
+
   const startPress = (node, event) => {
     if (event.pointerType === 'mouse') return;
     const point = { clientX: event.clientX, clientY: event.clientY };
@@ -106,7 +166,7 @@ export function OrbitMap({
   };
 
   const startCanvasDrag = (event) => {
-    if (event.target.closest('button, input')) return;
+    if (flying || event.target.closest('button, input, textarea')) return;
     event.preventDefault();
     panRef.current = { startX: event.clientX, startY: event.clientY, baseX: viewport.x, baseY: viewport.y };
     setDraggingCanvas(true);
@@ -115,8 +175,9 @@ export function OrbitMap({
 
   const moveCanvasDrag = (event) => {
     if (!panRef.current) return;
-    const nextX = panRef.current.baseX + event.clientX - panRef.current.startX;
-    const nextY = panRef.current.baseY + event.clientY - panRef.current.startY;
+    const scale = stageScale();
+    const nextX = panRef.current.baseX + (event.clientX - panRef.current.startX) / scale;
+    const nextY = panRef.current.baseY + (event.clientY - panRef.current.startY) / scale;
     setViewport((current) => ({ ...current, x: nextX, y: nextY }));
   };
 
@@ -126,60 +187,56 @@ export function OrbitMap({
   };
 
   const zoomCanvas = (event) => {
+    if (flying) return;
     event.preventDefault();
     const direction = event.deltaY > 0 ? -1 : 1;
     setViewport((current) => ({ ...current, scale: clamp(current.scale + direction * 0.08, 0.72, 1.65) }));
   };
 
-  const orbitShift = children.length <= 2 ? 'clamp(-215px, -20vw, -170px)' : 'clamp(-220px, -21vw, -190px)';
-  const coreEditing = inlineEditor?.nodeId === map.id;
-  const coreTitle = canonicalTitle(map);
-  const cameraVariants = isRoot
-    ? {
-        initial: { scale: 1.12, filter: 'blur(3px)' },
-        animate: { scale: 1, filter: 'blur(0px)' },
-        exit: { scale: 1.72, filter: 'blur(4px)' },
-      }
-    : {
-        initial: { scale: 0.7, filter: 'blur(3px)' },
-        animate: { scale: 1, filter: 'blur(0px)' },
-        exit: { scale: 0.84, filter: 'blur(3px)' },
-      };
+  const flyToNode = async (node, position) => {
+    if (flying) return;
+    setFlying(true);
+    if (typeof window !== 'undefined') window.__lifemapCameraOrigin = position;
+    const tx = 640 - position.x;
+    const ty = 400 - position.y;
+    await controls.start({
+      opacity: 0,
+      x: tx,
+      y: ty,
+      scale: 3.8,
+      filter: 'blur(3px)',
+    }, {
+      duration: 0.28,
+      ease: [0.45, 0.05, 0.85, 0.4],
+    });
+    onOpen(node.id);
+  };
 
   return (
     <motion.section
       key={map.id}
       className={`mapStage ${hasSide ? 'mapWithSide' : ''} ${draggingCanvas ? 'draggingCanvas' : ''}`}
-      initial={{ opacity: 0 }}
+      initial={{ opacity: 1 }}
       animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.62, ease: [0.22, 0.1, 0.12, 1] }}
+      exit={{ opacity: 0, scale: isRoot ? 1.08 : 0.6, filter: 'blur(3px)' }}
+      transition={{ duration: 0.25, ease: [0.45, 0.05, 0.85, 0.4] }}
       onPointerDown={startCanvasDrag}
       onPointerMove={moveCanvasDrag}
       onPointerUp={endCanvasDrag}
       onPointerCancel={endCanvasDrag}
       onWheel={zoomCanvas}
     >
-      <motion.div
-        className="cameraShell"
-        variants={cameraVariants}
-        initial="initial"
-        animate="animate"
-        exit="exit"
-        transition={{ duration: 0.68, ease: [0.22, 0.1, 0.12, 1] }}
-      >
+      <motion.div className="cameraShell" initial={initialPose} animate={controls}>
         <div className="mapCanvas" style={{ transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})` }}>
           <div className="mapGlow" />
           <div className="orbit orbit1" />
           <div className="orbit orbit2" />
           <div className="orbit orbit3" />
-          <motion.button
+
+          <button
             className={`coreNode ${isRoot ? 'rootCore' : 'titleCore'} ${coreEditing ? 'editingTitle' : ''}`}
             onClick={(event) => coreEditing ? event.stopPropagation() : onOpenMenu(map, event)}
             onContextMenu={(event) => onOpenMenu(map, event)}
-            initial={{ scale: 0.9 }}
-            animate={{ scale: 1 }}
-            transition={{ duration: 0.34, ease: 'easeOut' }}
           >
             {coreEditing ? (
               <PlanetTitleEditor
@@ -189,16 +246,24 @@ export function OrbitMap({
                 onCancel={onCancelInlineRename}
               />
             ) : <b>{isRoot ? 'LifeMap' : coreTitle}</b>}
-          </motion.button>
+          </button>
+
           {children.map((node, index) => {
             const title = canonicalTitle(node);
-            const angle = (360 / Math.max(children.length, 1)) * index;
-            const size = planetSize(title);
-            const fontSize = planetFontSize(title);
-            const progress = progressValue(node);
+            const position = positionFor(node, index, children, isRoot);
             const editing = inlineEditor?.nodeId === node.id;
-            const progressText = progressTitle(node);
-            const style = { '--angle': `${angle}deg`, '--angle-back': `${-angle}deg`, '--orbit-shift': orbitShift, '--node-size': `${size}px`, '--node-font': `${fontSize}px`, '--node-progress': `${progress}%`, '--float-delay': `${index * -0.7}s` };
+            const active = node.state === 'active' || node.state === 'next';
+            const style = {
+              left: `${position.x}px`,
+              top: `${position.y}px`,
+              '--planet-arc': active ? '#57e0a8' : 'transparent',
+              '--planet-arc-opacity': active ? 0.85 : 0,
+              '--planet-arc-rotation': `${-40 + index * 27}deg`,
+              '--planet-label': node.id === 'sphere-backlog' ? '#c7d0dc' : '#eef2f8',
+              '--planet-meta': active ? 'rgba(120,200,165,.8)' : 'rgba(140,155,175,.7)',
+              '--float-delay': `${index * -0.72}s`,
+            };
+
             const content = (
               <span className="nodeOrb">
                 {editing ? (
@@ -209,7 +274,7 @@ export function OrbitMap({
                     onCancel={onCancelInlineRename}
                   />
                 ) : <em>{title}</em>}
-                <strong aria-label={progressText} title={progressText} style={progressRingStyle(progress)} />
+                <small>{planetMeta(node)}</small>
               </span>
             );
 
@@ -222,12 +287,13 @@ export function OrbitMap({
                 key={node.id}
                 className={`mapNode orbitNode state-${node.state}`}
                 style={style}
-                title={`${title} · ${progressText}`}
+                title={`${title} · ${planetMeta(node)}`}
                 onContextMenu={(event) => onOpenMenu(node, event)}
                 onPointerDown={(event) => startPress(node, event)}
                 onPointerUp={clearPress}
                 onPointerLeave={clearPress}
-                onClick={() => onOpen(node.id)}
+                onClick={() => flyToNode(node, position)}
+                disabled={flying}
               >
                 {content}
               </button>
