@@ -1,6 +1,16 @@
 const DESIGN_WIDTH = 1280;
 const DESIGN_HEIGHT = 800;
 const MORPH_STORAGE_KEY = 'lifemap.claude.morph.v1';
+const VIEWPORT_STORAGE_KEY = 'lifemap.map.viewport.v2';
+const LAYOUT_MIGRATION_KEY = 'lifemap.claude.layout-migration.v3';
+
+function resetStaleViewportOnce() {
+  try {
+    if (window.localStorage.getItem(LAYOUT_MIGRATION_KEY) === 'done') return;
+    window.localStorage.removeItem(VIEWPORT_STORAGE_KEY);
+    window.localStorage.setItem(LAYOUT_MIGRATION_KEY, 'done');
+  } catch {}
+}
 
 function updateDesignScale() {
   const width = Math.max(320, window.innerWidth || DESIGN_WIDTH);
@@ -22,6 +32,7 @@ function preparePendingMorphClass() {
   } catch {}
 }
 
+resetStaleViewportOnce();
 preparePendingMorphClass();
 updateDesignScale();
 window.addEventListener('resize', updateDesignScale, { passive: true });
