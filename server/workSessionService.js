@@ -11,6 +11,11 @@ function requestedStart(value, fallback) {
   return Math.abs(fallback.getTime() - requested.getTime()) <= 5 * 60 * 1000 ? requested : fallback;
 }
 
+function safeSeconds(value) {
+  const seconds = Number(value);
+  return Number.isFinite(seconds) ? Math.min(365 * 24 * 60 * 60, Math.max(0, Math.floor(seconds))) : 0;
+}
+
 function activeSession(session) {
   return String(session?.status || '').toLowerCase() === 'active' && !(session.endedAt || session.finishedAt);
 }
@@ -91,11 +96,14 @@ export function createWorkSessionService({ store, now = () => new Date(), logger
 
       const started = requestedStart(input.startedAt, now());
       const timezone = validTimezone(input.timezone || 'UTC');
+      const initialSeconds = safeSeconds(input.initialSeconds);
       const session = await storeCall(() => store.create({
         userId: compactId(userId),
         startedAt: started.toISOString(),
         endedAt: null,
         durationSeconds: null,
+        initialSeconds,
+        timerSeconds: null,
         status: 'Active',
         dateKey: dateKeyAt(started, timezone),
         timezone,
@@ -122,10 +130,12 @@ export function createWorkSessionService({ store, now = () => new Date(), logger
       if (!session) return { session: null, completed: false };
       const endedAt = now().toISOString();
       const seconds = durationSeconds(session.startedAt, endedAt);
+      const timerSeconds = safeSeconds(session.initialSeconds) + seconds;
       const updated = await storeCall(() => store.update(session.id, {
         status: 'Finished',
         endedAt,
         durationSeconds: seconds,
+        timerSeconds,
       }));
       logger.info?.('work_session_paused', { sessionId: session.id, durationSeconds: seconds });
       return { session: updated, completed: true };

@@ -155,6 +155,7 @@ function mapNotionSignal(page) {
 function mapNotionSession(page) {
   const props = page.properties || {};
   const startedAtExact = firstRichText(props, ['Started At Exact']) || null;
+  const timerSecondsProperty = findProp(props, ['Timer Seconds']);
   const taskIds = relationIds(findProp(props, ['Task', 'Задача']));
   const finishedAt = firstDate(props, ['Finished At', 'Finish', 'Конец', 'Завершено']) || null;
   const durationMin = firstNumber(props, ['Duration Min', 'Duration', 'Минуты', 'Длительность']) || 0;
@@ -175,6 +176,8 @@ function mapNotionSession(page) {
     endedAt: finishedAt,
     finishedAt,
     durationSeconds: firstNumber(props, ['Duration Seconds']) || Math.max(0, Math.round(durationMin * 60)),
+    initialSeconds: firstNumber(props, ['Initial Seconds']) || 0,
+    timerSeconds: timerSecondsProperty ? numberValue(timerSecondsProperty) : null,
     durationMin,
     dateKey: firstRichText(props, ['Date Key']) || '',
     timezone: firstRichText(props, ['Timezone']) || 'UTC',
@@ -336,6 +339,7 @@ export async function createWorkSession({ notionToken, sessionsDbId, payload = {
   const endMs = new Date(finishedAt).getTime();
   const computedSeconds = Number.isFinite(startMs) && Number.isFinite(endMs) ? Math.max(0, Math.floor((endMs - startMs) / 1000)) : null;
   const durationSeconds = status === 'Active' ? null : computedSeconds;
+  const initialSeconds = Math.max(0, Math.floor(Number(payload.initialSeconds) || 0));
   const rawTaskIds = [...(Array.isArray(payload.taskIds) ? payload.taskIds : []), payload.taskId, looksLikePageId(payload.task) ? payload.task : ''].filter(Boolean);
   const taskIds = uniqueList(rawTaskIds);
   const scope = payload.scope || (taskIds.length ? 'Task' : 'Project');
@@ -343,12 +347,13 @@ export async function createWorkSession({ notionToken, sessionsDbId, payload = {
     Session: titleProperty(payload.title || payload.session || 'LifeMap session'), Task: relationProperty(taskIds), Scope: selectProperty(scope), Project: selectProperty(notionSessionProjectName(payload.project || 'LifeMap')),
     Status: selectProperty(status), Energy: selectProperty(payload.energy), 'Started At': dateProperty(startedAt), 'Started At Exact': textProperty(startedAt), 'Finished At': dateProperty(finishedAt),
     'Duration Min': durationSeconds === null ? undefined : numberProperty(durationSeconds / 60), 'Duration Seconds': durationSeconds === null ? undefined : numberProperty(durationSeconds),
+    'Initial Seconds': numberProperty(initialSeconds), 'Timer Seconds': payload.timerSeconds == null ? undefined : numberProperty(payload.timerSeconds),
     'Date Key': textProperty(payload.dateKey || ''), Timezone: textProperty(payload.timezone || 'UTC'), Source: selectProperty(payload.source || 'lifemap'),
     'User ID': textProperty(payload.userId || ''), 'Project ID': textProperty(payload.projectId || ''), 'Task ID': textProperty(payload.taskId || ''),
     Result: textProperty(payload.result || ''), 'Next Step': textProperty(payload.nextStep || ''),
   }, schema);
   const page = await notion.pages.create({ parent: { database_id: sessionsDbId }, properties });
-  return { ...mapNotionSession(page), taskIds, scope, status, startedAt, startedAtExact: startedAt, endedAt: finishedAt, finishedAt, durationSeconds, dateKey: payload.dateKey || '', timezone: payload.timezone || 'UTC', source: payload.source || 'lifemap', created: true };
+  return { ...mapNotionSession(page), taskIds, scope, status, startedAt, startedAtExact: startedAt, endedAt: finishedAt, finishedAt, durationSeconds, initialSeconds, timerSeconds: payload.timerSeconds ?? null, dateKey: payload.dateKey || '', timezone: payload.timezone || 'UTC', source: payload.source || 'lifemap', created: true };
 }
 
 export async function listWorkSessions({ notionToken, sessionsDbId, status = null, userId = null }) {
@@ -379,6 +384,7 @@ export async function updateWorkSession({ notionToken, sessionsDbId, sessionId, 
     'Finished At': hasOwn(patch, 'endedAt') ? nullableDateProperty(patch.endedAt) : undefined,
     'Duration Seconds': hasOwn(patch, 'durationSeconds') ? numberProperty(duration) : undefined,
     'Duration Min': hasOwn(patch, 'durationSeconds') ? numberProperty(duration / 60) : undefined,
+    'Timer Seconds': hasOwn(patch, 'timerSeconds') ? numberProperty(Math.max(0, Number(patch.timerSeconds) || 0)) : undefined,
     Result: hasOwn(patch, 'result') ? textProperty(patch.result || '') : undefined,
     'Next Step': hasOwn(patch, 'nextStep') ? textProperty(patch.nextStep || '') : undefined,
   }, schema);

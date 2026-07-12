@@ -81,6 +81,7 @@ export function registerCoreRoutes(app, runtime) {
     try {
       const result = await workSessions.start({
         startedAt: req.body?.startedAt,
+        initialSeconds: req.body?.initialSeconds,
         timezone: req.body?.timezone,
         projectId: req.body?.projectId,
         project: req.body?.project,

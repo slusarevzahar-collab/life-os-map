@@ -13,6 +13,8 @@ if (!notionToken || !sessionsDbId) {
     database_id: sessionsDbId,
     properties: {
       'Duration Seconds': { number: { format: 'number' } },
+      'Initial Seconds': { number: { format: 'number' } },
+      'Timer Seconds': { number: { format: 'number' } },
       'Started At Exact': { rich_text: {} },
       'Date Key': { rich_text: {} },
       Timezone: { rich_text: {} },
