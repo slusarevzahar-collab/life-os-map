@@ -32,7 +32,12 @@ export function MissionPanel({ focus, focusQueueItems, snapshot, apiState, onDon
 
   return (
     <section className={`mission ${expanded ? 'queueExpanded' : ''}`} onClick={(event) => event.stopPropagation()}>
-      <button className="collapseMission" type="button" onClick={() => setExpanded((value) => !value)}>
+      <button
+        className="collapseMission"
+        type="button"
+        aria-expanded={expanded}
+        onClick={() => setExpanded((value) => !value)}
+      >
         {expanded ? 'Свернуть' : 'Развернуть'}
       </button>
 
@@ -50,20 +55,24 @@ export function MissionPanel({ focus, focusQueueItems, snapshot, apiState, onDon
         <span>Далее · </span>{nextAction}
       </button>
 
-      <div className="focusControls">
-        <button className="queueToggle" type="button" onClick={() => setExpanded((value) => !value)}>
-          {expanded ? 'Скрыть очередь' : `Показать очередь · ${queueItems.length}`} <ChevronDown open={expanded} />
-        </button>
-        <button className="doneArchiveButton" type="button" onClick={onDone}>Выполнено</button>
-      </div>
+      {expanded ? (
+        <>
+          <div className="focusControls">
+            <button className="queueToggle" type="button" onClick={() => setExpanded(false)}>
+              Скрыть очередь <ChevronDown open />
+            </button>
+            <button className="doneArchiveButton" type="button" onClick={onDone}>Выполнено</button>
+          </div>
 
-      <div className="focusQueueList">
-        {queueItems.length ? queueItems.map((item, index) => (
-          <button key={`${item.sourceId || item.id}-${index}`} className="focusQueueItem" type="button" onClick={() => openFocusItem(item)}>
-            <b>{String(index + 1).padStart(2, '0')}</b><span>{item.title}</span>
-          </button>
-        )) : <div className="emptyQueue"><b>—</b><span>Дополнительной очереди пока нет.</span></div>}
-      </div>
+          <div className="focusQueueList">
+            {queueItems.length ? queueItems.map((item, index) => (
+              <button key={`${item.sourceId || item.id}-${index}`} className="focusQueueItem" type="button" onClick={() => openFocusItem(item)}>
+                <b>{String(index + 1).padStart(2, '0')}</b><span>{item.title}</span>
+              </button>
+            )) : <div className="emptyQueue"><b>—</b><span>Дополнительной очереди пока нет.</span></div>}
+          </div>
+        </>
+      ) : null}
     </section>
   );
 }
