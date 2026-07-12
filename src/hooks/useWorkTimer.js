@@ -43,7 +43,24 @@ export function useWorkTimer({ onSessionChange } = {}) {
   const [error, setError] = useState(null);
   const [lastSessionSeconds, setLastSessionSeconds] = useState(0);
   const [paused, setPaused] = useState(() => readPaused());
+  const [stopFlash, setStopFlash] = useState(false);
   const channelRef = useRef(null);
+  const stopFlashTimerRef = useRef(null);
+
+  const clearStopFlash = useCallback(() => {
+    if (stopFlashTimerRef.current) window.clearTimeout(stopFlashTimerRef.current);
+    stopFlashTimerRef.current = null;
+    setStopFlash(false);
+  }, []);
+
+  const flashStopped = useCallback(() => {
+    if (stopFlashTimerRef.current) window.clearTimeout(stopFlashTimerRef.current);
+    setStopFlash(true);
+    stopFlashTimerRef.current = window.setTimeout(() => {
+      stopFlashTimerRef.current = null;
+      setStopFlash(false);
+    }, 2200);
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -64,6 +81,9 @@ export function useWorkTimer({ onSessionChange } = {}) {
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => () => {
+    if (stopFlashTimerRef.current) window.clearTimeout(stopFlashTimerRef.current);
+  }, []);
   useEffect(() => {
     const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(CHANNEL_NAME) : null;
     channelRef.current = channel;
@@ -92,6 +112,7 @@ export function useWorkTimer({ onSessionChange } = {}) {
     const wasPaused = paused;
     const startedAt = new Date().toISOString();
     const initialSeconds = wasPaused ? lastSessionSeconds : 0;
+    clearStopFlash();
     setStatus('starting');
     setError(null);
     setActiveSession({ id: 'pending', startedAt, initialSeconds, status: 'Active', source: 'lifemap', pending: true });
@@ -111,7 +132,7 @@ export function useWorkTimer({ onSessionChange } = {}) {
       setError(friendlySyncError(nextError, 'Старт не сохранён. Проверьте соединение и попробуйте ещё раз.'));
       console.warn('work_session_sync_failed', nextError);
     }
-  }, [lastSessionSeconds, onSessionChange, paused, status]);
+  }, [clearStopFlash, lastSessionSeconds, onSessionChange, paused, status]);
 
   const pause = useCallback(async () => {
     if (!activeSession || ['starting', 'pausing', 'stopping'].includes(status)) return;
@@ -141,6 +162,7 @@ export function useWorkTimer({ onSessionChange } = {}) {
       writePaused(false);
       setPaused(false);
       setStatus('idle');
+      flashStopped();
       broadcast(channelRef.current);
       return;
     }
@@ -153,6 +175,7 @@ export function useWorkTimer({ onSessionChange } = {}) {
       setActiveSession(null);
       setStatus('idle');
       await refresh();
+      flashStopped();
       broadcast(channelRef.current);
       onSessionChange?.();
     } catch (nextError) {
@@ -160,9 +183,9 @@ export function useWorkTimer({ onSessionChange } = {}) {
       setError(friendlySyncError(nextError, 'Остановка не сохранилась. Таймер продолжает считаться; попробуйте ещё раз.'));
       console.warn('work_session_sync_failed', nextError);
     }
-  }, [activeSession, onSessionChange, refresh, status]);
+  }, [activeSession, flashStopped, onSessionChange, refresh, status]);
 
   const currentSessionSeconds = activeSession ? (Number(activeSession.initialSeconds) || 0) + elapsed(activeSession.startedAt, tick) : paused ? lastSessionSeconds : 0;
 
-  return { status, activeSession, paused, currentSessionSeconds, lastSessionSeconds, start, pause, stop, refresh, error };
+  return { status, activeSession, paused, stopFlash, currentSessionSeconds, lastSessionSeconds, start, pause, stop, refresh, error };
 }
