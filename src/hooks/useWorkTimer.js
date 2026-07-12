@@ -15,7 +15,7 @@ function broadcast(channel) {
 }
 
 function friendlySyncError(error, fallback) {
-  if (['vercel-preview-login', 'unexpected-html', 'access-key-rejected'].includes(error?.code)) return error.message;
+  if (['vercel-preview-login', 'unexpected-html', 'access-key-rejected', 'preview-environment-missing'].includes(error?.code)) return error.message;
   return fallback;
 }
 
