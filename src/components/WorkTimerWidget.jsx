@@ -24,11 +24,14 @@ export function WorkTimerWidget({ onSessionChange }) {
   const busy = ['starting', 'pausing', 'stopping'].includes(timer.status);
   const showLast = !active && timer.lastSessionSeconds > 0;
   const visualState = active ? 'running' : timer.paused ? 'paused' : timer.stopFlash ? 'stopped' : 'idle';
+  const currentDuration = formatWorkDuration(timer.currentSessionSeconds);
   return (
     <section className={`workTimerWidget is-${visualState}`} data-timer-state={visualState} aria-label="Учёт рабочего времени" onClick={(event) => event.stopPropagation()}>
       <div className={`workTimerReadout ${showLast ? 'hasLast' : ''}`}>
-        <div className="workTimerClock" aria-live="off">{formatWorkDuration(timer.currentSessionSeconds)}</div>
-        {showLast ? <div className="workTimerTotal"><span>Последняя</span><b>{formatWorkDuration(timer.lastSessionSeconds)}</b></div> : null}
+        <div className="workTimerClock" aria-live="off" aria-label={currentDuration}>
+          <span className="workTimerDigits" aria-hidden="true">{currentDuration.split('').map((character, index) => <span key={index}>{character}</span>)}</span>
+        </div>
+        {showLast ? <div className={`workTimerTotal ${timer.stopFlash ? 'isFlashing' : ''}`}><span>Последняя</span><b>{formatWorkDuration(timer.lastSessionSeconds)}</b></div> : null}
       </div>
       <div className={`workTimerActions ${busy ? 'isBusy' : ''}`}>
         {active ? (
