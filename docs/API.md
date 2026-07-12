@@ -99,3 +99,14 @@ Request example:
 - Endpoints are not authenticated beyond the Codespaces/dev environment.
 - Do not expose the API publicly until authentication and token storage are handled properly.
 - The first safe production path is likely a hosted backend with environment variables and a private Notion integration token.
+# Work time tracker
+
+The durable work timer extends the existing `LifeMap Sessions` Notion database. See [`WORK_TIME_TRACKER.md`](./WORK_TIME_TRACKER.md) for the schema, migration, recovery rules, and manual verification.
+
+```text
+POST /api/life-os/work-sessions/start
+POST /api/life-os/work-sessions/pause
+GET  /api/life-os/work-sessions/active
+GET  /api/life-os/work-sessions/stats?from=YYYY-MM-DD&to=YYYY-MM-DD&timezone=Europe/Moscow
+GET  /api/life-os/work-sessions/context?days=7&timezone=Europe/Moscow
+```

@@ -1,0 +1,58 @@
+.lifemapAccessOverlay {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: radial-gradient(circle at 50% 38%, rgba(34, 211, 238, .1), transparent 38%), rgba(1, 4, 12, .78);
+  backdrop-filter: blur(18px) saturate(.82);
+  animation: lifemapAccessFade 160ms ease both;
+}
+
+.lifemapAccessDialog {
+  position: relative;
+  width: min(440px, calc(100vw - 32px));
+  overflow: hidden;
+  padding: 25px;
+  border: 1px solid rgba(103, 232, 249, .24);
+  border-radius: 24px;
+  background: linear-gradient(145deg, rgba(9, 24, 40, .98), rgba(3, 9, 20, .99));
+  color: #f5fbff;
+  box-shadow: 0 36px 110px rgba(0, 0, 0, .62), 0 0 60px rgba(34, 211, 238, .09), inset 0 1px 0 rgba(255, 255, 255, .06);
+  animation: lifemapAccessRise 180ms ease both;
+}
+
+.lifemapAccessDialog::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(103, 232, 249, .8), transparent);
+}
+
+.lifemapAccessEyebrow { color: rgba(103, 232, 249, .72); font: 600 10px/1 "IBM Plex Mono", ui-monospace, monospace; letter-spacing: .2em; }
+.lifemapAccessDialog h2 { margin: 10px 0 8px; font-size: 26px; line-height: 1.05; letter-spacing: -.035em; }
+.lifemapAccessDialog p { margin: 0; color: rgba(226, 241, 248, .62); font-size: 13px; line-height: 1.5; }
+.lifemapAccessField { position: relative; display: grid; gap: 8px; margin-top: 22px; }
+.lifemapAccessField > span { color: rgba(226, 241, 248, .72); font-size: 11px; font-weight: 750; }
+.lifemapAccessField input { width: 100%; height: 48px; padding: 0 96px 0 14px; border: 1px solid rgba(103, 232, 249, .2); border-radius: 14px; outline: none; color: #f8fdff; background: rgba(2, 8, 18, .72); font: 500 15px/1 "IBM Plex Mono", ui-monospace, monospace; transition: border-color 150ms ease, box-shadow 150ms ease, background 150ms ease; }
+.lifemapAccessField input:focus { border-color: rgba(103, 232, 249, .72); background: rgba(4, 14, 27, .92); box-shadow: 0 0 0 3px rgba(103, 232, 249, .1), 0 0 28px rgba(34, 211, 238, .08); }
+.lifemapAccessReveal { position: absolute; right: 7px; bottom: 7px; height: 34px; padding: 0 10px; border: 0; border-radius: 9px; color: rgba(207, 245, 255, .7); background: rgba(103, 232, 249, .08); font-size: 10px; font-weight: 800; cursor: pointer; }
+.lifemapAccessDialog small { display: block; margin-top: 9px; color: rgba(255, 255, 255, .36); font-size: 10px; line-height: 1.4; }
+.lifemapAccessActions { display: grid; grid-template-columns: 1fr 1.35fr; gap: 10px; margin-top: 22px; }
+.lifemapAccessActions button { min-height: 42px; border-radius: 13px; font-size: 12px; font-weight: 900; cursor: pointer; }
+.lifemapAccessCancel { border: 1px solid rgba(255, 255, 255, .1); color: rgba(235, 247, 252, .66); background: rgba(255, 255, 255, .04); }
+.lifemapAccessSubmit { border: 1px solid rgba(103, 232, 249, .36); color: #031018; background: linear-gradient(100deg, #67e8f9, #6ee7b7); box-shadow: 0 12px 32px rgba(34, 211, 238, .16); }
+.lifemapAccessActions button:hover { transform: translateY(-1px); filter: brightness(1.08); }
+.lifemapAccessActions button:focus-visible, .lifemapAccessReveal:focus-visible { outline: 2px solid #67e8f9; outline-offset: 2px; }
+
+@keyframes lifemapAccessFade { from { opacity: 0; } }
+@keyframes lifemapAccessRise { from { opacity: 0; transform: translateY(10px) scale(.985); } }
+
+@media (max-width: 520px) {
+  .lifemapAccessOverlay { align-items: end; padding: 10px; }
+  .lifemapAccessDialog { width: 100%; padding: 21px; border-radius: 22px; }
+  .lifemapAccessDialog h2 { font-size: 23px; }
+}
+
