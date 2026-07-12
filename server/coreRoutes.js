@@ -102,7 +102,13 @@ export function registerCoreRoutes(app, runtime) {
   app.get('/api/life-os/work-sessions/active', async (req, res) => {
     if (!requireLifeMapAccess(req, res, assistantSecretOk)) return;
     noStore(res);
-    try { res.json({ ok: true, session: await workSessions.getActive({ logRestore: true }) }); }
+    try {
+      const [session, lastSession] = await Promise.all([
+        workSessions.getActive({ logRestore: true }),
+        workSessions.getLastCompleted(),
+      ]);
+      res.json({ ok: true, session, lastSession });
+    }
     catch (error) { res.status(500).json({ ok: false, error: 'Не удалось восстановить рабочую сессию.', details: error.message }); }
   });
 

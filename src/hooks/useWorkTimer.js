@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { workTimerService } from '../services/workTimerService.js';
 
 const SYNC_KEY = 'lifemap.workTimer.sync.v1';
@@ -39,7 +39,6 @@ function syncFailureStatus(error) {
 export function useWorkTimer({ onSessionChange } = {}) {
   const [status, setStatus] = useState('idle');
   const [activeSession, setActiveSession] = useState(null);
-  const [stats, setStats] = useState({ totalSeconds: 0, asOf: null });
   const [tick, setTick] = useState(Date.now());
   const [error, setError] = useState(null);
   const [lastSessionSeconds, setLastSessionSeconds] = useState(0);
@@ -48,13 +47,13 @@ export function useWorkTimer({ onSessionChange } = {}) {
 
   const refresh = useCallback(async () => {
     try {
-      const [active, today] = await Promise.all([workTimerService.active(), workTimerService.today()]);
+      const active = await workTimerService.active();
       const nextActive = active.session || null;
       const nextPaused = nextActive ? false : readPaused();
       if (nextActive) writePaused(false);
       setActiveSession(nextActive);
       setPaused(nextPaused);
-      setStats(today.stats || { totalSeconds: 0, asOf: null });
+      setLastSessionSeconds(Number(active.lastSession?.durationSeconds) || 0);
       setStatus(nextActive ? 'active' : nextPaused ? 'paused' : 'idle');
       setError(null);
     } catch (nextError) {
@@ -98,7 +97,6 @@ export function useWorkTimer({ onSessionChange } = {}) {
       writePaused(false);
       setPaused(false);
       setActiveSession(response.session || null);
-      setLastSessionSeconds(0);
       setTick(Date.now());
       setStatus('active');
       await refresh();
@@ -138,17 +136,16 @@ export function useWorkTimer({ onSessionChange } = {}) {
     if (!activeSession) {
       writePaused(false);
       setPaused(false);
-      setLastSessionSeconds(0);
       setStatus('idle');
       broadcast(channelRef.current);
       return;
     }
     setStatus('stopping');
     try {
-      await workTimerService.pause(activeSession.id);
+      const response = await workTimerService.pause(activeSession.id);
       writePaused(false);
       setPaused(false);
-      setLastSessionSeconds(0);
+      setLastSessionSeconds(response.session?.durationSeconds ?? elapsed(activeSession.startedAt));
       setActiveSession(null);
       setStatus('idle');
       await refresh();
@@ -162,11 +159,6 @@ export function useWorkTimer({ onSessionChange } = {}) {
   }, [activeSession, onSessionChange, refresh, status]);
 
   const currentSessionSeconds = activeSession ? elapsed(activeSession.startedAt, tick) : paused ? lastSessionSeconds : 0;
-  const todayTotalSeconds = useMemo(() => {
-    const base = Number(stats.totalSeconds) || 0;
-    if (!activeSession || !stats.asOf) return base;
-    return base + elapsed(stats.asOf, tick);
-  }, [activeSession, stats, tick]);
 
-  return { status, activeSession, paused, currentSessionSeconds, todayTotalSeconds, start, pause, stop, refresh, error };
+  return { status, activeSession, paused, currentSessionSeconds, lastSessionSeconds, start, pause, stop, refresh, error };
 }

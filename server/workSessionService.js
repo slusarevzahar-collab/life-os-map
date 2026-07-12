@@ -9,6 +9,22 @@ function activeSession(session) {
   return String(session?.status || '').toLowerCase() === 'active' && !(session.endedAt || session.finishedAt);
 }
 
+function preciseActiveSession(session) {
+  if (!activeSession(session) || session?.source !== 'lifemap' || !session?.createdAt) return session;
+  const createdAt = new Date(session.createdAt).getTime();
+  const startedAt = new Date(session.startedAt).getTime();
+  if (!Number.isFinite(createdAt) || (Number.isFinite(startedAt) && Math.abs(createdAt - startedAt) >= 120000)) return session;
+  return { ...session, startedAt: new Date(createdAt).toISOString() };
+}
+
+function completedSession(session) {
+  return String(session?.status || '').toLowerCase() === 'finished' && Number(session?.durationSeconds) >= 0;
+}
+
+function completionTime(session) {
+  return new Date(session?.endedAt || session?.finishedAt || session?.updatedAt || session?.createdAt || 0).getTime() || 0;
+}
+
 export function createWorkSessionService({ store, now = () => new Date(), logger = console, userId = null, settle = () => new Promise((resolve) => setTimeout(resolve, 180)) } = {}) {
   if (!store) throw new Error('A work session store is required.');
   let mutationQueue = Promise.resolve();
@@ -33,6 +49,7 @@ export function createWorkSessionService({ store, now = () => new Date(), logger
 
   async function activeSessions() {
     return (await storeCall(() => store.list({ status: 'Active', userId }))).filter(activeSession)
+      .map(preciseActiveSession)
       .sort((a, b) => String(a.startedAt || '').localeCompare(String(b.startedAt || '')));
   }
 
@@ -53,6 +70,11 @@ export function createWorkSessionService({ store, now = () => new Date(), logger
     const session = sessions.length > 1 ? await reconcileActive(sessions) : (sessions[0] || null);
     if (session && logRestore) logger.info?.('work_session_restored', { sessionId: session.id });
     return session;
+  }
+
+  async function getLastCompleted() {
+    return (await storeCall(() => store.list({ userId }))).filter(completedSession)
+      .sort((a, b) => completionTime(b) - completionTime(a))[0] || null;
   }
 
   async function start(input = {}) {
@@ -88,7 +110,7 @@ export function createWorkSessionService({ store, now = () => new Date(), logger
 
   async function pause(input = {}) {
     return exclusive(async () => {
-      let session = input.sessionId ? await storeCall(() => store.get(compactId(input.sessionId))) : null;
+      let session = input.sessionId ? preciseActiveSession(await storeCall(() => store.get(compactId(input.sessionId)))) : null;
       if (!activeSession(session)) session = await getActive();
       if (!session) return { session: null, completed: false };
       const endedAt = now().toISOString();
@@ -104,7 +126,7 @@ export function createWorkSessionService({ store, now = () => new Date(), logger
   }
 
   async function stats(options = {}) {
-    const sessions = await storeCall(() => store.list({ userId }));
+    const sessions = (await storeCall(() => store.list({ userId }))).map(preciseActiveSession);
     return summarizeWorkSessions(sessions, { ...options, now: options.now || now() });
   }
 
@@ -120,5 +142,5 @@ export function createWorkSessionService({ store, now = () => new Date(), logger
     };
   }
 
-  return { start, pause, getActive, stats, context };
+  return { start, pause, getActive, getLastCompleted, stats, context };
 }

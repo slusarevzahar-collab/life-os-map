@@ -37,7 +37,7 @@ export function WorkTimerWidget({ onSessionChange }) {
       </div>
       <div className="workTimerReadout">
         <div className="workTimerClock" aria-live="off">{formatWorkDuration(timer.currentSessionSeconds)}</div>
-        <div className="workTimerTotal"><span>Сегодня</span><b>{formatWorkDuration(timer.todayTotalSeconds)}</b></div>
+        <div className="workTimerTotal"><span>Последняя</span><b>{formatWorkDuration(timer.lastSessionSeconds)}</b></div>
       </div>
       <div className={`workTimerActions ${busy ? 'isBusy' : ''}`}>
         {active ? (

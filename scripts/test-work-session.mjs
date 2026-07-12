@@ -30,16 +30,22 @@ const paused = await service.pause({ sessionId: first.session.id });
 assert.equal(paused.completed, true);
 assert.equal(paused.session.durationSeconds, 2710);
 assert.equal(await service.getActive(), null);
+assert.equal((await service.getLastCompleted()).id, paused.session.id);
 assert.equal((await service.pause({ sessionId: first.session.id })).completed, false);
 
 clock = new Date('2026-07-11T10:00:00.000Z');
 const active = await service.start({ timezone: 'Europe/Moscow', taskId: 'task-1', projectId: 'project-1' });
+const storedActive = store.sessions.find((session) => session.id === active.session.id);
+storedActive.startedAt = '2026-07-11T10:00:00.000Z';
+storedActive.createdAt = '2026-07-11T10:00:37.000Z';
 const restoredService = createWorkSessionService({ store, now: () => new Date('2026-07-11T10:30:00.000Z'), logger: { info() {}, warn() {} }, settle: async () => {} });
-assert.equal((await restoredService.getActive()).id, active.session.id);
+const restored = await restoredService.getActive();
+assert.equal(restored.id, active.session.id);
+assert.equal(restored.startedAt, '2026-07-11T10:00:37.000Z');
 const stats = await restoredService.stats({ timezone: 'Europe/Moscow', from: '2026-07-11', to: '2026-07-11' });
-assert.equal(stats.totalSeconds, 4510);
+assert.equal(stats.totalSeconds, 4473);
 const context = await restoredService.context({ timezone: 'Europe/Moscow', days: 7 });
 assert.equal(context.activeSession.id, active.session.id);
-assert.equal(context.today.totalSeconds, 4510);
+assert.equal(context.today.totalSeconds, 4473);
 
 console.log('LifeMap work session integration tests passed.');
