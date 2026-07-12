@@ -1,8 +1,8 @@
-// LifeMap UI V2 — SpaceBackground (Stage 1)
-// Layers: original photo + twinkles (decorative loop from the approved design),
-// dim layer (inert — wired to real camera state in Stage 2), base shade, vignette.
-// The background does not move yet: no parallax, no camera transform.
-import { useMemo } from 'react';
+// LifeMap UI V2 — SpaceBackground (Stage 2)
+// Receives a declarative pose via props (transformOrigin, transform,
+// dimOpacity, transitionMs) and applies it ONLY to its own inline styles.
+// The pose lives in useCameraFlight React state, so re-renders cannot reset it.
+import { useEffect, useMemo, useState } from 'react';
 
 function seededTwinkles(count = 230, seed = 4211) {
   let state = seed;
@@ -19,12 +19,39 @@ function seededTwinkles(count = 230, seed = 4211) {
   }));
 }
 
-export function SpaceBackground() {
+function usePrefersReducedMotion() {
+  const [reduced, setReduced] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const handler = (event) => setReduced(event.matches);
+    mediaQuery.addEventListener('change', handler);
+    return () => mediaQuery.removeEventListener('change', handler);
+  }, []);
+
+  return reduced;
+}
+
+export function SpaceBackground({ pose }) {
   const twinkles = useMemo(() => seededTwinkles(), []);
+  const reducedMotion = usePrefersReducedMotion();
+  const {
+    transformOrigin = '640px 400px',
+    transform = 'translate(0px,0px) scale(1)',
+    dimOpacity = 0,
+    transitionMs = 1150,
+  } = pose || {};
+  const effectiveTransitionMs = reducedMotion ? 0 : transitionMs;
 
   return (
     <div className="lifemapV2Background" aria-hidden="true">
-      <div className="lifemapV2BgPhoto">
+      <div
+        className="lifemapV2BgPhoto"
+        style={{ transformOrigin, transform, transitionDuration: `${effectiveTransitionMs}ms` }}
+      >
         {twinkles.map((star, index) => (
           <i
             key={index}
@@ -34,14 +61,17 @@ export function SpaceBackground() {
               top: `${star.top}%`,
               width: `${star.size}px`,
               height: `${star.size}px`,
-              animationDuration: `${star.duration}s`,
+              animationDuration: reducedMotion ? '0s' : `${star.duration}s`,
               animationDelay: `${star.delay}s`,
+              animationPlayState: reducedMotion ? 'paused' : 'running',
             }}
           />
         ))}
       </div>
-      {/* Future camera dim layer: static/inactive until Stage 2 wires camera state */}
-      <div className="lifemapV2BgDim" />
+      <div
+        className="lifemapV2BgDim"
+        style={{ opacity: dimOpacity, transitionDuration: `${effectiveTransitionMs}ms` }}
+      />
       <div className="lifemapV2BgShade" />
       <div className="lifemapV2BgVignette" />
     </div>

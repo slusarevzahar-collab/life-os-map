@@ -1,10 +1,9 @@
-/* LifeMap UI V2 — Stage 1 styles.
+/* LifeMap UI V2 — Stage 2 styles.
    All classes namespaced under .lifemapV2*. Global rules scoped to
    html[data-lifemap-ui="v2"] only — never touch the legacy interface.
    No !important. No legacy class names. No animation watchdog,
    no MutationObserver, no setInterval anywhere in this file. */
 
-/* Minimal, V2-scoped global rules (html / body / #root / overflow). */
 html[data-lifemap-ui="v2"],
 html[data-lifemap-ui="v2"] body {
   margin: 0;
@@ -19,7 +18,6 @@ html[data-lifemap-ui="v2"] * {
   box-sizing: border-box;
 }
 
-/* Root */
 .lifemapV2 {
   position: fixed;
   inset: 0;
@@ -29,7 +27,6 @@ html[data-lifemap-ui="v2"] * {
   color: #eef2f8;
 }
 
-/* Stage — safe-area aware, centers the design box, clips overflow */
 .lifemapV2Stage {
   position: absolute;
   inset: 0;
@@ -41,14 +38,11 @@ html[data-lifemap-ui="v2"] * {
   overflow: hidden;
 }
 
-/* Design box — fixed 1280x800 logical size, scaled around its center */
 .lifemapV2DesignBox {
   flex: none;
   transform-origin: center center;
 }
 
-/* Frame — the rounded, bordered stage surface (matches the approved design's
-   outer container: radius, base radial gradient, shadow) */
 .lifemapV2Frame {
   position: relative;
   width: 100%;
@@ -59,13 +53,25 @@ html[data-lifemap-ui="v2"] * {
   box-shadow: 0 50px 130px rgba(0, 0, 0, 0.62), inset 0 0 0 1px rgba(255, 255, 255, 0.045);
 }
 
-/* Content layer — future camera-warp target (Stage 2) */
-.lifemapV2Content {
+.lifemapV2CameraLayer {
   position: absolute;
   inset: 0;
+  will-change: transform, opacity, filter;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
-/* ============ SpaceBackground ============ */
+.lifemapV2Viewport {
+  position: absolute;
+  inset: 0;
+  transform-origin: center center;
+  touch-action: none;
+  cursor: grab;
+}
+.lifemapV2Frame.lifemapV2Dragging .lifemapV2Viewport {
+  cursor: grabbing;
+}
+
 .lifemapV2Background {
   position: absolute;
   inset: 0;
@@ -77,6 +83,9 @@ html[data-lifemap-ui="v2"] * {
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;
+  transition-property: transform;
+  transition-timing-function: cubic-bezier(.22, .1, .12, 1);
+  will-change: transform;
 }
 .lifemapV2Twinkle {
   position: absolute;
@@ -91,8 +100,9 @@ html[data-lifemap-ui="v2"] * {
   position: absolute;
   inset: -6px;
   background: rgba(3, 6, 10, 0.72);
-  opacity: 0; /* inert until Stage 2 wires real camera-transition state */
   pointer-events: none;
+  transition-property: opacity;
+  transition-timing-function: cubic-bezier(.22, .1, .12, 1);
 }
 .lifemapV2BgShade {
   position: absolute;
@@ -116,7 +126,6 @@ html[data-lifemap-ui="v2"] * {
   50% { opacity: 1; transform: translate(-50%, -50%) scale(1.07); }
 }
 
-/* ============ Orbit ============ */
 .lifemapV2OrbitSystem {
   position: absolute;
   inset: 0;
@@ -132,7 +141,6 @@ html[data-lifemap-ui="v2"] * {
   border: 1px solid rgba(255, 255, 255, 0.055);
 }
 
-/* ============ Planet (shared) ============ */
 .lifemapV2Planet {
   position: absolute;
   left: var(--planet-x);
@@ -148,6 +156,7 @@ html[data-lifemap-ui="v2"] * {
   background: radial-gradient(circle at 38% 32%, #1a212c 0%, #11161f 68%, #0c0f16 100%);
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55), inset -6px -8px 30px rgba(0, 0, 0, 0.45);
   border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: filter 0.2s ease;
 }
 .lifemapV2PlanetOrbit .lifemapV2PlanetBody {
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55), inset -6px -8px 30px rgba(0, 0, 0, 0.45),
@@ -156,6 +165,22 @@ html[data-lifemap-ui="v2"] * {
 }
 .lifemapV2PlanetMuted .lifemapV2PlanetBody {
   border-color: rgba(255, 255, 255, 0.12);
+}
+
+.lifemapV2PlanetInteractive {
+  cursor: pointer;
+}
+.lifemapV2PlanetInteractive:hover .lifemapV2PlanetBody,
+.lifemapV2PlanetInteractive:focus-visible .lifemapV2PlanetBody {
+  filter: brightness(1.15);
+}
+.lifemapV2PlanetInteractive:focus-visible {
+  outline: 2px solid rgba(87, 224, 168, 0.65);
+  outline-offset: 4px;
+  border-radius: 50%;
+}
+.lifemapV2PlanetInteractive[aria-disabled="true"] {
+  cursor: default;
 }
 
 .lifemapV2PlanetArcHost {
@@ -181,6 +206,7 @@ html[data-lifemap-ui="v2"] * {
   gap: 6px;
   padding: 0 12px;
   text-align: center;
+  pointer-events: none;
 }
 .lifemapV2PlanetLabel b {
   font: 500 15px 'IBM Plex Sans', system-ui, sans-serif;
@@ -201,7 +227,6 @@ html[data-lifemap-ui="v2"] * {
   color: rgba(125, 140, 160, 0.62);
 }
 
-/* Central core */
 .lifemapV2PlanetCentral .lifemapV2PlanetBody {
   background: radial-gradient(circle at 40% 34%, #1c2530 0%, #12171f 60%, #0c0f16 100%);
   box-shadow: inset 0 0 44px rgba(255, 255, 255, 0.05), inset -8px -10px 40px rgba(0, 0, 0, 0.6);
@@ -228,4 +253,34 @@ html[data-lifemap-ui="v2"] * {
   font: 500 10px 'IBM Plex Mono', ui-monospace, monospace;
   letter-spacing: 2px;
   color: rgba(87, 224, 168, 0.7);
+}
+
+.lifemapV2DebugBack {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 30;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: rgba(224, 120, 120, 0.14);
+  border: 1px solid rgba(224, 120, 120, 0.4);
+  color: #f0b8b8;
+  font: 600 11px 'IBM Plex Mono', ui-monospace, monospace;
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+.lifemapV2DebugBack:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lifemapV2Twinkle,
+  .lifemapV2PlanetGlow {
+    animation: none;
+  }
+  .lifemapV2BgPhoto,
+  .lifemapV2BgDim {
+    transition: none;
+  }
 }
