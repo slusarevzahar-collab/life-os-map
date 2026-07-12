@@ -3,6 +3,18 @@ import { workTimerService } from '../services/workTimerService.js';
 
 const SYNC_KEY = 'lifemap.workTimer.sync.v1';
 const CHANNEL_NAME = 'lifemap.workTimer.v1';
+const PAUSED_KEY = 'lifemap.workTimer.paused.v1';
+
+function readPaused() {
+  try { return window.localStorage.getItem(PAUSED_KEY) === '1'; } catch { return false; }
+}
+
+function writePaused(value) {
+  try {
+    if (value) window.localStorage.setItem(PAUSED_KEY, '1');
+    else window.localStorage.removeItem(PAUSED_KEY);
+  } catch {}
+}
 
 function elapsed(startedAt, now = Date.now()) {
   const start = new Date(startedAt).getTime();
@@ -26,14 +38,19 @@ export function useWorkTimer({ onSessionChange } = {}) {
   const [tick, setTick] = useState(Date.now());
   const [error, setError] = useState(null);
   const [lastSessionSeconds, setLastSessionSeconds] = useState(0);
+  const [paused, setPaused] = useState(() => readPaused());
   const channelRef = useRef(null);
 
   const refresh = useCallback(async () => {
     try {
       const [active, today] = await Promise.all([workTimerService.active(), workTimerService.today()]);
-      setActiveSession(active.session || null);
+      const nextActive = active.session || null;
+      const nextPaused = nextActive ? false : readPaused();
+      if (nextActive) writePaused(false);
+      setActiveSession(nextActive);
+      setPaused(nextPaused);
       setStats(today.stats || { totalSeconds: 0, asOf: null });
-      setStatus(active.session ? 'active' : 'idle');
+      setStatus(nextActive ? 'active' : nextPaused ? 'paused' : 'idle');
       setError(null);
     } catch (nextError) {
       setStatus((current) => current === 'active' ? 'active' : 'sync-error');
@@ -48,7 +65,7 @@ export function useWorkTimer({ onSessionChange } = {}) {
     channelRef.current = channel;
     const sync = () => refresh();
     if (channel) channel.addEventListener('message', sync);
-    const storage = (event) => { if (event.key === SYNC_KEY) sync(); };
+    const storage = (event) => { if ([SYNC_KEY, PAUSED_KEY].includes(event.key)) sync(); };
     const visible = () => { if (document.visibilityState === 'visible') sync(); };
     window.addEventListener('storage', storage);
     window.addEventListener('focus', sync);
@@ -67,11 +84,14 @@ export function useWorkTimer({ onSessionChange } = {}) {
   }, [activeSession]);
 
   const start = useCallback(async (input = {}) => {
-    if (['starting', 'pausing'].includes(status)) return;
+    if (['starting', 'pausing', 'stopping'].includes(status)) return;
+    const wasPaused = paused;
     setStatus('starting');
     setError(null);
     try {
       const response = await workTimerService.start(input);
+      writePaused(false);
+      setPaused(false);
       setActiveSession(response.session || null);
       setLastSessionSeconds(0);
       setTick(Date.now());
@@ -80,21 +100,23 @@ export function useWorkTimer({ onSessionChange } = {}) {
       broadcast(channelRef.current);
       onSessionChange?.();
     } catch (nextError) {
-      setStatus('sync-error');
+      setStatus(wasPaused ? 'paused' : 'sync-error');
       setError(friendlySyncError(nextError, 'Старт не сохранён. Проверьте соединение и попробуйте ещё раз.'));
       console.warn('work_session_sync_failed', nextError);
     }
-  }, [onSessionChange, refresh, status]);
+  }, [onSessionChange, paused, refresh, status]);
 
   const pause = useCallback(async () => {
-    if (!activeSession || ['starting', 'pausing'].includes(status)) return;
+    if (!activeSession || ['starting', 'pausing', 'stopping'].includes(status)) return;
     setStatus('pausing');
     setError(null);
     try {
       const response = await workTimerService.pause(activeSession.id);
       setLastSessionSeconds(response.session?.durationSeconds ?? elapsed(activeSession.startedAt));
       setActiveSession(null);
-      setStatus('idle');
+      writePaused(true);
+      setPaused(true);
+      setStatus('paused');
       await refresh();
       broadcast(channelRef.current);
       onSessionChange?.();
@@ -105,12 +127,41 @@ export function useWorkTimer({ onSessionChange } = {}) {
     }
   }, [activeSession, onSessionChange, refresh, status]);
 
-  const currentSessionSeconds = activeSession ? elapsed(activeSession.startedAt, tick) : lastSessionSeconds;
+  const stop = useCallback(async () => {
+    if (['starting', 'pausing', 'stopping'].includes(status)) return;
+    setError(null);
+    if (!activeSession) {
+      writePaused(false);
+      setPaused(false);
+      setLastSessionSeconds(0);
+      setStatus('idle');
+      broadcast(channelRef.current);
+      return;
+    }
+    setStatus('stopping');
+    try {
+      await workTimerService.pause(activeSession.id);
+      writePaused(false);
+      setPaused(false);
+      setLastSessionSeconds(0);
+      setActiveSession(null);
+      setStatus('idle');
+      await refresh();
+      broadcast(channelRef.current);
+      onSessionChange?.();
+    } catch (nextError) {
+      setStatus('active');
+      setError(friendlySyncError(nextError, 'Остановка не сохранилась. Таймер продолжает считаться; попробуйте ещё раз.'));
+      console.warn('work_session_sync_failed', nextError);
+    }
+  }, [activeSession, onSessionChange, refresh, status]);
+
+  const currentSessionSeconds = activeSession ? elapsed(activeSession.startedAt, tick) : paused ? lastSessionSeconds : 0;
   const todayTotalSeconds = useMemo(() => {
     const base = Number(stats.totalSeconds) || 0;
     if (!activeSession || !stats.asOf) return base;
     return base + elapsed(stats.asOf, tick);
   }, [activeSession, stats, tick]);
 
-  return { status, activeSession, currentSessionSeconds, todayTotalSeconds, start, pause, refresh, error };
+  return { status, activeSession, paused, currentSessionSeconds, todayTotalSeconds, start, pause, stop, refresh, error };
 }
