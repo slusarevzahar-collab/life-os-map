@@ -10,22 +10,63 @@
     <link rel="icon" href="/lifemap-icon.svg" type="image/svg+xml" />
     <link rel="mask-icon" href="/lifemap-icon.svg" color="#57e0a8" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="stylesheet" href="/src/action-map-overrides.css" />
-    <link rel="stylesheet" href="/src/ai-inbox-fixes.css" />
-    <link rel="stylesheet" href="/src/assistant-ui-overrides.css" />
-    <link rel="stylesheet" href="/src/mobile-polish.css" />
-    <link rel="stylesheet" href="/src/inbox-reprocess-cloud.css" />
-    <link rel="stylesheet" href="/src/assistant-split-fab.css" />
-    <link rel="stylesheet" href="/src/work-timer.css" />
-    <link rel="stylesheet" href="/src/access-key.css" />
-    <link rel="stylesheet" href="/src/inbox-desktop-layout-fix.css" />
-    <link rel="stylesheet" href="/src/claude-source-runtime.css" />
+
+    <!-- LEGACY UI stylesheets (old LifeMap only). Marked data-legacy-ui so the
+         bootstrap below can disable them in UI V2 mode. Order unchanged. -->
+    <link rel="stylesheet" href="/src/action-map-overrides.css" data-legacy-ui />
+    <link rel="stylesheet" href="/src/ai-inbox-fixes.css" data-legacy-ui />
+    <link rel="stylesheet" href="/src/assistant-ui-overrides.css" data-legacy-ui />
+    <link rel="stylesheet" href="/src/mobile-polish.css" data-legacy-ui />
+    <link rel="stylesheet" href="/src/inbox-reprocess-cloud.css" data-legacy-ui />
+    <link rel="stylesheet" href="/src/assistant-split-fab.css" data-legacy-ui />
+    <link rel="stylesheet" href="/src/work-timer.css" data-legacy-ui />
+    <link rel="stylesheet" href="/src/access-key.css" data-legacy-ui />
+    <link rel="stylesheet" href="/src/inbox-desktop-layout-fix.css" data-legacy-ui />
+    <link rel="stylesheet" href="/src/claude-source-runtime.css" data-legacy-ui />
+
+    <!-- UI mode switch. Runs during head parse, BEFORE body renders, so legacy
+         styles never flash in UI V2. Toggle with ?uiv2=1. -->
+    <script>
+      (function () {
+        var isUiV2 = new URLSearchParams(window.location.search).get('uiv2') === '1';
+        document.documentElement.setAttribute('data-lifemap-ui', isUiV2 ? 'v2' : 'legacy');
+        window.__LIFEMAP_UI_V2__ = isUiV2;
+        if (isUiV2) {
+          var legacy = document.querySelectorAll('link[data-legacy-ui]');
+          for (var i = 0; i < legacy.length; i += 1) {
+            legacy[i].disabled = true;
+            legacy[i].media = 'not all';
+          }
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/claude-stage.js"></script>
-    <script type="module" src="/src/App.jsx"></script>
-    <script type="module" src="/src/live-map-enhance.js"></script>
-    <script type="module" src="/src/claude-style-last.js"></script>
+
+    <!-- Conditional bootstrap: isolated UI V2 entry vs legacy stack. -->
+    <script type="module">
+      (async function bootstrapLifeMap() {
+        async function importUiModule(load, path) {
+          try {
+            await load();
+          } catch (error) {
+            console.error('[LifeMap] Failed to load UI module:', path, error);
+          }
+        }
+
+        if (window.__LIFEMAP_UI_V2__ === true) {
+          // Literal imports let Vite include the selected entry in production.
+          // UI V2 loads no legacy runtime patches.
+          await importUiModule(() => import('/src/ui-v2/entry.jsx'), '/src/ui-v2/entry.jsx');
+        } else {
+          // Preserve the existing legacy order while isolating individual failures.
+          await importUiModule(() => import('/src/claude-stage.js'), '/src/claude-stage.js');
+          await importUiModule(() => import('/src/App.jsx'), '/src/App.jsx');
+          await importUiModule(() => import('/src/live-map-enhance.js'), '/src/live-map-enhance.js');
+          await importUiModule(() => import('/src/claude-style-last.js'), '/src/claude-style-last.js');
+        }
+      })();
+    </script>
   </body>
 </html>

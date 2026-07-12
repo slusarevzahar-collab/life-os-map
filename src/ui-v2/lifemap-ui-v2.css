@@ -1,0 +1,83 @@
+/* LifeMap UI V2 — Stage 0 styles.
+   All UI classes are namespaced under .lifemapV2*. Global rules are scoped to
+   html[data-lifemap-ui="v2"] so they apply ONLY in UI V2 mode and never touch
+   the legacy interface. No !important. No legacy class names (.app, .actionApp,
+   .map, .planet, .panel, .toast). */
+
+/* Minimal, V2-scoped global rules (html / body / #root / overflow / viewport). */
+html[data-lifemap-ui="v2"],
+html[data-lifemap-ui="v2"] body {
+  margin: 0;
+  height: 100%;
+  background: #050810;
+  overflow: hidden;
+}
+html[data-lifemap-ui="v2"] #root {
+  height: 100%;
+}
+html[data-lifemap-ui="v2"] * {
+  box-sizing: border-box;
+}
+
+/* Root */
+.lifemapV2 {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(130% 120% at 50% 34%, #0b111b 0%, #070b12 55%, #04060b 100%);
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: #eef2f8;
+}
+
+/* Stage — safe-area aware, centers the design box, clips any overflow */
+.lifemapV2Stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+           env(safe-area-inset-bottom) env(safe-area-inset-left);
+  overflow: hidden;
+}
+
+/* Design box — fixed 1280x800 logical size, scaled around its center */
+.lifemapV2DesignBox {
+  flex: none;
+  transform-origin: center center;
+}
+
+/* Stage 0 scene + temporary label (removed in Stage 1) */
+.lifemapV2Scene {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 24px;
+  overflow: hidden;
+  background: radial-gradient(125% 120% at 50% 38%, #0b111b 0%, #070b12 55%, #04060b 100%);
+  box-shadow: 0 50px 130px rgba(0, 0, 0, 0.62), inset 0 0 0 1px rgba(255, 255, 255, 0.045);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lifemapV2StageLabel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+.lifemapV2Brand {
+  font: 600 22px 'IBM Plex Sans', system-ui, sans-serif;
+  letter-spacing: 3px;
+  color: #dbe2ec;
+}
+.lifemapV2Tag {
+  font: 500 13px 'IBM Plex Mono', ui-monospace, monospace;
+  letter-spacing: 2px;
+  color: rgba(87, 224, 168, 0.85);
+}
+.lifemapV2Sub {
+  font: 400 13px 'IBM Plex Sans', system-ui, sans-serif;
+  color: rgba(160, 172, 190, 0.7);
+}
