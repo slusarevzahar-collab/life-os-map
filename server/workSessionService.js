@@ -5,11 +5,18 @@ function compactId(value, limit = 200) {
   return text ? text.slice(0, limit) : null;
 }
 
+function requestedStart(value, fallback) {
+  const requested = new Date(value);
+  if (!Number.isFinite(requested.getTime())) return fallback;
+  return Math.abs(fallback.getTime() - requested.getTime()) <= 5 * 60 * 1000 ? requested : fallback;
+}
+
 function activeSession(session) {
   return String(session?.status || '').toLowerCase() === 'active' && !(session.endedAt || session.finishedAt);
 }
 
 function preciseActiveSession(session) {
+  if (session?.startedAtExact) return { ...session, startedAt: session.startedAtExact };
   if (!activeSession(session) || session?.source !== 'lifemap' || !session?.createdAt) return session;
   const createdAt = new Date(session.createdAt).getTime();
   const startedAt = new Date(session.startedAt).getTime();
@@ -82,7 +89,7 @@ export function createWorkSessionService({ store, now = () => new Date(), logger
       const existing = await getActive();
       if (existing) return { session: existing, created: false };
 
-      const started = now();
+      const started = requestedStart(input.startedAt, now());
       const timezone = validTimezone(input.timezone || 'UTC');
       const session = await storeCall(() => store.create({
         userId: compactId(userId),

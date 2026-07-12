@@ -20,7 +20,7 @@ export const workTimerService = {
   start(input = {}) {
     return requestJson('/api/life-os/work-sessions/start', {
       method: 'POST',
-      body: JSON.stringify({ ...sessionContext(input), timezone: timezone(), dateKey: dateKey() }),
+      body: JSON.stringify({ ...sessionContext(input), startedAt: input.startedAt, timezone: timezone(), dateKey: dateKey() }),
     });
   },
   pause(sessionId) {

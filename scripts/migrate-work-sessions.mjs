@@ -13,6 +13,7 @@ if (!notionToken || !sessionsDbId) {
     database_id: sessionsDbId,
     properties: {
       'Duration Seconds': { number: { format: 'number' } },
+      'Started At Exact': { rich_text: {} },
       'Date Key': { rich_text: {} },
       Timezone: { rich_text: {} },
       Source: { select: { options: [{ name: 'lifemap', color: 'blue' }] } },
@@ -23,4 +24,3 @@ if (!notionToken || !sessionsDbId) {
   });
   console.log(`LifeMap Sessions schema migrated: ${sessionsDbId}`);
 }
-
