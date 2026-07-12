@@ -1,4 +1,6 @@
 const SECRET_KEY = 'lifemap.assistant.writeSecret.session';
+let rejectedAccessKey = '';
+let accessPromptSuppressedUntil = 0;
 
 export function emptySnapshot(source = 'loading', warning = '') {
   const isOffline = source === 'api-offline';
@@ -85,6 +87,18 @@ function promptForAccessKey() {
   return window.prompt('Введите ключ доступа LifeMap:') || '';
 }
 
+function vercelLoginError(response) {
+  const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+  const responseUrl = String(response.url || '');
+  if (!contentType.includes('text/html')) return null;
+  const previewHost = typeof window !== 'undefined' ? window.location.host : '';
+  const error = new Error(`Vercel Preview требует отдельного входа. Откройте https://${previewHost}/api/life-os/health, войдите в Vercel и затем перезагрузите LifeMap.`);
+  error.apiResponse = true;
+  error.status = response.status || 401;
+  error.code = responseUrl.includes('vercel.com') ? 'vercel-preview-login' : 'unexpected-html';
+  return error;
+}
+
 export async function requestJson(path, options = {}) {
   const errors = [];
   const needsSecret = requestNeedsSecret(options);
@@ -103,16 +117,39 @@ export async function requestJson(path, options = {}) {
             ...(effectiveOptions.headers || {}),
           },
         });
+        const loginError = vercelLoginError(response);
+        if (loginError) throw loginError;
         const data = await response.json().catch(() => ({}));
         if (!response.ok || data.ok === false) {
           if (response.status === 403 && needsSecret && !prompted) {
+            const latestSecret = readAccessSecret();
+            if (latestSecret && latestSecret !== secret) {
+              secret = latestSecret;
+              continue;
+            }
+            if (!secret && Date.now() < accessPromptSuppressedUntil) {
+              const error = new Error('Ключ уже был отклонён этим окружением. Для Vercel Preview проверьте вход в Vercel и наличие LIFEMAP_ASSISTANT_API_SECRET в Preview Environment.');
+              error.apiResponse = true;
+              error.status = 403;
+              error.code = 'access-key-rejected';
+              throw error;
+            }
             prompted = true;
-            if (secret) writeAccessSecret('');
+            if (secret) {
+              rejectedAccessKey = secret;
+              writeAccessSecret('');
+            }
             secret = promptForAccessKey();
             if (secret) {
+              if (secret === rejectedAccessKey) accessPromptSuppressedUntil = Date.now() + 15000;
               writeAccessSecret(secret);
               continue;
             }
+          }
+          if (response.status === 403 && secret) {
+            rejectedAccessKey = secret;
+            accessPromptSuppressedUntil = Date.now() + 15000;
+            if (readAccessSecret() === secret) writeAccessSecret('');
           }
           const error = new Error(data.error || data.details || `API ${response.status}`);
           error.apiResponse = true;

@@ -14,6 +14,11 @@ function broadcast(channel) {
   try { window.localStorage.setItem(SYNC_KEY, String(Date.now())); } catch {}
 }
 
+function friendlySyncError(error, fallback) {
+  if (['vercel-preview-login', 'unexpected-html', 'access-key-rejected'].includes(error?.code)) return error.message;
+  return fallback;
+}
+
 export function useWorkTimer({ onSessionChange } = {}) {
   const [status, setStatus] = useState('idle');
   const [activeSession, setActiveSession] = useState(null);
@@ -32,7 +37,7 @@ export function useWorkTimer({ onSessionChange } = {}) {
       setError(null);
     } catch (nextError) {
       setStatus((current) => current === 'active' ? 'active' : 'sync-error');
-      setError('Не удалось синхронизировать рабочее время. Повторим автоматически.');
+      setError(friendlySyncError(nextError, 'Не удалось синхронизировать рабочее время. Повторим автоматически.'));
       console.warn('work_session_sync_failed', nextError);
     }
   }, []);
@@ -76,7 +81,7 @@ export function useWorkTimer({ onSessionChange } = {}) {
       onSessionChange?.();
     } catch (nextError) {
       setStatus('sync-error');
-      setError('Старт не сохранён. Проверьте соединение и попробуйте ещё раз.');
+      setError(friendlySyncError(nextError, 'Старт не сохранён. Проверьте соединение и попробуйте ещё раз.'));
       console.warn('work_session_sync_failed', nextError);
     }
   }, [onSessionChange, refresh, status]);
@@ -95,7 +100,7 @@ export function useWorkTimer({ onSessionChange } = {}) {
       onSessionChange?.();
     } catch (nextError) {
       setStatus('active');
-      setError('Пауза не сохранилась. Таймер продолжает считаться; попробуйте ещё раз.');
+      setError(friendlySyncError(nextError, 'Пауза не сохранилась. Таймер продолжает считаться; попробуйте ещё раз.'));
       console.warn('work_session_sync_failed', nextError);
     }
   }, [activeSession, onSessionChange, refresh, status]);
@@ -109,4 +114,3 @@ export function useWorkTimer({ onSessionChange } = {}) {
 
   return { status, activeSession, currentSessionSeconds, todayTotalSeconds, start, pause, refresh, error };
 }
-
