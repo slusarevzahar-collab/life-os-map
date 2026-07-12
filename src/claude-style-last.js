@@ -1,3 +1,5 @@
+import spaceBackgroundDataUri from './assets/space-bg-data.js';
+
 const RUNTIME_LINK_ID = 'claude-source-runtime-last';
 const FINAL_STYLE_ID = 'claude-final-layout-overrides';
 const PLANET_SELECTOR = '.app.actionApp .mapNode.orbitNode';
@@ -8,7 +10,7 @@ function appendRuntimeStylesLast() {
   const link = document.createElement('link');
   link.id = RUNTIME_LINK_ID;
   link.rel = 'stylesheet';
-  link.href = '/src/claude-source-runtime.css?layout=20260712-3';
+  link.href = '/src/claude-source-runtime.css?layout=20260712-4';
   document.head.appendChild(link);
 }
 
@@ -19,7 +21,7 @@ function appendFinalLayoutOverrides() {
   style.id = FINAL_STYLE_ID;
   style.textContent = `
     .app.actionApp .claudeSpaceBackground {
-      background-image: url('/assets/space-bg-exact.svg') !important;
+      background-image: url("${spaceBackgroundDataUri}") !important;
       background-position: center !important;
       background-size: cover !important;
       background-repeat: no-repeat !important;
