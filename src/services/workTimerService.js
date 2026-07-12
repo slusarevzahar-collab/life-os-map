@@ -10,11 +10,17 @@ function dateKey() {
   return `${read('year')}-${read('month')}-${read('day')}`;
 }
 
+export function sessionContext(input = {}) {
+  return Object.fromEntries(['projectId', 'project', 'taskId', 'title']
+    .filter((key) => typeof input?.[key] === 'string')
+    .map((key) => [key, input[key]]));
+}
+
 export const workTimerService = {
   start(input = {}) {
     return requestJson('/api/life-os/work-sessions/start', {
       method: 'POST',
-      body: JSON.stringify({ ...input, timezone: timezone(), dateKey: dateKey() }),
+      body: JSON.stringify({ ...sessionContext(input), timezone: timezone(), dateKey: dateKey() }),
     });
   },
   pause(sessionId) {
@@ -31,4 +37,3 @@ export const workTimerService = {
     return requestJson(`/api/life-os/work-sessions/stats?from=${today}&to=${today}&timezone=${encodeURIComponent(timezone())}`, { requiresSecret: true });
   },
 };
-

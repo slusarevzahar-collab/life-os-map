@@ -43,7 +43,7 @@ export function WorkTimerWidget({ onSessionChange }) {
         {active ? (
           <button type="button" disabled={busy} className="workTimerPause" aria-label="Поставить таймер на паузу" title="Пауза" onClick={timer.pause}><PauseIcon /></button>
         ) : (
-          <button type="button" disabled={busy} className="workTimerPlay" aria-label={timer.paused ? 'Продолжить учёт времени' : 'Начать учёт времени'} title={timer.paused ? 'Продолжить' : 'Старт'} onClick={timer.start}><PlayIcon /></button>
+          <button type="button" disabled={busy} className="workTimerPlay" aria-label={timer.paused ? 'Продолжить учёт времени' : 'Начать учёт времени'} title={timer.paused ? 'Продолжить' : 'Старт'} onClick={() => timer.start()}><PlayIcon /></button>
         )}
         {(active || timer.paused) ? (
           <button type="button" disabled={busy} className="workTimerStop" aria-label="Остановить таймер" title="Стоп" onClick={timer.stop}><StopIcon /></button>
