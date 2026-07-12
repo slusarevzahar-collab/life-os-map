@@ -6,11 +6,6 @@ export function formatWorkDuration(totalSeconds = 0) {
     .map((part) => String(part).padStart(2, '0')).join(':');
 }
 
-function startTime(session) {
-  if (!session?.startedAt) return '';
-  return new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(new Date(session.startedAt));
-}
-
 function PlayIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.25 5.2v13.6L19 12 8.25 5.2Z" /></svg>;
 }
@@ -27,17 +22,13 @@ export function WorkTimerWidget({ onSessionChange }) {
   const timer = useWorkTimer({ onSessionChange });
   const active = Boolean(timer.activeSession);
   const busy = ['starting', 'pausing', 'stopping'].includes(timer.status);
-  const stateLabel = active ? 'Работаю' : timer.paused ? 'Пауза' : timer.status === 'auth-required' ? 'Нужен ключ' : timer.status === 'sync-error' ? 'Нет связи' : 'Не работаю';
+  const showLast = !active && timer.lastSessionSeconds > 0;
+  const visualState = active ? 'running' : timer.paused ? 'paused' : timer.stopFlash ? 'stopped' : 'idle';
   return (
-    <section className={`workTimerWidget ${active ? 'isActive' : ''} ${timer.paused ? 'isPaused' : ''}`} aria-label="Учёт рабочего времени" onClick={(event) => event.stopPropagation()}>
-      <div className="workTimerHead">
-        <span className="workTimerDot" aria-hidden="true" />
-        <span>{stateLabel}</span>
-        {active ? <small>Начато в {startTime(timer.activeSession)}</small> : null}
-      </div>
-      <div className="workTimerReadout">
+    <section className={`workTimerWidget is-${visualState}`} data-timer-state={visualState} aria-label="Учёт рабочего времени" onClick={(event) => event.stopPropagation()}>
+      <div className={`workTimerReadout ${showLast ? 'hasLast' : ''}`}>
         <div className="workTimerClock" aria-live="off">{formatWorkDuration(timer.currentSessionSeconds)}</div>
-        <div className="workTimerTotal"><span>Последняя</span><b>{formatWorkDuration(timer.lastSessionSeconds)}</b></div>
+        {showLast ? <div className="workTimerTotal"><span>Последняя</span><b>{formatWorkDuration(timer.lastSessionSeconds)}</b></div> : null}
       </div>
       <div className={`workTimerActions ${busy ? 'isBusy' : ''}`}>
         {active ? (
