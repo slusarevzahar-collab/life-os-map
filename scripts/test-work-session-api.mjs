@@ -70,6 +70,9 @@ try {
     headers: { Cookie: accessCookie },
   });
   assert.equal(paused.body.session.durationSeconds, 900);
+  const stoppedState = await request('/api/life-os/work-sessions/active');
+  assert.equal(stoppedState.body.session, null);
+  assert.equal(stoppedState.body.lastSession.durationSeconds, 900);
   const protectedWrite = await request('/api/life-os/sessions', {
     method: 'POST',
     body: '{}',
