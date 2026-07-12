@@ -6,6 +6,7 @@ const CAMERA_SETTLE_MS = 1050;
 let morphTimer = 0;
 let cameraTimer = 0;
 let observerFrame = 0;
+let cameraStartHash = '';
 
 function cancelAnimations(element) {
   element?.getAnimations?.().forEach((animation) => {
@@ -96,15 +97,25 @@ function settleCamera() {
       planet.removeAttribute('disabled');
     });
   }
+
+  window.dispatchEvent(new CustomEvent('lifemap:camera-settled'));
 }
 
 function armCameraWatchdog() {
   window.clearTimeout(cameraTimer);
+  cameraStartHash = window.location.hash;
+
   cameraTimer = window.setTimeout(() => {
     const stage = document.querySelector('.mapStage.cameraFlying');
     if (!stage) return;
+
+    const routeDidNotChange = window.location.hash === cameraStartHash;
     settleCamera();
     safeSessionRemove(CAMERA_STORAGE_KEY);
+
+    if (routeDidNotChange) {
+      window.setTimeout(() => window.location.reload(), 0);
+    }
   }, CAMERA_SETTLE_MS);
 }
 
@@ -184,6 +195,11 @@ window.addEventListener('keydown', (event) => {
     armMorphWatchdog();
   }
 }, true);
+
+window.addEventListener('hashchange', () => {
+  window.clearTimeout(cameraTimer);
+  window.setTimeout(settleCamera, CAMERA_SETTLE_MS);
+});
 
 window.addEventListener('pageshow', () => {
   settleMorphFrame();
