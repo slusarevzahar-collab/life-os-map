@@ -27,7 +27,7 @@ export function WorkTimerWidget({ onSessionChange }) {
   const timer = useWorkTimer({ onSessionChange });
   const active = Boolean(timer.activeSession);
   const busy = ['starting', 'pausing', 'stopping'].includes(timer.status);
-  const stateLabel = active ? 'Работаю' : timer.paused ? 'Пауза' : timer.status === 'sync-error' ? 'Нет связи' : 'Не работаю';
+  const stateLabel = active ? 'Работаю' : timer.paused ? 'Пауза' : timer.status === 'auth-required' ? 'Нужен ключ' : timer.status === 'sync-error' ? 'Нет связи' : 'Не работаю';
   return (
     <section className={`workTimerWidget ${active ? 'isActive' : ''} ${timer.paused ? 'isPaused' : ''}`} aria-label="Учёт рабочего времени" onClick={(event) => event.stopPropagation()}>
       <div className="workTimerHead">

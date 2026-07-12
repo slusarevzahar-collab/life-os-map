@@ -245,6 +245,7 @@ export async function requestJson(path, options = {}) {
           const error = new Error(data.error || data.details || `API ${response.status}`);
           error.apiResponse = true;
           error.status = response.status;
+          if (response.status === 403) error.code = 'access-key-required';
           throw error;
         }
         return data;

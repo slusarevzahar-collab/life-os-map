@@ -76,7 +76,7 @@ export function registerCoreRoutes(app, runtime) {
   });
 
   app.post('/api/life-os/work-sessions/start', async (req, res) => {
-    if (!requireTrustedWrite(req, res, assistantSecretOk)) return;
+    if (!requireLifeMapAccess(req, res, assistantSecretOk)) return;
     noStore(res);
     try {
       const result = await workSessions.start({
@@ -93,7 +93,7 @@ export function registerCoreRoutes(app, runtime) {
   });
 
   app.post('/api/life-os/work-sessions/pause', async (req, res) => {
-    if (!requireTrustedWrite(req, res, assistantSecretOk)) return;
+    if (!requireLifeMapAccess(req, res, assistantSecretOk)) return;
     noStore(res);
     try { res.json({ ok: true, ...(await workSessions.pause({ sessionId: req.body?.sessionId })) }); }
     catch (error) { res.status(500).json({ ok: false, error: 'Не удалось завершить рабочую сессию.', details: error.message }); }
