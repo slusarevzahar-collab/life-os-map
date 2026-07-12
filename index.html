@@ -11,8 +11,9 @@
     <link rel="mask-icon" href="/lifemap-icon.svg" color="#57e0a8" />
     <link rel="manifest" href="/manifest.webmanifest" />
 
-    <!-- LEGACY UI stylesheets (old LifeMap only). Marked data-legacy-ui so the
-         bootstrap below can disable them in UI V2 mode. Order unchanged. -->
+    <!-- Legacy UI stylesheets. data-legacy-ui lets the V2 bootstrap disable them.
+         access-key.css is intentionally shared because fetchSnapshot may render
+         the secure-access dialog in either UI mode. Order otherwise unchanged. -->
     <link rel="stylesheet" href="/src/action-map-overrides.css" data-legacy-ui />
     <link rel="stylesheet" href="/src/ai-inbox-fixes.css" data-legacy-ui />
     <link rel="stylesheet" href="/src/assistant-ui-overrides.css" data-legacy-ui />
@@ -20,7 +21,7 @@
     <link rel="stylesheet" href="/src/inbox-reprocess-cloud.css" data-legacy-ui />
     <link rel="stylesheet" href="/src/assistant-split-fab.css" data-legacy-ui />
     <link rel="stylesheet" href="/src/work-timer.css" data-legacy-ui />
-    <link rel="stylesheet" href="/src/access-key.css" data-legacy-ui />
+    <link rel="stylesheet" href="/src/access-key.css" />
     <link rel="stylesheet" href="/src/inbox-desktop-layout-fix.css" data-legacy-ui />
     <link rel="stylesheet" href="/src/claude-source-runtime.css" data-legacy-ui />
 

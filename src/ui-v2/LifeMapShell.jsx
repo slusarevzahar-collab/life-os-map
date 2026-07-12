@@ -1,7 +1,12 @@
-// LifeMap UI V2 — root shell (Stage 3).
-// Keeps the reviewed Stage-2 camera route/origin behavior intact and adds a
-// separate HUD layer for Top HUD, Mission Control, Launcher Pill and mock windows.
-import { useEffect, useRef, useState } from 'react';
+// LifeMap UI V2 — root shell (Stage 4).
+// Keeps the reviewed Stage-2/3 camera route/origin behavior and HUD layer
+// EXACTLY as committed (pointThroughViewport, lateral parent-relative origin,
+// morph, pill drag/snap, focus-return) and adds: real snapshot loading, the
+// real LifeMap tree via the existing lib contracts, local alias/custom-object
+// application (read-only), real Mission Control focus/queue, real Top HUD
+// status, and V2 route persistence/validation. mapTreeMock remains the
+// documented fallback for the cases in useLifeMapSnapshot/HANDOFF.
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { StageScaler } from './stage/StageScaler.jsx';
 import { SpaceBackground } from './stage/SpaceBackground.jsx';
 import { MapViewport, defaultViewport } from './stage/MapViewport.jsx';
@@ -17,10 +22,24 @@ import { InboxWindow } from './windows/InboxWindow.jsx';
 import { AssistantWindow } from './windows/AssistantWindow.jsx';
 import { missionControlMock, inboxMock, assistantMock } from './mock/hudMock.js';
 
+import { buildActionMap } from '../lib/actionMapModel.js';
+import { applyTitleAliases, resolveFocus, buildFocusSequence } from '../lib/lifeMapSelectors.js';
+import { useLifeMapSnapshot } from './data/useLifeMapSnapshot.js';
+import { useLocalMapExtensions, useFocusQueueReadOnly, attachCustomObjects } from './adapters/localMapExtensions.js';
+import { buildVisualTree } from './adapters/lifeMapUiAdapter.js';
+import { readInitialRouteIds, validateRouteIds, deriveRouteFrames, persistRouteIds, sameRouteFrames } from './data/lifeMapV2Route.js';
+
 const ROOT_ID = 'root';
 const ROOT_ORIGIN = { x: 640, y: 400 };
 const DESIGN_WIDTH = 1280;
 const PILL_START = { x: 1122, y: 710 };
+
+const STATUS_INFO = {
+  loading: { label: 'LOADING', tone: 'loading' },
+  connected: { label: 'CONNECTED', tone: 'connected' },
+  'mock data': { label: 'MOCK', tone: 'mock' },
+  'api offline': { label: 'OFFLINE', tone: 'offline' },
+};
 
 function isDebugMode() {
   if (typeof window === 'undefined') return false;
@@ -44,8 +63,97 @@ export function LifeMapShell() {
   const inboxSegRef = useRef(null);
   const aiSegRef = useRef(null);
   const pendingFocusRef = useRef(null);
+  const restoredRouteRef = useRef(false);
   const debugMode = useRef(isDebugMode()).current;
 
+  // ---------- Stage 4: real data ----------
+  const snapshotState = useLifeMapSnapshot();
+  const { titleAliases, customObjects } = useLocalMapExtensions();
+  const focusQueue = useFocusQueueReadOnly();
+
+  const baseRootMap = useMemo(() => {
+    try {
+      return buildActionMap(snapshotState.snapshot);
+    } catch {
+      return null; // buildActionMap could not produce a safe root
+    }
+  }, [snapshotState.snapshot]);
+
+  const rootMap = useMemo(() => {
+    if (!baseRootMap) return null;
+    try {
+      return applyTitleAliases(attachCustomObjects(baseRootMap, customObjects), titleAliases);
+    } catch {
+      return baseRootMap;
+    }
+  }, [baseRootMap, customObjects, titleAliases]);
+
+  const rootMapLooksEmpty = useMemo(() => {
+    if (!rootMap) return true;
+    return !(rootMap.children || []).some((child) => (child.children || []).length || (child.taskList || []).length);
+  }, [rootMap]);
+
+  // Fallback rules (documented in HANDOFF): before the first successful load
+  // while offline; when buildActionMap/adapter could not produce a safe root;
+  // or when a snapshot explicitly reports a mock source AND is vacuously empty.
+  const useFallbackMock =
+    !rootMap ||
+    (snapshotState.status === 'api offline' && !snapshotState.hasLoadedOnce) ||
+    (String(snapshotState.snapshot?.meta?.source || '').includes('mock') && rootMapLooksEmpty);
+
+  const latestMapData = useMemo(() => {
+    if (useFallbackMock) return mapTreeMock;
+    try {
+      const built = buildVisualTree(rootMap);
+      return built && built.root ? built : mapTreeMock;
+    } catch {
+      return mapTreeMock;
+    }
+  }, [useFallbackMock, rootMap]);
+
+  const latestMapIsFallback = latestMapData === mapTreeMock;
+  const latestVisualBundle = useMemo(
+    () => ({ mapData: latestMapData, rootMap, mapIsFallback: latestMapIsFallback }),
+    [latestMapData, rootMap, latestMapIsFallback]
+  );
+  const [visualBundle, setVisualBundle] = useState(() => latestVisualBundle);
+  const visualMapData = visualBundle.mapData;
+  const visualMapIsFallback = visualBundle.mapIsFallback;
+
+  const activeFocus = useMemo(() => {
+    if (latestMapIsFallback || !rootMap) return null;
+    try {
+      return resolveFocus(rootMap, snapshotState.snapshot, focusQueue);
+    } catch {
+      return null;
+    }
+  }, [latestMapIsFallback, rootMap, snapshotState.snapshot, focusQueue]);
+
+  const focusQueueItems = useMemo(() => {
+    if (latestMapIsFallback || !rootMap || !activeFocus) return [];
+    try {
+      return buildFocusSequence(rootMap, activeFocus, focusQueue);
+    } catch {
+      return [];
+    }
+  }, [latestMapIsFallback, rootMap, activeFocus, focusQueue]);
+
+  const missionControlData = useMemo(() => {
+    if (latestMapIsFallback) return missionControlMock; // Stage-3 mock, fallback-only
+    const now =
+      activeFocus?.nextAction && activeFocus.title !== 'Фокус не выбран'
+        ? `${activeFocus.title} — ${activeFocus.nextAction}`
+        : activeFocus?.title || 'Фокус не выбран';
+    const rest = focusQueueItems.slice(1);
+    const next = rest[0]?.title || 'Очередь пуста';
+    const queue = rest.slice(0, 12).map((item, index) => ({ n: String(index + 1).padStart(2, '0'), title: item.title }));
+    return { now, next, queue };
+  }, [latestMapIsFallback, activeFocus, focusQueueItems]);
+
+  const effectiveStatus = latestMapIsFallback && snapshotState.status !== 'api offline' ? 'mock data' : snapshotState.status;
+  const statusInfo = STATUS_INFO[effectiveStatus] || STATUS_INFO.connected;
+
+  // ---------- camera / morph (Stage 2/3, unmodified logic) ----------
   const cameraFlight = useCameraFlight({
     onSwap: (targetId, mode, flightOrigin) => {
       pendingEntryRef.current = { mode, origin: flightOrigin };
@@ -53,7 +161,7 @@ export function LifeMapShell() {
         if (mode === 'ascend') return prev.slice(0, -1);
         if (mode === 'lateral') {
           const parentFrame = prev.length > 1 ? prev[prev.length - 2] : null;
-          const parentLevel = parentFrame ? mapTreeMock[parentFrame.id] : null;
+          const parentLevel = parentFrame ? visualMapData[parentFrame.id] : null;
           const targetInParent = parentLevel?.planets?.find((planet) => planet.id === targetId);
           const parentViewport = parentFrame
             ? viewportByLevel[parentFrame.id] || defaultViewport()
@@ -77,7 +185,7 @@ export function LifeMapShell() {
   });
 
   const currentFrame = route[route.length - 1];
-  const level = mapTreeMock[currentFrame.id];
+  const level = visualMapData[currentFrame.id] || visualMapData.root || mapTreeMock.root;
   const parentFrame = route.length > 1 ? route[route.length - 2] : null;
   const flying = cameraFlight.phase !== 'idle';
   const windowActive = morph.isActive;
@@ -104,7 +212,7 @@ export function LifeMapShell() {
     if (!pending) return;
     pendingEntryRef.current = null;
     cameraFlight.playEntry(pending.mode, pending.origin);
-    // Entry begins only after React rendered the next mock level.
+    // Entry begins only after React rendered the next level.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentFrame.id]);
 
@@ -134,12 +242,61 @@ export function LifeMapShell() {
     setViewportByLevel((prev) => ({ ...prev, [levelId]: next }));
   };
 
+  const deriveFramesForMap = (ids, data) => {
+    const frames = deriveRouteFrames(ids, (id) => data[id]);
+    return frames.map((frame, index) => {
+      if (index === 0) return frame;
+      const parentId = ids[index - 1];
+      const planet = data[parentId]?.planets?.find((item) => item.id === frame.id);
+      if (!planet) return frame;
+      return {
+        ...frame,
+        origin: pointThroughViewport(planet, getViewport(parentId)),
+      };
+    });
+  };
+
+  // Apply a newly loaded visual tree only when camera exit/entry and window
+  // morph phases are idle. Snapshot state may update in the background, but
+  // the rendered level cannot be replaced in the middle of a transition.
+  useEffect(() => {
+    if (flying || morph.isBusy) return;
+
+    const nextBundle = latestVisualBundle;
+    setVisualBundle((current) => (current === nextBundle ? current : nextBundle));
+
+    setRoute((currentRoute) => {
+      if (nextBundle.mapIsFallback || !nextBundle.rootMap || !snapshotState.hasLoadedOnce) {
+        if (!nextBundle.mapData[currentRoute[currentRoute.length - 1]?.id]) {
+          return [{ id: ROOT_ID, origin: ROOT_ORIGIN }];
+        }
+        return currentRoute;
+      }
+
+      const sourceIds = restoredRouteRef.current
+        ? currentRoute.map((frame) => frame.id)
+        : readInitialRouteIds();
+      const validIds = validateRouteIds(sourceIds, nextBundle.rootMap, (id) => nextBundle.mapData[id]);
+      const nextFrames = deriveFramesForMap(validIds, nextBundle.mapData);
+      restoredRouteRef.current = true;
+      return sameRouteFrames(currentRoute, nextFrames) ? currentRoute : nextFrames;
+    });
+    // deriveFramesForMap intentionally reads the current per-level viewports so
+    // refreshed layouts preserve the correct visual ascend origin.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latestVisualBundle, flying, morph.isBusy, snapshotState.hasLoadedOnce, viewportByLevel]);
+
+  useEffect(() => {
+    if (visualMapIsFallback || !restoredRouteRef.current || !snapshotState.hasLoadedOnce) return;
+    persistRouteIds(route.map((frame) => frame.id));
+  }, [route, visualMapIsFallback, snapshotState.hasLoadedOnce]);
+
   const handlePlanetActivate = (planet) => {
     if (interactionLocked || cameraFlight.isFlying()) return;
-    const targetLevel = mapTreeMock[planet.id];
+    const targetLevel = visualMapData[planet.id];
     if (!targetLevel) return;
-    const isSameParent = targetLevel.parentId === level.parentId && targetLevel.id !== currentFrame.id;
-    const mode = isSameParent && level.parentId != null ? 'lateral' : 'descend';
+    const isSameParent = targetLevel.parentId === level?.parentId && targetLevel.id !== currentFrame.id;
+    const mode = isSameParent && level?.parentId != null ? 'lateral' : 'descend';
     const visualOrigin = pointThroughViewport(planet, getViewport(currentFrame.id));
     cameraFlight.flyTo(mode, visualOrigin, planet.id);
   };
@@ -232,8 +389,16 @@ export function LifeMapShell() {
           </div>
 
           <div className="lifemapV2HudLayer">
-            <TopHud showBackNav={showBackNav} locked={interactionLocked} onBack={handleBack} onHome={handleHome} />
-            <MissionControl data={missionControlMock} hidden={windowActive} />
+            <TopHud
+              showBackNav={showBackNav}
+              locked={interactionLocked}
+              onBack={handleBack}
+              onHome={handleHome}
+              statusLabel={statusInfo.label}
+              statusTone={statusInfo.tone}
+              statusTitle={snapshotState.error || undefined}
+            />
+            <MissionControl data={missionControlData} hidden={windowActive} />
 
             <LauncherPill
               x={pill.x}
