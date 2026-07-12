@@ -71,9 +71,28 @@ try {
     headers: { Cookie: accessCookie },
   });
   assert.equal(paused.body.session.durationSeconds, 917);
+  assert.equal(paused.body.session.timerSeconds, 917);
   const stoppedState = await request('/api/life-os/work-sessions/active');
   assert.equal(stoppedState.body.session, null);
   assert.equal(stoppedState.body.lastSession.durationSeconds, 917);
+  assert.equal(stoppedState.body.lastSession.timerSeconds, 917);
+  clock = new Date('2026-07-11T09:20:00.000Z');
+  const resumed = await request('/api/life-os/work-sessions/start', {
+    method: 'POST',
+    body: JSON.stringify({ timezone: 'Europe/Moscow', startedAt: clock.toISOString(), initialSeconds: 917 }),
+    includeSecret: false,
+    headers: { Cookie: accessCookie },
+  });
+  assert.equal(resumed.body.session.initialSeconds, 917);
+  clock = new Date('2026-07-11T09:20:03.000Z');
+  const resumedStop = await request('/api/life-os/work-sessions/pause', {
+    method: 'POST',
+    body: JSON.stringify({ sessionId: resumed.body.session.id }),
+    includeSecret: false,
+    headers: { Cookie: accessCookie },
+  });
+  assert.equal(resumedStop.body.session.durationSeconds, 3);
+  assert.equal(resumedStop.body.session.timerSeconds, 920);
   const protectedWrite = await request('/api/life-os/sessions', {
     method: 'POST',
     body: '{}',
@@ -84,9 +103,9 @@ try {
   const repeatedPause = await request('/api/life-os/work-sessions/pause', { method: 'POST', body: '{}' });
   assert.equal(repeatedPause.body.completed, false);
   const stats = await request('/api/life-os/work-sessions/stats?from=2026-07-11&to=2026-07-11&timezone=Europe%2FMoscow');
-  assert.equal(stats.body.stats.totalSeconds, 917);
+  assert.equal(stats.body.stats.totalSeconds, 920);
   const context = await request('/api/life-os/work-sessions/context?days=7&timezone=Europe%2FMoscow');
-  assert.equal(context.body.context.today.totalSeconds, 917);
+  assert.equal(context.body.context.today.totalSeconds, 920);
 } finally {
   await new Promise((resolve) => server.close(resolve));
   if (previousAssistantSecret === undefined) delete process.env.LIFEMAP_ASSISTANT_API_SECRET;
