@@ -58,6 +58,7 @@ function uniqueList(values = []) {
 function multiSelectProperty(values = []) { const clean = uniqueList(values); return clean.length ? { multi_select: clean.map((name) => ({ name })) } : undefined; }
 function numberProperty(value) { const number = Number(value); return Number.isFinite(number) ? { number } : undefined; }
 function dateProperty(value) { return value ? { date: { start: value } } : undefined; }
+function nullableDateProperty(value) { return value ? { date: { start: value } } : { date: null }; }
 function urlProperty(value) { return value ? { url: String(value) } : undefined; }
 function relationProperty(values = []) { const ids = uniqueList(values); return ids.length ? { relation: ids.map((id) => ({ id })) } : undefined; }
 function cleanProperties(properties) { return Object.fromEntries(Object.entries(properties).filter(([, value]) => value !== undefined && value !== null)); }
@@ -154,7 +155,33 @@ function mapNotionSignal(page) {
 function mapNotionSession(page) {
   const props = page.properties || {};
   const taskIds = relationIds(findProp(props, ['Task', 'Задача']));
-  return { id: page.id, title: firstTitle(props, ['Session', 'Name', 'Название', 'Сессия']) || 'Work session', taskIds, scope: firstSelect(props, ['Scope']) || '', task: firstRichText(props, ['Task name', 'Task Name', 'Задача текстом']) || '', project: canonicalProjectName(firstSelect(props, ['Project', 'Проект']) || 'LifeMap') || 'LifeMap', status: firstSelect(props, ['Status', 'Статус']) || 'unknown', energy: firstSelect(props, ['Energy', 'Энергия']) || '', startedAt: firstDate(props, ['Started At', 'Start', 'Начало']) || null, finishedAt: firstDate(props, ['Finished At', 'Finish', 'Конец', 'Завершено']) || null, durationMin: firstNumber(props, ['Duration Min', 'Duration', 'Минуты', 'Длительность']) || 0, result: firstRichText(props, ['Result', 'Результат']) || '', nextStep: firstRichText(props, ['Next Step', 'Next Action', 'Следующий шаг']) || '' };
+  const finishedAt = firstDate(props, ['Finished At', 'Finish', 'Конец', 'Завершено']) || null;
+  const durationMin = firstNumber(props, ['Duration Min', 'Duration', 'Минуты', 'Длительность']) || 0;
+  return {
+    id: page.id,
+    userId: firstRichText(props, ['User ID']) || null,
+    title: firstTitle(props, ['Session', 'Name', 'Название', 'Сессия']) || 'Work session',
+    taskIds,
+    taskId: taskIds[0] || firstRichText(props, ['Task ID']) || null,
+    projectId: firstRichText(props, ['Project ID']) || null,
+    scope: firstSelect(props, ['Scope']) || '',
+    task: firstRichText(props, ['Task name', 'Task Name', 'Задача текстом']) || '',
+    project: canonicalProjectName(firstSelect(props, ['Project', 'Проект']) || 'LifeMap') || 'LifeMap',
+    status: firstSelect(props, ['Status', 'Статус']) || 'unknown',
+    energy: firstSelect(props, ['Energy', 'Энергия']) || '',
+    startedAt: firstDate(props, ['Started At', 'Start', 'Начало']) || null,
+    endedAt: finishedAt,
+    finishedAt,
+    durationSeconds: firstNumber(props, ['Duration Seconds']) || Math.max(0, Math.round(durationMin * 60)),
+    durationMin,
+    dateKey: firstRichText(props, ['Date Key']) || '',
+    timezone: firstRichText(props, ['Timezone']) || 'UTC',
+    source: firstSelect(props, ['Source']) || 'lifemap',
+    result: firstRichText(props, ['Result', 'Результат']) || '',
+    nextStep: firstRichText(props, ['Next Step', 'Next Action', 'Следующий шаг']) || '',
+    createdAt: page.created_time || null,
+    updatedAt: page.last_edited_time || null,
+  };
 }
 
 function attachGoalsToTasks(tasks, goals) {
@@ -200,6 +227,18 @@ async function queryAllDatabasePages(notion, databaseId) {
   let cursor;
   do { const response = await notion.databases.query({ database_id: databaseId, page_size: 100, start_cursor: cursor }); results.push(...response.results); cursor = response.has_more ? response.next_cursor : null; } while (cursor);
   return results;
+}
+const sessionSchemaCache = new Map();
+async function sessionSchema(notion, sessionsDbId) {
+  const cached = sessionSchemaCache.get(sessionsDbId);
+  if (cached && cached.expiresAt > Date.now()) return cached.names;
+  const database = await notion.databases.retrieve({ database_id: sessionsDbId });
+  const names = new Set(Object.keys(database.properties || {}));
+  sessionSchemaCache.set(sessionsDbId, { names, expiresAt: Date.now() + 5 * 60 * 1000 });
+  return names;
+}
+function knownSessionProperties(properties, names) {
+  return Object.fromEntries(Object.entries(cleanProperties(properties)).filter(([name]) => names.has(name)));
 }
 async function queryDatabase(notion, databaseId, mapper, label, warnings, options = {}) {
   if (!databaseId) return [];
@@ -287,18 +326,62 @@ export async function createWorkSession({ notionToken, sessionsDbId, payload = {
   if (!notionToken) throw new Error('NOTION_TOKEN is missing.');
   if (!sessionsDbId) throw new Error('NOTION_SESSIONS_DB_ID is missing.');
   const notion = new Client({ auth: notionToken });
+  const schema = await sessionSchema(notion, sessionsDbId);
   const status = normalizeSessionStatus(payload.status || 'Finished');
   const startedAt = payload.startedAt || (['Active', 'Finished'].includes(status) ? new Date().toISOString() : null);
-  const finishedAt = payload.finishedAt || (status === 'Finished' ? new Date().toISOString() : null);
+  const finishedAt = payload.endedAt || payload.finishedAt || (status === 'Finished' ? new Date().toISOString() : null);
+  const startMs = new Date(startedAt).getTime();
+  const endMs = new Date(finishedAt).getTime();
+  const computedSeconds = Number.isFinite(startMs) && Number.isFinite(endMs) ? Math.max(0, Math.floor((endMs - startMs) / 1000)) : null;
+  const durationSeconds = status === 'Active' ? null : computedSeconds;
   const rawTaskIds = [...(Array.isArray(payload.taskIds) ? payload.taskIds : []), payload.taskId, looksLikePageId(payload.task) ? payload.task : ''].filter(Boolean);
   const taskIds = uniqueList(rawTaskIds);
   const scope = payload.scope || (taskIds.length ? 'Task' : 'Project');
-  const properties = cleanProperties({
+  const properties = knownSessionProperties({
     Session: titleProperty(payload.title || payload.session || 'LifeMap session'), Task: relationProperty(taskIds), Scope: selectProperty(scope), Project: selectProperty(notionSessionProjectName(payload.project || 'LifeMap')),
-    Status: selectProperty(status), Energy: selectProperty(payload.energy), 'Started At': dateProperty(startedAt), 'Finished At': dateProperty(finishedAt), 'Duration Min': numberProperty(payload.durationMin), Result: textProperty(payload.result || ''), 'Next Step': textProperty(payload.nextStep || ''),
-  });
+    Status: selectProperty(status), Energy: selectProperty(payload.energy), 'Started At': dateProperty(startedAt), 'Finished At': dateProperty(finishedAt),
+    'Duration Min': durationSeconds === null ? undefined : numberProperty(durationSeconds / 60), 'Duration Seconds': durationSeconds === null ? undefined : numberProperty(durationSeconds),
+    'Date Key': textProperty(payload.dateKey || ''), Timezone: textProperty(payload.timezone || 'UTC'), Source: selectProperty(payload.source || 'lifemap'),
+    'User ID': textProperty(payload.userId || ''), 'Project ID': textProperty(payload.projectId || ''), 'Task ID': textProperty(payload.taskId || ''),
+    Result: textProperty(payload.result || ''), 'Next Step': textProperty(payload.nextStep || ''),
+  }, schema);
   const page = await notion.pages.create({ parent: { database_id: sessionsDbId }, properties });
-  return { id: page.id, created: true, taskIds, scope, status };
+  return { ...mapNotionSession(page), taskIds, scope, status, startedAt, endedAt: finishedAt, finishedAt, durationSeconds, dateKey: payload.dateKey || '', timezone: payload.timezone || 'UTC', source: payload.source || 'lifemap', created: true };
+}
+
+export async function listWorkSessions({ notionToken, sessionsDbId, status = null, userId = null }) {
+  if (!notionToken) throw new Error('NOTION_TOKEN is missing.');
+  if (!sessionsDbId) throw new Error('NOTION_SESSIONS_DB_ID is missing.');
+  const notion = new Client({ auth: notionToken });
+  const sessions = (await queryAllDatabasePages(notion, sessionsDbId)).map(mapNotionSession);
+  return sessions.filter((session) => (!status || normalizeSessionStatus(session.status) === normalizeSessionStatus(status)) && (!userId || !session.userId || session.userId === userId));
+}
+
+export async function getWorkSession({ notionToken, sessionId }) {
+  if (!notionToken) throw new Error('NOTION_TOKEN is missing.');
+  if (!sessionId) return null;
+  const notion = new Client({ auth: notionToken });
+  try { return mapNotionSession(await notion.pages.retrieve({ page_id: sessionId })); }
+  catch (error) { if (isObjectNotFound(error)) return null; throw error; }
+}
+
+export async function updateWorkSession({ notionToken, sessionsDbId, sessionId, patch = {} }) {
+  if (!notionToken) throw new Error('NOTION_TOKEN is missing.');
+  if (!sessionsDbId) throw new Error('NOTION_SESSIONS_DB_ID is missing.');
+  if (!sessionId) throw new Error('Work session id is missing.');
+  const notion = new Client({ auth: notionToken });
+  const schema = await sessionSchema(notion, sessionsDbId);
+  const duration = hasOwn(patch, 'durationSeconds') ? Math.max(0, Number(patch.durationSeconds) || 0) : undefined;
+  const properties = knownSessionProperties({
+    Status: hasOwn(patch, 'status') ? selectProperty(normalizeSessionStatus(patch.status)) : undefined,
+    'Finished At': hasOwn(patch, 'endedAt') ? nullableDateProperty(patch.endedAt) : undefined,
+    'Duration Seconds': hasOwn(patch, 'durationSeconds') ? numberProperty(duration) : undefined,
+    'Duration Min': hasOwn(patch, 'durationSeconds') ? numberProperty(duration / 60) : undefined,
+    Result: hasOwn(patch, 'result') ? textProperty(patch.result || '') : undefined,
+    'Next Step': hasOwn(patch, 'nextStep') ? textProperty(patch.nextStep || '') : undefined,
+  }, schema);
+  const page = await notion.pages.update({ page_id: sessionId, properties });
+  return { ...mapNotionSession(page), ...patch, id: sessionId, finishedAt: patch.endedAt ?? mapNotionSession(page).finishedAt, updatedAt: page.last_edited_time || new Date().toISOString() };
 }
 
 function normalizedSignalStatus(status = 'Inbox') { const value = String(status || 'Inbox'); return value === 'New' ? 'Inbox' : value; }

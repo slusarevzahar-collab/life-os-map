@@ -12,7 +12,11 @@
     "public-ports": "bash .devcontainer/set-public-ports.sh",
     "test:ai": "node scripts/test-ai-policy.mjs",
     "test:data": "node scripts/test-data-model.mjs",
-    "test": "npm run test:ai && npm run test:data"
+    "test:work-time": "node scripts/test-work-time.mjs",
+    "test:work-session": "node scripts/test-work-session.mjs",
+    "test:work-session-api": "node scripts/test-work-session-api.mjs",
+    "test": "npm run test:ai && npm run test:data && npm run test:work-time && npm run test:work-session && npm run test:work-session-api",
+    "migrate:work-sessions": "node scripts/migrate-work-sessions.mjs"
   },
   "dependencies": {
     "@notionhq/client": "2.2.15",

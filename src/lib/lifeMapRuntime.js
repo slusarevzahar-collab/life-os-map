@@ -1,4 +1,7 @@
 const SECRET_KEY = 'lifemap.assistant.writeSecret.session';
+let rejectedAccessKey = '';
+let accessPromptSuppressedUntil = 0;
+let accessPromptPromise = null;
 
 export function emptySnapshot(source = 'loading', warning = '') {
   const isOffline = source === 'api-offline';
@@ -81,11 +84,111 @@ function fetchOptions(options = {}, secret = '') {
 }
 
 function promptForAccessKey() {
-  if (typeof window === 'undefined') return '';
-  return window.prompt('Введите ключ доступа LifeMap:') || '';
+  if (typeof window === 'undefined') return Promise.resolve('');
+  if (accessPromptPromise) return accessPromptPromise;
+  accessPromptPromise = new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'lifemapAccessOverlay';
+    overlay.setAttribute('role', 'presentation');
+
+    const dialog = document.createElement('form');
+    dialog.className = 'lifemapAccessDialog';
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
+    dialog.setAttribute('aria-labelledby', 'lifemap-access-title');
+
+    const eyebrow = document.createElement('span');
+    eyebrow.className = 'lifemapAccessEyebrow';
+    eyebrow.textContent = 'SECURE ACCESS';
+    const title = document.createElement('h2');
+    title.id = 'lifemap-access-title';
+    title.textContent = 'Доступ к LifeMap';
+    const description = document.createElement('p');
+    description.textContent = 'Введите ключ этого окружения. Он сохраняется только в текущей вкладке браузера.';
+
+    const field = document.createElement('label');
+    field.className = 'lifemapAccessField';
+    const label = document.createElement('span');
+    label.textContent = 'Ключ доступа';
+    const input = document.createElement('input');
+    input.type = 'password';
+    input.autocomplete = 'current-password';
+    input.required = true;
+    input.setAttribute('aria-label', 'Ключ доступа LifeMap');
+    const reveal = document.createElement('button');
+    reveal.type = 'button';
+    reveal.className = 'lifemapAccessReveal';
+    reveal.textContent = 'Показать';
+    reveal.addEventListener('click', () => {
+      input.type = input.type === 'password' ? 'text' : 'password';
+      reveal.textContent = input.type === 'password' ? 'Показать' : 'Скрыть';
+      input.focus();
+    });
+    field.append(label, input, reveal);
+
+    const note = document.createElement('small');
+    note.textContent = 'Ключ не передаётся сторонним сервисам и не записывается в localStorage.';
+    const actions = document.createElement('div');
+    actions.className = 'lifemapAccessActions';
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'lifemapAccessCancel';
+    cancel.textContent = 'Отмена';
+    const submit = document.createElement('button');
+    submit.type = 'submit';
+    submit.className = 'lifemapAccessSubmit';
+    submit.textContent = 'Продолжить';
+    actions.append(cancel, submit);
+    dialog.append(eyebrow, title, description, field, note, actions);
+    overlay.append(dialog);
+
+    const finish = (value = '') => {
+      overlay.remove();
+      accessPromptPromise = null;
+      resolve(String(value || '').trim());
+    };
+    dialog.addEventListener('submit', (event) => { event.preventDefault(); finish(input.value); });
+    cancel.addEventListener('click', () => finish(''));
+    overlay.addEventListener('click', (event) => { if (event.target === overlay) finish(''); });
+    dialog.addEventListener('keydown', (event) => { if (event.key === 'Escape') finish(''); });
+    document.body.append(overlay);
+    window.setTimeout(() => input.focus(), 0);
+  });
+  return accessPromptPromise;
 }
 
-async function requestJson(path, options = {}) {
+async function environmentConfigurationError(url) {
+  if (typeof window === 'undefined') return null;
+  try {
+    const requestUrl = new URL(url, window.location.origin);
+    const healthUrl = new URL('/api/life-os/health', requestUrl.origin);
+    const response = await fetch(healthUrl, { credentials: 'include', headers: { Accept: 'application/json' } });
+    if (!response.ok || !String(response.headers.get('content-type') || '').includes('application/json')) return null;
+    const health = await response.json();
+    if (health?.assistant?.actionSecret !== false) return null;
+    const error = new Error('Vercel Preview не настроен: отсутствует LIFEMAP_ASSISTANT_API_SECRET. По данным health endpoint также не подключены Notion Tasks и Sessions. Добавьте переменные в Preview Environment и выполните redeploy.');
+    error.apiResponse = true;
+    error.status = 503;
+    error.code = 'preview-environment-missing';
+    return error;
+  } catch {
+    return null;
+  }
+}
+
+function vercelLoginError(response) {
+  const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+  const responseUrl = String(response.url || '');
+  if (!contentType.includes('text/html')) return null;
+  const previewHost = typeof window !== 'undefined' ? window.location.host : '';
+  const error = new Error(`Vercel Preview требует отдельного входа. Откройте https://${previewHost}/api/life-os/health, войдите в Vercel и затем перезагрузите LifeMap.`);
+  error.apiResponse = true;
+  error.status = response.status || 401;
+  error.code = responseUrl.includes('vercel.com') ? 'vercel-preview-login' : 'unexpected-html';
+  return error;
+}
+
+export async function requestJson(path, options = {}) {
   const errors = [];
   const needsSecret = requestNeedsSecret(options);
   let secret = needsSecret ? readAccessSecret() : '';
@@ -103,16 +206,41 @@ async function requestJson(path, options = {}) {
             ...(effectiveOptions.headers || {}),
           },
         });
+        const loginError = vercelLoginError(response);
+        if (loginError) throw loginError;
         const data = await response.json().catch(() => ({}));
         if (!response.ok || data.ok === false) {
           if (response.status === 403 && needsSecret && !prompted) {
+            const configurationError = await environmentConfigurationError(url);
+            if (configurationError) throw configurationError;
+            const latestSecret = readAccessSecret();
+            if (latestSecret && latestSecret !== secret) {
+              secret = latestSecret;
+              continue;
+            }
+            if (!secret && Date.now() < accessPromptSuppressedUntil) {
+              const error = new Error('Ключ уже был отклонён этим окружением. Для Vercel Preview проверьте вход в Vercel и наличие LIFEMAP_ASSISTANT_API_SECRET в Preview Environment.');
+              error.apiResponse = true;
+              error.status = 403;
+              error.code = 'access-key-rejected';
+              throw error;
+            }
             prompted = true;
-            if (secret) writeAccessSecret('');
-            secret = promptForAccessKey();
             if (secret) {
+              rejectedAccessKey = secret;
+              writeAccessSecret('');
+            }
+            secret = await promptForAccessKey();
+            if (secret) {
+              if (secret === rejectedAccessKey) accessPromptSuppressedUntil = Date.now() + 15000;
               writeAccessSecret(secret);
               continue;
             }
+          }
+          if (response.status === 403 && secret) {
+            rejectedAccessKey = secret;
+            accessPromptSuppressedUntil = Date.now() + 15000;
+            if (readAccessSecret() === secret) writeAccessSecret('');
           }
           const error = new Error(data.error || data.details || `API ${response.status}`);
           error.apiResponse = true;

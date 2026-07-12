@@ -1,0 +1,45 @@
+.workTimerWidget {
+  position: fixed;
+  z-index: 35;
+  left: 18px;
+  bottom: 18px;
+  width: 214px;
+  padding: 12px;
+  border: 1px solid rgba(103, 232, 249, .2);
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(8, 22, 37, .92), rgba(3, 9, 19, .96));
+  box-shadow: 0 16px 48px rgba(0, 0, 0, .36), inset 0 1px 0 rgba(255, 255, 255, .05);
+  backdrop-filter: blur(20px);
+  color: #f4fbff;
+}
+
+.workTimerWidget.isActive { border-color: rgba(110, 231, 183, .38); box-shadow: 0 16px 48px rgba(0, 0, 0, .36), 0 0 32px rgba(52, 211, 153, .1); }
+.workTimerHead { display: flex; align-items: center; gap: 7px; min-width: 0; color: rgba(221, 241, 250, .72); font-size: 10px; font-weight: 850; letter-spacing: .07em; text-transform: uppercase; }
+.workTimerHead small { margin-left: auto; color: rgba(255, 255, 255, .42); font-size: 9px; font-weight: 700; letter-spacing: 0; text-transform: none; white-space: nowrap; }
+.workTimerDot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: rgba(148, 163, 184, .72); }
+.isActive .workTimerDot { background: #6ee7b7; box-shadow: 0 0 14px rgba(110, 231, 183, .82); animation: workPulse 1.8s ease-in-out infinite; }
+.workTimerClock { margin-top: 8px; color: #f8fdff; font: 600 25px/1.1 "IBM Plex Mono", ui-monospace, monospace; letter-spacing: -.045em; }
+.workTimerTotal { display: flex; align-items: baseline; justify-content: space-between; margin: 7px 0 10px; color: rgba(255, 255, 255, .48); font-size: 10px; }
+.workTimerTotal b { color: rgba(216, 244, 255, .82); font: 600 12px/1 "IBM Plex Mono", ui-monospace, monospace; }
+.workTimerWidget button { width: 100%; min-height: 36px; border: 1px solid rgba(103, 232, 249, .24); border-radius: 12px; color: #eafaff; background: rgba(103, 232, 249, .1); font-size: 11px; font-weight: 900; cursor: pointer; }
+.workTimerWidget.isActive button { border-color: rgba(251, 191, 36, .3); color: #fff4c5; background: rgba(251, 191, 36, .1); }
+.workTimerWidget button:hover:not(:disabled) { background: rgba(103, 232, 249, .18); }
+.workTimerWidget button:focus-visible { outline: 2px solid rgba(103, 232, 249, .75); outline-offset: 2px; }
+.workTimerWidget button:disabled { opacity: .55; cursor: wait; }
+.workTimerWidget p { margin: 9px 0 0; color: #fca5a5; font-size: 10px; line-height: 1.3; }
+@keyframes workPulse { 50% { opacity: .55; transform: scale(.8); } }
+
+@media (max-width: 700px) {
+  .workTimerWidget { left: 10px; bottom: 10px; width: 178px; padding: 9px; border-radius: 15px; }
+  .workTimerHead small { display: none; }
+  .workTimerClock { margin-top: 6px; font-size: 20px; }
+  .workTimerTotal { margin: 5px 0 7px; }
+  .workTimerWidget button { min-height: 32px; }
+}
+
+@media (max-height: 620px) and (min-width: 701px) {
+  .workTimerWidget { bottom: 10px; padding: 9px; }
+  .workTimerClock { font-size: 20px; }
+  .workTimerTotal { margin: 4px 0 6px; }
+}
+
