@@ -27,8 +27,13 @@ function broadcast(channel) {
 }
 
 function friendlySyncError(error, fallback) {
+  if (error?.code === 'access-key-required') return 'Нужен ключ доступа LifeMap. Нажмите кнопку и введите ключ.';
   if (['vercel-preview-login', 'unexpected-html', 'access-key-rejected', 'preview-environment-missing'].includes(error?.code)) return error.message;
   return fallback;
+}
+
+function syncFailureStatus(error) {
+  return error?.status === 403 ? 'auth-required' : 'sync-error';
 }
 
 export function useWorkTimer({ onSessionChange } = {}) {
@@ -53,7 +58,7 @@ export function useWorkTimer({ onSessionChange } = {}) {
       setStatus(nextActive ? 'active' : nextPaused ? 'paused' : 'idle');
       setError(null);
     } catch (nextError) {
-      setStatus((current) => current === 'active' ? 'active' : 'sync-error');
+      setStatus((current) => current === 'active' ? 'active' : syncFailureStatus(nextError));
       setError(friendlySyncError(nextError, 'Не удалось синхронизировать рабочее время. Повторим автоматически.'));
       console.warn('work_session_sync_failed', nextError);
     }
@@ -100,7 +105,7 @@ export function useWorkTimer({ onSessionChange } = {}) {
       broadcast(channelRef.current);
       onSessionChange?.();
     } catch (nextError) {
-      setStatus(wasPaused ? 'paused' : 'sync-error');
+      setStatus(wasPaused ? 'paused' : syncFailureStatus(nextError));
       setError(friendlySyncError(nextError, 'Старт не сохранён. Проверьте соединение и попробуйте ещё раз.'));
       console.warn('work_session_sync_failed', nextError);
     }
