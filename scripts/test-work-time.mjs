@@ -1,5 +1,11 @@
 import assert from 'node:assert/strict';
 import { dateKeyAt, durationSeconds, formatDuration, splitIntervalByLocalDay, summarizeWorkSessions } from '../server/workTime.js';
+import { sessionContext } from '../src/services/workTimerService.js';
+
+const clickEvent = {};
+clickEvent.currentTarget = clickEvent;
+assert.deepEqual(sessionContext(clickEvent), {});
+assert.deepEqual(sessionContext({ project: 'LifeMap', taskId: 'task-1', ignored: clickEvent }), { project: 'LifeMap', taskId: 'task-1' });
 
 assert.equal(durationSeconds('2026-07-11T10:00:00.000Z', '2026-07-11T11:02:03.900Z'), 3723);
 assert.equal(durationSeconds('2026-07-11T11:00:00.000Z', '2026-07-11T10:00:00.000Z'), 0);
@@ -27,4 +33,3 @@ assert.equal(summary.completedSessionCount, 1);
 assert.equal(summary.activeSessionCount, 1);
 
 console.log('LifeMap work time unit tests passed.');
-
