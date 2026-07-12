@@ -154,6 +154,7 @@ function mapNotionSignal(page) {
 
 function mapNotionSession(page) {
   const props = page.properties || {};
+  const startedAtExact = firstRichText(props, ['Started At Exact']) || null;
   const taskIds = relationIds(findProp(props, ['Task', 'Задача']));
   const finishedAt = firstDate(props, ['Finished At', 'Finish', 'Конец', 'Завершено']) || null;
   const durationMin = firstNumber(props, ['Duration Min', 'Duration', 'Минуты', 'Длительность']) || 0;
@@ -169,7 +170,8 @@ function mapNotionSession(page) {
     project: canonicalProjectName(firstSelect(props, ['Project', 'Проект']) || 'LifeMap') || 'LifeMap',
     status: firstSelect(props, ['Status', 'Статус']) || 'unknown',
     energy: firstSelect(props, ['Energy', 'Энергия']) || '',
-    startedAt: firstDate(props, ['Started At', 'Start', 'Начало']) || null,
+    startedAt: startedAtExact || firstDate(props, ['Started At', 'Start', 'Начало']) || null,
+    startedAtExact,
     endedAt: finishedAt,
     finishedAt,
     durationSeconds: firstNumber(props, ['Duration Seconds']) || Math.max(0, Math.round(durationMin * 60)),
@@ -339,14 +341,14 @@ export async function createWorkSession({ notionToken, sessionsDbId, payload = {
   const scope = payload.scope || (taskIds.length ? 'Task' : 'Project');
   const properties = knownSessionProperties({
     Session: titleProperty(payload.title || payload.session || 'LifeMap session'), Task: relationProperty(taskIds), Scope: selectProperty(scope), Project: selectProperty(notionSessionProjectName(payload.project || 'LifeMap')),
-    Status: selectProperty(status), Energy: selectProperty(payload.energy), 'Started At': dateProperty(startedAt), 'Finished At': dateProperty(finishedAt),
+    Status: selectProperty(status), Energy: selectProperty(payload.energy), 'Started At': dateProperty(startedAt), 'Started At Exact': textProperty(startedAt), 'Finished At': dateProperty(finishedAt),
     'Duration Min': durationSeconds === null ? undefined : numberProperty(durationSeconds / 60), 'Duration Seconds': durationSeconds === null ? undefined : numberProperty(durationSeconds),
     'Date Key': textProperty(payload.dateKey || ''), Timezone: textProperty(payload.timezone || 'UTC'), Source: selectProperty(payload.source || 'lifemap'),
     'User ID': textProperty(payload.userId || ''), 'Project ID': textProperty(payload.projectId || ''), 'Task ID': textProperty(payload.taskId || ''),
     Result: textProperty(payload.result || ''), 'Next Step': textProperty(payload.nextStep || ''),
   }, schema);
   const page = await notion.pages.create({ parent: { database_id: sessionsDbId }, properties });
-  return { ...mapNotionSession(page), taskIds, scope, status, startedAt, endedAt: finishedAt, finishedAt, durationSeconds, dateKey: payload.dateKey || '', timezone: payload.timezone || 'UTC', source: payload.source || 'lifemap', created: true };
+  return { ...mapNotionSession(page), taskIds, scope, status, startedAt, startedAtExact: startedAt, endedAt: finishedAt, finishedAt, durationSeconds, dateKey: payload.dateKey || '', timezone: payload.timezone || 'UTC', source: payload.source || 'lifemap', created: true };
 }
 
 export async function listWorkSessions({ notionToken, sessionsDbId, status = null, userId = null }) {

@@ -90,19 +90,22 @@ export function useWorkTimer({ onSessionChange } = {}) {
   const start = useCallback(async (input = {}) => {
     if (['starting', 'pausing', 'stopping'].includes(status)) return;
     const wasPaused = paused;
+    const startedAt = new Date().toISOString();
     setStatus('starting');
     setError(null);
+    setActiveSession({ id: 'pending', startedAt, status: 'Active', source: 'lifemap', pending: true });
+    setTick(Date.now());
     try {
-      const response = await workTimerService.start(input);
+      const response = await workTimerService.start({ ...input, startedAt });
       writePaused(false);
       setPaused(false);
-      setActiveSession(response.session || null);
+      setActiveSession(response.session ? { ...response.session, startedAt } : null);
       setTick(Date.now());
       setStatus('active');
-      await refresh();
       broadcast(channelRef.current);
       onSessionChange?.();
     } catch (nextError) {
+      setActiveSession(null);
       setStatus(wasPaused ? 'paused' : syncFailureStatus(nextError));
       setError(friendlySyncError(nextError, 'Старт не сохранён. Проверьте соединение и попробуйте ещё раз.'));
       console.warn('work_session_sync_failed', nextError);

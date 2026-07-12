@@ -34,18 +34,25 @@ assert.equal((await service.getLastCompleted()).id, paused.session.id);
 assert.equal((await service.pause({ sessionId: first.session.id })).completed, false);
 
 clock = new Date('2026-07-11T10:00:00.000Z');
-const active = await service.start({ timezone: 'Europe/Moscow', taskId: 'task-1', projectId: 'project-1' });
+const active = await service.start({ timezone: 'Europe/Moscow', taskId: 'task-1', projectId: 'project-1', startedAt: '2026-07-11T09:59:42.250Z' });
+assert.equal(active.session.startedAt, '2026-07-11T09:59:42.250Z');
 const storedActive = store.sessions.find((session) => session.id === active.session.id);
+storedActive.startedAtExact = active.session.startedAt;
 storedActive.startedAt = '2026-07-11T10:00:00.000Z';
 storedActive.createdAt = '2026-07-11T10:00:37.000Z';
 const restoredService = createWorkSessionService({ store, now: () => new Date('2026-07-11T10:30:00.000Z'), logger: { info() {}, warn() {} }, settle: async () => {} });
 const restored = await restoredService.getActive();
 assert.equal(restored.id, active.session.id);
-assert.equal(restored.startedAt, '2026-07-11T10:00:37.000Z');
+assert.equal(restored.startedAt, '2026-07-11T09:59:42.250Z');
 const stats = await restoredService.stats({ timezone: 'Europe/Moscow', from: '2026-07-11', to: '2026-07-11' });
-assert.equal(stats.totalSeconds, 4473);
+assert.equal(stats.totalSeconds, 4527);
 const context = await restoredService.context({ timezone: 'Europe/Moscow', days: 7 });
 assert.equal(context.activeSession.id, active.session.id);
-assert.equal(context.today.totalSeconds, 4473);
+assert.equal(context.today.totalSeconds, 4527);
+
+clock = new Date('2026-07-11T11:00:00.000Z');
+await service.pause({ sessionId: active.session.id });
+const safeFallback = await service.start({ timezone: 'Europe/Moscow', startedAt: '2026-07-10T00:00:00.000Z' });
+assert.equal(safeFallback.session.startedAt, clock.toISOString());
 
 console.log('LifeMap work session integration tests passed.');
