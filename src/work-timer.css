@@ -29,17 +29,19 @@
 .app.timerObscured .workTimerWidget.is-running,
 .app:has(.assistantWorkspaceOverlay) .workTimerWidget.is-running,
 .app:has(.assistantHistoryMobileOverlay) .workTimerWidget.is-running,
-.app:has(.mission.queueExpanded) .workTimerWidget.is-running { opacity: .5; }
+.app:has(.mission.queueExpanded) .workTimerWidget.is-running,
+body:has(.lifemapAccessOverlay) .workTimerWidget.is-running { opacity: .5; }
 .workTimerWidget.is-paused { border-color: rgba(250, 204, 21, .72); box-shadow: 0 0 30px rgba(250, 204, 21, .23), inset 0 0 19px rgba(250, 204, 21, .04); }
 .workTimerWidget.is-stopped { border-color: rgba(248, 113, 113, .82); box-shadow: 0 0 32px rgba(248, 113, 113, .29), inset 0 0 19px rgba(248, 113, 113, .05); transition: border-color .18s ease, box-shadow .18s ease, transform .45s cubic-bezier(.22, 1, .36, 1), height .42s cubic-bezier(.22, 1, .36, 1), padding .42s cubic-bezier(.22, 1, .36, 1); }
 .workTimerReadout { position: relative; height: 20px; margin: 0 0 2px; overflow: hidden; }
 .workTimerClock { position: absolute; top: 0; left: 26px; width: 58px; height: 20px; color: #eef2f8; font: 500 17px/1 "IBM Plex Sans", system-ui, sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; transition: left .68s cubic-bezier(.22, .75, .2, 1), width .68s cubic-bezier(.22, .75, .2, 1); }
 .workTimerReadout.hasLast .workTimerClock { left: 0; }
-.workTimerWidget.is-running .workTimerClock { left: 0; width: 100%; }
+.workTimerWidget.is-running .workTimerClock { left: 0; width: 100%; transition-delay: .18s; }
 .workTimerDigits { position: absolute; inset: 0; display: flex; align-items: center; justify-content: space-between; opacity: 1; transform: translateX(0); transition: opacity .3s ease, transform .68s cubic-bezier(.22, .75, .2, 1); }
 .workTimerDigitsCompact { opacity: 0; transform: translateX(-8px); }
 .workTimerWidget.is-running.is-under-hour:not(:hover):not(:focus-within) .workTimerDigitsFull { opacity: 0; transform: translateX(8px); }
 .workTimerWidget.is-running.is-under-hour:not(:hover):not(:focus-within) .workTimerDigitsCompact { opacity: 1; transform: translateX(0); }
+.workTimerWidget.is-running .workTimerDigits { transition-delay: .18s; }
 .workTimerDigits > span { display: block; flex: 0 0 auto; }
 .workTimerLast { position: absolute; top: 0; left: 64px; height: 20px; display: flex; align-items: center; gap: 6px; opacity: 0; transform: translateX(14px); pointer-events: none; transition: opacity .34s ease, transform .58s cubic-bezier(.22, .75, .2, 1); }
 .workTimerLast.is-visible { opacity: 1; transform: translateX(0); }
