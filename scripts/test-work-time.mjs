@@ -1,11 +1,18 @@
 import assert from 'node:assert/strict';
 import { dateKeyAt, durationSeconds, formatDuration, splitIntervalByLocalDay, summarizeWorkSessions } from '../server/workTime.js';
+import { createTimerSyncMessage, parseTimerSyncMessage } from '../src/hooks/useWorkTimer.js';
 import { sessionContext } from '../src/services/workTimerService.js';
 
 const clickEvent = {};
 clickEvent.currentTarget = clickEvent;
 assert.deepEqual(sessionContext(clickEvent), {});
 assert.deepEqual(sessionContext({ project: 'LifeMap', taskId: 'task-1', ignored: clickEvent }), { project: 'LifeMap', taskId: 'task-1' });
+
+const pausedMessage = createTimerSyncMessage('paused', { lastSessionSeconds: 125 }, 123456);
+assert.deepEqual(pausedMessage, { type: 'timer-state', state: 'paused', lastSessionSeconds: 125, at: 123456 });
+assert.deepEqual(parseTimerSyncMessage(JSON.stringify(pausedMessage)), pausedMessage);
+assert.equal(parseTimerSyncMessage('{broken'), null);
+assert.equal(parseTimerSyncMessage({ type: 'changed' }), null);
 
 assert.equal(durationSeconds('2026-07-11T10:00:00.000Z', '2026-07-11T11:02:03.900Z'), 3723);
 assert.equal(durationSeconds('2026-07-11T11:00:00.000Z', '2026-07-11T10:00:00.000Z'), 0);

@@ -34,6 +34,7 @@ export const WorkTimerWidget = memo(function WorkTimerWidget({ onSessionChange }
   const showLast = !active && hasLast;
   const visualState = active ? 'running' : timer.paused ? 'paused' : timer.stopFlash ? 'stopped' : 'idle';
   const currentDuration = formatWorkDuration(timer.currentSessionSeconds);
+  const durationCharacters = currentDuration.split('');
   const underHour = active && timer.currentSessionSeconds < 3600;
 
   useEffect(() => {
@@ -85,7 +86,11 @@ export const WorkTimerWidget = memo(function WorkTimerWidget({ onSessionChange }
     <section ref={widgetRef} className={`workTimerWidget is-${visualState} ${underHour ? 'is-under-hour' : ''}`} data-timer-state={visualState} aria-label="Учёт рабочего времени" onClick={(event) => event.stopPropagation()}>
       <div className={`workTimerReadout ${hasLast ? 'hasLast' : ''}`}>
         <div className="workTimerClock" aria-live="off" aria-label={currentDuration}>
-          <span className="workTimerDigits" aria-hidden="true">{currentDuration.split('').map((character, index) => <span key={index}>{character}</span>)}</span>
+          <span className="workTimerFullDigits" aria-hidden="true">{durationCharacters.map((character, index) => <span key={index}>{character}</span>)}</span>
+          <span className="workTimerRunningDigits" aria-hidden="true">
+            <span className="workTimerRunningHours">{durationCharacters.slice(0, 3).map((character, index) => <span key={index}>{character}</span>)}</span>
+            <span className="workTimerRunningMinutes">{durationCharacters.slice(3).map((character, index) => <span key={index}>{character}</span>)}</span>
+          </span>
         </div>
         {hasLast ? <div className={`workTimerLast ${showLast ? 'is-visible' : ''} ${timer.stopFlash ? 'isFlashing' : ''}`}><span className="workTimerSessionDivider" aria-hidden="true" /><b>{formatWorkDurationShort(timer.lastSessionSeconds)}</b></div> : null}
       </div>
