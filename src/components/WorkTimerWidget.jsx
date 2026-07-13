@@ -6,6 +6,12 @@ export function formatWorkDuration(totalSeconds = 0) {
     .map((part) => String(part).padStart(2, '0')).join(':');
 }
 
+export function formatWorkDurationShort(totalSeconds = 0) {
+  const totalMinutes = Math.floor(Math.max(0, Number(totalSeconds) || 0) / 60);
+  return [Math.floor(totalMinutes / 60), totalMinutes % 60]
+    .map((part) => String(part).padStart(2, '0')).join(':');
+}
+
 function PlayIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.25 5.2v13.6L19 12 8.25 5.2Z" /></svg>;
 }
@@ -31,7 +37,7 @@ export function WorkTimerWidget({ onSessionChange }) {
         <div className="workTimerClock" aria-live="off" aria-label={currentDuration}>
           <span className="workTimerDigits" aria-hidden="true">{currentDuration.split('').map((character, index) => <span key={index}>{character}</span>)}</span>
         </div>
-        {showLast ? <div className={`workTimerTotal ${timer.stopFlash ? 'isFlashing' : ''}`}><span>Последняя</span><b>{formatWorkDuration(timer.lastSessionSeconds)}</b></div> : null}
+        {showLast ? <div className={`workTimerLast ${timer.stopFlash ? 'isFlashing' : ''}`}><span className="workTimerSessionDivider" aria-hidden="true" /><b>{formatWorkDurationShort(timer.lastSessionSeconds)}</b></div> : null}
       </div>
       <div className={`workTimerActions ${busy ? 'isBusy' : ''}`}>
         {active ? (

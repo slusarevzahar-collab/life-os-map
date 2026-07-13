@@ -14,21 +14,27 @@
   backdrop-filter: blur(14px);
   color: #c4cdd8;
   font: 500 12.5px/1 "IBM Plex Sans", system-ui, sans-serif;
-  transition: border-color .55s ease, box-shadow .8s ease;
+  transform: scale(1);
+  transform-origin: left bottom;
+  transition: border-color .55s ease, box-shadow .8s ease, transform .45s cubic-bezier(.22, 1, .36, 1);
+  will-change: transform;
 }
+
+.workTimerWidget:hover { z-index: 220; transform: scale(2); }
 
 .workTimerWidget.is-running { border-color: rgba(74, 222, 128, .74); box-shadow: 0 0 30px rgba(74, 222, 128, .27), inset 0 0 19px rgba(74, 222, 128, .045); }
 .workTimerWidget.is-paused { border-color: rgba(250, 204, 21, .72); box-shadow: 0 0 30px rgba(250, 204, 21, .23), inset 0 0 19px rgba(250, 204, 21, .04); }
-.workTimerWidget.is-stopped { border-color: rgba(248, 113, 113, .82); box-shadow: 0 0 32px rgba(248, 113, 113, .29), inset 0 0 19px rgba(248, 113, 113, .05); transition-duration: .18s; }
+.workTimerWidget.is-stopped { border-color: rgba(248, 113, 113, .82); box-shadow: 0 0 32px rgba(248, 113, 113, .29), inset 0 0 19px rgba(248, 113, 113, .05); transition: border-color .18s ease, box-shadow .18s ease, transform .45s cubic-bezier(.22, 1, .36, 1); }
 .workTimerReadout { position: relative; height: 20px; margin: 0 0 2px; }
 .workTimerClock { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #eef2f8; font: 500 17px/1 "IBM Plex Sans", system-ui, sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .workTimerDigits { display: flex; justify-content: space-between; width: 58px; transform: translateX(0); transition: width .72s cubic-bezier(.22, .75, .2, 1), transform .72s cubic-bezier(.22, .75, .2, 1); }
 .workTimerReadout.hasLast .workTimerDigits { transform: translateX(-26px); }
 .workTimerWidget.is-running .workTimerDigits { width: 100%; transform: translateX(0); }
 .workTimerDigits > span { display: block; flex: 0 0 auto; }
-.workTimerTotal { position: absolute; right: 0; top: 1px; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; color: rgba(196, 205, 216, .62); font-size: 7px; }
-.workTimerTotal b { color: rgba(205, 238, 222, .9); font: 500 9px/1 "IBM Plex Sans", system-ui, sans-serif; font-variant-numeric: tabular-nums; }
-.workTimerTotal.isFlashing { animation: workLastSessionBlink 1.15s ease-out; }
+.workTimerLast { position: absolute; right: 0; inset-block: 0; display: flex; align-items: center; gap: 6px; }
+.workTimerSessionDivider { width: 3px; height: 58%; flex: 0 0 auto; border-radius: 2px; background: rgba(255, 255, 255, .24); }
+.workTimerLast b { color: rgba(205, 238, 222, .9); font: 500 10px/1 "IBM Plex Sans", system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+.workTimerLast.isFlashing { animation: workLastSessionBlink 1.15s ease-out; }
 .workTimerActions { display: flex; height: 22px; gap: 0; }
 .workTimerWidget button { display: grid; width: auto; min-width: 0; height: 22px; flex: 1; place-items: center; border: 0; border-radius: 9px; color: #c4cdd8; background: transparent; cursor: pointer; }
 .workTimerWidget button svg { width: 14px; height: 14px; fill: currentColor; }
