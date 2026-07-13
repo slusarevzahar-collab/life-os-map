@@ -22,7 +22,7 @@ function providerConfigs(env = process.env) {
     groq_scout: groqConfig({
       name: 'groq_scout',
       apiKey: groqKey,
-      model: env.GROQ_SCOUT_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
+      model: env.GROQ_SCOUT_MODEL || 'openai/gpt-oss-120b',
     }),
     groq_qwen: groqConfig({
       name: 'groq_qwen',
