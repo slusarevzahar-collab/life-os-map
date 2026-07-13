@@ -213,11 +213,12 @@ function App() {
         throw error;
       });
   }, []);
-  const handleWorkSessionChange = useCallback(() => {
-    loadSnapshot().catch(() => {});
-  }, [loadSnapshot]);
-
   useEffect(() => { loadSnapshot().catch(() => {}); }, [loadSnapshot]);
+  useEffect(() => {
+    const refreshAfterSessionChange = () => loadSnapshot().catch(() => {});
+    window.addEventListener('lifemap:work-session-changed', refreshAfterSessionChange);
+    return () => window.removeEventListener('lifemap:work-session-changed', refreshAfterSessionChange);
+  }, [loadSnapshot]);
   useEffect(() => {
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') loadSnapshot().catch(() => {});
@@ -505,10 +506,16 @@ function App() {
       <ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} onFocusNow={setFocusNow} onFocusNext={setFocusNext} onRename={beginRenameNode} onCreateObject={beginCreateObject} onDeleteObject={deleteObject} />
       <TextInputDialog editor={objectEditor} busy={editorBusy} onSubmit={submitObjectEditor} onClose={() => setObjectEditor(null)} />
       <AssistantPanel currentMap={currentMap} activeFocus={activeFocus} snapshot={snapshot} />
-      <WorkTimerWidget onSessionChange={handleWorkSessionChange} />
       {toast ? <div className="toast">{toast}</div> : null}
     </main>
   );
 }
 
 createRoot(document.getElementById('root')).render(<App />);
+
+const timerRoot = document.createElement('div');
+timerRoot.id = 'work-timer-root';
+document.body.append(timerRoot);
+createRoot(timerRoot).render(
+  <WorkTimerWidget onSessionChange={() => window.dispatchEvent(new Event('lifemap:work-session-changed'))} />,
+);
