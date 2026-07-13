@@ -2,8 +2,8 @@
   "ok": true,
   "policyVersion": "2026-07-09.4",
   "suite": "AI policy + data model + frontend build",
-  "commit": "ea3b9832e446a9cfe38009e06d6ac1d7e7126cba",
-  "checkedAt": "2026-07-13T16:13:18.535883Z",
+  "commit": "006fad7e4c6bc002dd20b979bb6ab320b4d27260",
+  "checkedAt": "2026-07-13T16:15:53.768033Z",
   "exitCode": 0,
   "logTail": [
     "npm warn config",
