@@ -37,10 +37,21 @@ body:has(.lifemapAccessOverlay) .workTimerWidget.is-running { opacity: .5; }
 .workTimerReadout { position: relative; height: 20px; margin: 0 0 2px; overflow: hidden; }
 .workTimerClock { position: absolute; top: 0; left: 26px; width: 58px; height: 20px; color: #eef2f8; font: 500 17px/1 "IBM Plex Sans", system-ui, sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; transition: left .68s cubic-bezier(.22, .75, .2, 1), width .68s cubic-bezier(.22, .75, .2, 1); }
 .workTimerReadout.hasLast .workTimerClock { left: 0; width: 69px; }
-.workTimerWidget.is-running .workTimerClock { left: 0; width: 110px; }
-.workTimerWidget.is-running.is-under-hour:not(:hover):not(:focus-within) .workTimerClock { left: -41px; }
-.workTimerDigits { position: absolute; inset: 0; display: flex; align-items: center; justify-content: space-between; }
-.workTimerDigits > span { display: block; flex: 0 0 auto; }
+.workTimerFullDigits { position: absolute; inset: 0; display: flex; align-items: center; justify-content: space-between; }
+.workTimerFullDigits > span { display: block; flex: 0 0 auto; }
+.workTimerRunningDigits { display: none; position: absolute; inset: 0; }
+.workTimerWidget.is-running .workTimerClock { left: 0; width: 108px; }
+.workTimerWidget.is-running .workTimerFullDigits { display: none; }
+.workTimerWidget.is-running .workTimerRunningDigits { display: block; }
+.workTimerRunningHours,
+.workTimerRunningMinutes { position: absolute; top: 0; height: 20px; display: flex; align-items: center; justify-content: space-between; }
+.workTimerRunningHours { left: 0; width: 36px; opacity: 1; transform: translateX(0); transition: opacity .2s ease .12s, transform .28s ease .12s; }
+.workTimerRunningMinutes { left: 41px; width: 67px; transition: left .68s cubic-bezier(.22, .75, .2, 1); }
+.workTimerRunningHours > span,
+.workTimerRunningMinutes > span { display: block; flex: 0 0 auto; }
+.workTimerWidget.is-running.is-under-hour:not(:hover):not(:focus-within) .workTimerClock { width: 69px; }
+.workTimerWidget.is-running.is-under-hour:not(:hover):not(:focus-within) .workTimerRunningHours { opacity: 0; transform: translateX(-3px); transition-delay: 0s; }
+.workTimerWidget.is-running.is-under-hour:not(:hover):not(:focus-within) .workTimerRunningMinutes { left: 1px; }
 .workTimerLast { position: absolute; top: 0; left: 75px; height: 20px; display: flex; align-items: center; gap: 6px; opacity: 0; transform: translateX(14px); pointer-events: none; transition: opacity .34s ease, transform .58s cubic-bezier(.22, .75, .2, 1); }
 .workTimerLast.is-visible { opacity: 1; transform: translateX(0); }
 .workTimerSessionDivider { flex: 0 0 1px; width: 1px; height: 12px; border-radius: 1px; background: rgba(255, 255, 255, .24); }
