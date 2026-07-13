@@ -1,16 +1,16 @@
-// LifeMap UI V2 — root shell (Stage 5A).
+// LifeMap UI V2 — root shell (Stage 5B1).
 // Keeps Stage 2/3 camera/morph/pill/HUD logic and the reviewer's Stage-4
 // fixes to route/visual-bundle swapping EXACTLY as committed (single request
 // in flight lives in useLifeMapSnapshot, last-good snapshot lives there too,
 // the visual bundle only swaps when camera+morph are idle, route validation
 // checks both the real tree AND the visual planet list via
 // validateRouteIds(ids, rootMap, getVisualLevel), origins are recomputed
-// through the parent level's saved viewport). Adds: a real task workspace
-// (Active/Done, expand, notes, Done/Restore, reorder) for the current level's
-// real leaf objects, a context menu, a rename/create/delete dialog, local
-// object create/rename/delete, and a compact toast stack — all OUTSIDE
-// CameraFlightLayer/MapViewport, in the same HUD layer as TopHud/Mission
-// Control/LauncherPill.
+// through the parent level's saved viewport). Stage 5A workspace/menu/dialog/
+// toast logic is unchanged. Stage 5B1 adds: live Inbox/Assistant windows
+// (real props instead of hudMock), an assistant boot target
+// (pendingWindowTargetRef) and the Inbox → Assistant close→open morph
+// sequence, plus "Обсудить с AI" wiring for task rows, the detail panel and
+// the context menu.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StageScaler } from './stage/StageScaler.jsx';
 import { SpaceBackground } from './stage/SpaceBackground.jsx';
@@ -25,7 +25,7 @@ import { LauncherPill, snapPillPosition } from './dock/LauncherPill.jsx';
 import { useWindowMorph, WINDOW_RECTS } from './dock/useWindowMorph.js';
 import { InboxWindow } from './windows/InboxWindow.jsx';
 import { AssistantWindow } from './windows/AssistantWindow.jsx';
-import { missionControlMock, inboxMock, assistantMock } from './mock/hudMock.js';
+import { missionControlMock } from './mock/hudMock.js';
 
 import { buildActionMap, findNode, isLeafNode, isDoneNode } from '../lib/actionMapModel.js';
 import {
@@ -41,6 +41,7 @@ import {
 import { useLifeMapSnapshot } from './data/useLifeMapSnapshot.js';
 import { useLocalMapExtensions, useFocusQueue, attachCustomObjects } from './adapters/localMapExtensions.js';
 import { buildVisualTree } from './adapters/lifeMapUiAdapter.js';
+import { normalizeSignalFromMap } from './adapters/inboxUiAdapter.js';
 import {
   readInitialRouteIds,
   validateRouteIds,
@@ -55,6 +56,7 @@ import { TaskDetailPanel } from './tasks/TaskDetailPanel.jsx';
 import { ContextMenuV2, clientPointToDesignBox } from './context/ContextMenuV2.jsx';
 import { TextInputDialogV2 } from './dialogs/TextInputDialogV2.jsx';
 import { ToastStack } from './feedback/ToastStack.jsx';
+import { WorkTimerWidget } from '../components/WorkTimerWidget.jsx';
 
 const ROOT_ID = 'root';
 const ROOT_ORIGIN = { x: 640, y: 400 };
@@ -96,13 +98,24 @@ export function LifeMapShell() {
   const inboxSegRef = useRef(null);
   const aiSegRef = useRef(null);
   const pendingFocusRef = useRef(null);
+  const pendingWindowTargetRef = useRef(null);
   const menuReturnFocusRef = useRef(null);
   const dialogReturnFocusRef = useRef(null);
   const detailReturnFocusRef = useRef(null);
   const restoredRouteRef = useRef(false);
   const debugMode = useRef(isDebugMode()).current;
 
+  // Stage 5B1: boot payload for the Assistant window ({ target, context }).
+  const [assistantBoot, setAssistantBoot] = useState(null);
+  // Stage 5B1 fix2: bumped after an Assistant AI action succeeds, so a
+  // mounted InboxWindow's useInboxData knows its data may be stale (the two
+  // windows are mutually exclusive today via the morph, so this is
+  // forward-compatible more than load-bearing right now).
+  const [inboxRefreshRevision, setInboxRefreshRevision] = useState(0);
+  const bumpInboxRefreshRevision = useCallback(() => setInboxRefreshRevision((value) => value + 1), []);
+
   const snapshotState = useLifeMapSnapshot();
+  const handleWorkSessionChange = useCallback(() => { snapshotState.refresh(); }, [snapshotState.refresh]);
   const { titleAliases, setTitleAliases, customObjects, setCustomObjects } = useLocalMapExtensions();
   const [focusQueue, setFocusQueue] = useFocusQueue();
 
@@ -186,6 +199,20 @@ export function LifeMapShell() {
   const statusInfo = STATUS_INFO[effectiveStatus] || STATUS_INFO.connected;
   const networkWritable = snapshotState.status === 'connected' && !visualMapIsFallback;
 
+  // Stage 5B1: map-derived signals as the Inbox fallback when the assets
+  // endpoint returns nothing (same idea as legacy AIInboxV2's mapSignals).
+  const inboxFallbackSignals = useMemo(() => {
+    const root = visualBundle.rootMap;
+    if (!root) return [];
+    const sphere = findNode(root, 'sphere-inbox');
+    if (!sphere) return [];
+    try {
+      return listItems(sphere).filter((item) => item.kind === 'signal').map(normalizeSignalFromMap);
+    } catch {
+      return [];
+    }
+  }, [visualBundle.rootMap]);
+
   const cameraFlight = useCameraFlight({
     onSwap: (targetId, mode, flightOrigin) => {
       pendingEntryRef.current = { mode, origin: flightOrigin };
@@ -213,6 +240,7 @@ export function LifeMapShell() {
       pendingFocusRef.current = target;
       setPillGhost(false);
       setPillLabelGhost(false);
+      if (target === 'assistant') setAssistantBoot(null);
     },
   });
 
@@ -440,6 +468,11 @@ export function LifeMapShell() {
     if (interactionLocked) return;
     const startRect = segmentDesignRect(target);
     if (!startRect) return;
+    // Exact rule: the plain pill segment always opens GENERALLY — it never
+    // carries a boot target, so it must never show a stale one left over
+    // from an earlier "Обсудить с AI" call. openAssistantWindow(boot) below
+    // is the ONLY path allowed to set a non-null assistantBoot.
+    if (target === 'assistant') setAssistantBoot(null);
     setPillGhost(true);
     setPillLabelGhost(true);
     morph.open(target, startRect);
@@ -453,6 +486,54 @@ export function LifeMapShell() {
     const rect = WINDOW_RECTS[target];
     return rect ? { left: `${rect.x}px`, top: `${rect.y}px`, width: `${rect.w}px`, height: `${rect.h}px` } : undefined;
   };
+
+  const openAssistantWindow = useCallback((boot) => {
+    if (flying || morph.isBusy || morph.isActive || pillDragging) return;
+    const startRect = segmentDesignRect('assistant');
+    if (!startRect) return;
+    setAssistantBoot(boot || null);
+    setPillGhost(true);
+    setPillLabelGhost(true);
+    morph.open('assistant', startRect);
+  }, [flying, morph, pillDragging]);
+
+  const handleDiscussWithAi = useCallback((nodeOrTarget, extraContext = {}) => {
+    if (!nodeOrTarget || flying || morph.isBusy) return;
+    const boot = {
+      target: {
+        id: nodeOrTarget.id,
+        sourceId: nodeOrTarget.sourceId || null,
+        title: nodeOrTarget.title || '',
+        status: nodeOrTarget.status || '',
+        kind: nodeOrTarget.kind || 'node',
+        code: nodeOrTarget.code || nodeOrTarget.icon || '',
+        raw: nodeOrTarget.raw || {},
+      },
+      context: {
+        mode: nodeOrTarget.kind || '',
+        mapTitle: currentTaskNode?.title || level?.title || '',
+        ...extraContext,
+      },
+    };
+    if (menu) closeMenu(false);
+    if (detailNodeId) closeDetails(false);
+    if (morph.state === 'open') {
+      pendingWindowTargetRef.current = boot;
+      closeWindow();
+      return;
+    }
+    if (morph.state === 'closed') openAssistantWindow(boot);
+  }, [closeDetails, closeMenu, closeWindow, currentTaskNode, detailNodeId, flying, level, menu, morph, openAssistantWindow]);
+
+  useEffect(() => {
+    if (morph.state !== 'closed' || !pendingWindowTargetRef.current) return undefined;
+    const boot = pendingWindowTargetRef.current;
+    const frameId = window.requestAnimationFrame(() => {
+      pendingWindowTargetRef.current = null;
+      openAssistantWindow(boot);
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, [morph.state, openAssistantWindow]);
 
   const showBackNav = Boolean(parentFrame) && !windowActive;
   const showWorkspace = !flying && !windowActive && Boolean(currentTaskNode) && taskItems.length > 0;
@@ -533,6 +614,7 @@ export function LifeMapShell() {
         canFocus: node.id !== 'root',
         canCreateInside: !isLeafNode(node),
         canDelete: Boolean(node.raw?.local),
+        canDiscuss: node.id !== 'root',
       },
     });
   };
@@ -680,6 +762,7 @@ export function LifeMapShell() {
     onRestore: handleRestore,
     onCreateInside: handleCreateInside,
     onDelete: handleDeleteRequest,
+    onDiscussAi: handleDiscussWithAi,
   };
 
   return (
@@ -715,6 +798,9 @@ export function LifeMapShell() {
               statusTitle={snapshotState.error || undefined}
             />
             <MissionControl data={missionControlData} hidden={windowActive} />
+            <div className="lifemapV2WorkTimerSlot" data-obscured={windowActive || Boolean(detailNode) || Boolean(dialog) ? 'true' : 'false'}>
+              <WorkTimerWidget placement="v2" onSessionChange={handleWorkSessionChange} />
+            </div>
             <TaskWorkspace
               node={currentTaskNode}
               items={taskItems}
@@ -731,6 +817,7 @@ export function LifeMapShell() {
               onOpenNodeMenu={handleOpenMenu}
               onOpenDetails={handleOpenDetails}
               onReorder={handleReorder}
+              onDiscussAi={handleDiscussWithAi}
             />
 
             <LauncherPill
@@ -756,12 +843,34 @@ export function LifeMapShell() {
             <div ref={morph.morphRef} className="lifemapV2MorphFrame" aria-hidden="true" />
             {morph.target === 'inbox' && morph.isActive ? (
               <div className="lifemapV2WindowMount" style={windowRectStyle('inbox')}>
-                <InboxWindow data={inboxMock} state={morph.state} contentVisible={morph.contentVisible} onClose={closeWindow} />
+                <InboxWindow
+                  state={morph.state}
+                  contentVisible={morph.contentVisible}
+                  onClose={closeWindow}
+                  fallbackSignals={inboxFallbackSignals}
+                  snapshot={snapshotState.snapshot}
+                  activeFocus={activeFocus}
+                  onDiscussSignal={handleDiscussWithAi}
+                  networkWritable={networkWritable}
+                  onRefreshSnapshot={snapshotState.refresh}
+                  inboxRefreshRevision={inboxRefreshRevision}
+                />
               </div>
             ) : null}
             {morph.target === 'assistant' && morph.isActive ? (
               <div className="lifemapV2WindowMount" style={windowRectStyle('assistant')}>
-                <AssistantWindow data={assistantMock} state={morph.state} contentVisible={morph.contentVisible} onClose={closeWindow} />
+                <AssistantWindow
+                  state={morph.state}
+                  contentVisible={morph.contentVisible}
+                  onClose={closeWindow}
+                  bootTarget={assistantBoot}
+                  currentMap={currentTaskNode || level}
+                  activeFocus={activeFocus}
+                  snapshot={snapshotState.snapshot}
+                  networkWritable={networkWritable}
+                  onRefreshSnapshot={snapshotState.refresh}
+                  onInboxDataStale={bumpInboxRefreshRevision}
+                />
               </div>
             ) : null}
 
@@ -774,6 +883,7 @@ export function LifeMapShell() {
                 onClose={handleCloseDetails}
                 onDone={handleDone}
                 onRestore={handleRestore}
+                onDiscussAi={handleDiscussWithAi}
               />
             ) : null}
             <ContextMenuV2 menu={menu} onClose={handleCloseMenu} actions={menuActions} />
