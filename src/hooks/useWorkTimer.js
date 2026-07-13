@@ -4,6 +4,21 @@ import { workTimerService } from '../services/workTimerService.js';
 const SYNC_KEY = 'lifemap.workTimer.sync.v1';
 const CHANNEL_NAME = 'lifemap.workTimer.v1';
 const PAUSED_KEY = 'lifemap.workTimer.paused.v1';
+const ACTIVE_CACHE_KEY = 'lifemap.workTimer.active.v1';
+
+function readActiveCache() {
+  try {
+    const value = JSON.parse(window.sessionStorage.getItem(ACTIVE_CACHE_KEY) || 'null');
+    return value?.startedAt ? value : null;
+  } catch { return null; }
+}
+
+function writeActiveCache(session) {
+  try {
+    if (session?.startedAt) window.sessionStorage.setItem(ACTIVE_CACHE_KEY, JSON.stringify(session));
+    else window.sessionStorage.removeItem(ACTIVE_CACHE_KEY);
+  } catch {}
+}
 
 function readPaused() {
   try { return window.localStorage.getItem(PAUSED_KEY) === '1'; } catch { return false; }
@@ -37,8 +52,8 @@ function syncFailureStatus(error) {
 }
 
 export function useWorkTimer({ onSessionChange } = {}) {
-  const [status, setStatus] = useState('idle');
-  const [activeSession, setActiveSession] = useState(null);
+  const [activeSession, setActiveSessionState] = useState(() => readActiveCache());
+  const [status, setStatus] = useState(() => activeSession ? 'active' : 'idle');
   const [tick, setTick] = useState(Date.now());
   const [error, setError] = useState(null);
   const [lastSessionSeconds, setLastSessionSeconds] = useState(0);
@@ -46,6 +61,13 @@ export function useWorkTimer({ onSessionChange } = {}) {
   const [stopFlash, setStopFlash] = useState(false);
   const channelRef = useRef(null);
   const stopFlashTimerRef = useRef(null);
+  const activeSessionRef = useRef(activeSession);
+
+  const setActiveSession = useCallback((session) => {
+    activeSessionRef.current = session;
+    writeActiveCache(session);
+    setActiveSessionState(session);
+  }, []);
 
   const clearStopFlash = useCallback(() => {
     if (stopFlashTimerRef.current) window.clearTimeout(stopFlashTimerRef.current);
@@ -62,10 +84,15 @@ export function useWorkTimer({ onSessionChange } = {}) {
     }, 2200);
   }, []);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async ({ preserveActive = false } = {}) => {
     try {
       const active = await workTimerService.active();
       const nextActive = active.session || null;
+      if (!nextActive && preserveActive && activeSessionRef.current) {
+        setStatus('active');
+        setError(null);
+        return;
+      }
       const nextPaused = nextActive ? false : readPaused();
       if (nextActive) writePaused(false);
       setActiveSession(nextActive);
@@ -78,7 +105,7 @@ export function useWorkTimer({ onSessionChange } = {}) {
       setError(friendlySyncError(nextError, 'Не удалось синхронизировать рабочее время. Повторим автоматически.'));
       console.warn('work_session_sync_failed', nextError);
     }
-  }, []);
+  }, [setActiveSession]);
 
   useEffect(() => { refresh(); }, [refresh]);
   useEffect(() => () => {
@@ -88,16 +115,17 @@ export function useWorkTimer({ onSessionChange } = {}) {
     const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(CHANNEL_NAME) : null;
     channelRef.current = channel;
     const sync = () => refresh();
+    const preserve = () => refresh({ preserveActive: true });
     if (channel) channel.addEventListener('message', sync);
     const storage = (event) => { if ([SYNC_KEY, PAUSED_KEY].includes(event.key)) sync(); };
-    const visible = () => { if (document.visibilityState === 'visible') sync(); };
+    const visible = () => { if (document.visibilityState === 'visible') preserve(); };
     window.addEventListener('storage', storage);
-    window.addEventListener('focus', sync);
+    window.addEventListener('focus', preserve);
     document.addEventListener('visibilitychange', visible);
     return () => {
       channel?.close();
       window.removeEventListener('storage', storage);
-      window.removeEventListener('focus', sync);
+      window.removeEventListener('focus', preserve);
       document.removeEventListener('visibilitychange', visible);
     };
   }, [refresh]);
