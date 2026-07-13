@@ -18,11 +18,15 @@ function groqConfig({ name, model, apiKey }) {
 
 function providerConfigs(env = process.env) {
   const groqKey = env.GROQ_API_KEY || '';
+  const configuredScoutModel = env.GROQ_SCOUT_MODEL || 'openai/gpt-oss-120b';
+  const scoutModel = configuredScoutModel === 'meta-llama/llama-4-scout-17b-16e-instruct'
+    ? 'openai/gpt-oss-120b'
+    : configuredScoutModel;
   return {
     groq_scout: groqConfig({
       name: 'groq_scout',
       apiKey: groqKey,
-      model: env.GROQ_SCOUT_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
+      model: scoutModel,
     }),
     groq_qwen: groqConfig({
       name: 'groq_qwen',

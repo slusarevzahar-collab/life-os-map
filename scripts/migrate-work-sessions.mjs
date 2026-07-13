@@ -12,7 +12,11 @@ if (!notionToken || !sessionsDbId) {
   await notion.databases.update({
     database_id: sessionsDbId,
     properties: {
+      'Session Number': { unique_id: {} },
       'Duration Seconds': { number: { format: 'number' } },
+      'Initial Seconds': { number: { format: 'number' } },
+      'Timer Seconds': { number: { format: 'number' } },
+      'Started At Exact': { rich_text: {} },
       'Date Key': { rich_text: {} },
       Timezone: { rich_text: {} },
       Source: { select: { options: [{ name: 'lifemap', color: 'blue' }] } },
@@ -23,4 +27,3 @@ if (!notionToken || !sessionsDbId) {
   });
   console.log(`LifeMap Sessions schema migrated: ${sessionsDbId}`);
 }
-
