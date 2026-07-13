@@ -1,4 +1,6 @@
-// LifeMap UI V2 — one task/list row (Stage 5A).
+// LifeMap UI V2 — one task/list row (Stage 5B1).
+// Stage 5A behaviour unchanged; the AI button is now live when the shell
+// passes onDiscussAi (Stage 5B1), otherwise it stays disabled.
 import { useEffect, useRef, useState } from 'react';
 import { isDoneNode } from '../../lib/actionMapModel.js';
 
@@ -19,6 +21,7 @@ export function TaskRow({
   onOpenDetails,
   onMoveUp,
   onMoveDown,
+  onDiscussAi,
   dragHandleProps,
 }) {
   const serverNote = String(item.raw?.sessionNotes ?? '');
@@ -122,15 +125,27 @@ export function TaskRow({
           >
             ⋮⋮
           </div>
-          <button
-            type="button"
-            className="lifemapV2TaskAiBtn"
-            disabled
-            aria-label="Обсудить с AI — появится на следующем этапе"
-            title="Обсудить с AI — появится на следующем этапе"
-          >
-            AI
-          </button>
+          {onDiscussAi ? (
+            <button
+              type="button"
+              className="lifemapV2TaskAiBtn"
+              aria-label={`Обсудить с AI: ${item.title}`}
+              title="Обсудить с AI"
+              onClick={() => onDiscussAi(item)}
+            >
+              AI
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="lifemapV2TaskAiBtn"
+              disabled
+              aria-label="Обсудить с AI — недоступно"
+              title="Обсудить с AI — недоступно"
+            >
+              AI
+            </button>
+          )}
           {patchable ? (
             <button
               type="button"
