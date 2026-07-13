@@ -1,13 +1,9 @@
-// LifeMap UI V2 — TaskDetailPanel (Stage 5A)
-// Read-only presentation of a real node plus capability-gated action buttons
-// — it never mutates the node directly, only calls the callbacks the shell
-// wires to useLifeMapActions. Lives in the HUD layer. role=dialog for
-// screen-reader users (it behaves like a lightweight, non-modal-blocking
-// panel — Escape still closes it, but it does not trap background map/HUD
-// interaction the way the Inbox/Assistant morph windows do).
+// LifeMap UI V2 — TaskDetailPanel (Stage 5B1)
+// Stage 5A behaviour unchanged. The "Обсудить с AI" button is live when the
+// shell passes onDiscussAi; otherwise it stays disabled.
 import { useEffect, useRef } from 'react';
 
-export function TaskDetailPanel({ node, patchable, busy, networkDisabled, onClose, onDone, onRestore }) {
+export function TaskDetailPanel({ node, patchable, busy, networkDisabled, onClose, onDone, onRestore, onDiscussAi }) {
   const closeRef = useRef(null);
 
   useEffect(() => {
@@ -99,15 +95,26 @@ export function TaskDetailPanel({ node, patchable, busy, networkDisabled, onClos
       ) : null}
 
       <div className="lifemapV2TaskDetailActions">
-        <button
-          type="button"
-          className="lifemapV2TaskDetailAi"
-          disabled
-          aria-label="Обсудить с AI — появится на следующем этапе"
-          title="Обсудить с AI — появится на следующем этапе"
-        >
-          Обсудить с AI
-        </button>
+        {onDiscussAi ? (
+          <button
+            type="button"
+            className="lifemapV2TaskDetailAi lifemapV2TaskDetailAiLive"
+            aria-label={`Обсудить с AI: ${node.title}`}
+            onClick={() => onDiscussAi(node)}
+          >
+            Обсудить с AI
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="lifemapV2TaskDetailAi"
+            disabled
+            aria-label="Обсудить с AI — недоступно"
+            title="Обсудить с AI — недоступно"
+          >
+            Обсудить с AI
+          </button>
+        )}
         {patchable ? (
           <button
             type="button"
