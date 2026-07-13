@@ -1,20 +1,50 @@
-// LifeMap UI V2 — AssistantWindow (Stage 3)
-// Visual mock shell only. role=dialog, Escape closes, focus moves in on open,
-// lightweight focus wrap. The input does NOT submit a real request (form submit
-// is prevented). NOT connected to AssistantPanel, real history, any provider,
-// secret, API, or tool actions. Geometry (344,62,912,714,r22) applied by shell.
+// LifeMap UI V2 — AssistantWindow (Stage 5B1).
+// LIVE window: real sessions (assistantChatHistory.js), real chat
+// (postAssistantChat), action execution, AI resource meter, quick prompts.
+// Keeps the Stage 3 morph shell contract exactly: role=dialog, aria-modal,
+// Escape closes, focus wrap, data-state / data-content-visible, geometry
+// applied by the shell mount.
 import { useEffect, useRef } from 'react';
+import { useAssistantChat } from '../data/useAssistantChat.js';
+import { aggregateAiResource } from '../adapters/inboxUiAdapter.js';
+import { itemCode, itemKindLabel } from '../adapters/assistantContextAdapter.js';
+import { AssistantHistory } from '../assistant/AssistantHistory.jsx';
+import { AssistantMessages } from '../assistant/AssistantMessages.jsx';
+import { AssistantComposer } from '../assistant/AssistantComposer.jsx';
 
-export function AssistantWindow({ data, state, contentVisible, onClose }) {
+const PERCENT_VISIBLE_STATES = new Set(['ready', 'quota-exhausted', 'rate-limited']);
+
+export function AssistantWindow({
+  state,
+  contentVisible,
+  onClose,
+  bootTarget = null,
+  currentMap = null,
+  activeFocus = null,
+  snapshot = {},
+  networkWritable = true,
+  onRefreshSnapshot,
+  onInboxDataStale,
+}) {
   const rootRef = useRef(null);
   const closeRef = useRef(null);
+  const scrollRef = useRef(null);
   const interactive = state === 'open';
 
+  const chat = useAssistantChat({ active: true, bootTarget, currentMap, activeFocus, snapshot, networkWritable, onRefreshSnapshot, apiOffline: !networkWritable, onInboxDataStale });
+
   useEffect(() => {
-    if (state === 'open') {
-      closeRef.current?.focus();
-    }
+    if (state === 'open') closeRef.current?.focus();
   }, [state]);
+
+  useEffect(() => {
+    if (!contentVisible) return;
+    const timer = window.setTimeout(() => {
+      const el = scrollRef.current;
+      if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    }, 40);
+    return () => window.clearTimeout(timer);
+  }, [contentVisible, chat.messages.length]);
 
   const handleKeyDown = (event) => {
     if (event.key === 'Escape') {
@@ -40,6 +70,14 @@ export function AssistantWindow({ data, state, contentVisible, onClose }) {
     }
   };
 
+  const resource = aggregateAiResource(chat.status);
+  const resourceLabel = resource.known ? `${resource.percent}%` : `≈ ${resource.percent}%`;
+  const statusView = chat.statusView;
+  const showPercent = PERCENT_VISIBLE_STATES.has(statusView.state);
+  const target = chat.target;
+  const mainEyebrow = target ? `${itemKindLabel(target)} · ${itemCode(target)}` : '';
+  const mainTitle = target ? String(target.title || '').trim() : '';
+
   return (
     <div
       id="lifemap-v2-assistant-window"
@@ -59,34 +97,54 @@ export function AssistantWindow({ data, state, contentVisible, onClose }) {
             <div className="lifemapV2AssistantMark" aria-hidden="true">AI</div>
             <div className="lifemapV2AssistantBrandName">Assistant</div>
           </div>
-          <div className="lifemapV2InboxResource">
-            <div className="lifemapV2InboxResourceRow">
-              <span>Ресурс AI</span><span className="lifemapV2InboxResourcePct">≈ 100%</span>
+          <div className="lifemapV2AssistantStatus" data-state={statusView.state}>
+            <div className="lifemapV2AssistantStatusRow">
+              <span className="lifemapV2AssistantStatusDot" aria-hidden="true" />
+              <span className="lifemapV2AssistantStatusLabel">{statusView.label}</span>
+              {showPercent ? <span className="lifemapV2AssistantStatusPct">{resourceLabel}</span> : null}
             </div>
-            <div className="lifemapV2InboxResourceTrack"><div className="lifemapV2InboxResourceFill" /></div>
+            <p className="lifemapV2AssistantStatusDesc">{statusView.description}</p>
           </div>
-          <div className="lifemapV2AssistantSectionHead">
-            <span>ИСТОРИЯ</span><span className="lifemapV2AssistantNew">+ Новый</span>
+
+          <AssistantHistory
+            sessions={chat.sessions}
+            activeSessionId={chat.activeSessionId}
+            busy={chat.busy}
+            interactive={interactive}
+            onSelect={chat.activateSession}
+            onNew={chat.startNewChat}
+            onClear={chat.clearSession}
+          />
+
+          <div className="lifemapV2AssistantSectionHead lifemapV2AssistantSectionHead2">
+            {target ? 'РАБОТА С ОБЪЕКТОМ' : 'РЕШЕНИЯ'}
           </div>
-          <div className="lifemapV2AssistantHistory">
-            {data.history.map((h, i) => (
-              <div key={i} className={`lifemapV2AssistantHistItem${h.active ? ' lifemapV2AssistantHistActive' : ''}`}>
-                <div className="lifemapV2AssistantHistTitle">{h.t}</div>
-                <div className="lifemapV2AssistantHistMeta">{h.s}</div>
-              </div>
-            ))}
-          </div>
-          <div className="lifemapV2AssistantSectionHead lifemapV2AssistantSectionHead2">РЕШЕНИЯ</div>
           <div className="lifemapV2AssistantDecisions">
-            {data.decisions.map((d, i) => (
-              <div key={i} className="lifemapV2AssistantDecision">{d}<span aria-hidden="true">→</span></div>
+            {chat.quickPrompts.map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                className="lifemapV2AssistantDecision"
+                disabled={chat.busy || statusView.blocksSend}
+                tabIndex={interactive ? 0 : -1}
+                onClick={() => chat.send(item.prompt)}
+              >
+                {item.label}<span aria-hidden="true">→</span>
+              </button>
             ))}
           </div>
         </aside>
 
         <div className="lifemapV2AssistantMain">
           <header className="lifemapV2WindowHead">
-            <h2 className="lifemapV2WindowTitle">{data.title}</h2>
+            {mainTitle ? (
+              <div className="lifemapV2AssistantTargetHead">
+                <div className="lifemapV2WindowEyebrow">{mainEyebrow}</div>
+                <h2 className="lifemapV2WindowTitle lifemapV2AssistantTargetTitle">{mainTitle}</h2>
+              </div>
+            ) : (
+              <h2 className="lifemapV2WindowTitle">LifeMap Assistant</h2>
+            )}
             <button
               type="button"
               ref={closeRef}
@@ -98,30 +156,27 @@ export function AssistantWindow({ data, state, contentVisible, onClose }) {
               ✕
             </button>
           </header>
-          <div className="lifemapV2AssistantGreeting">
-            <div className="lifemapV2AssistantGreetCard">
-              <div className="lifemapV2AssistantGreetTitle">{data.greetingTitle}</div>
-              <div className="lifemapV2AssistantGreetBody">{data.greetingBody}</div>
-            </div>
-          </div>
-          <div className="lifemapV2AssistantSuggest">
-            {data.suggestions.map((s, i) => (
-              <button type="button" key={i} className="lifemapV2AssistantChip" tabIndex={interactive ? 0 : -1}>{s}</button>
-            ))}
-          </div>
-          <form
-            className="lifemapV2AssistantInputRow"
-            onSubmit={(e) => e.preventDefault()}
-          >
-            <input
-              className="lifemapV2AssistantInput"
-              type="text"
-              placeholder={data.placeholder}
-              aria-label="Сообщение ассистенту (демо, не отправляется)"
-              tabIndex={interactive ? 0 : -1}
-            />
-            <button type="submit" className="lifemapV2AssistantSend" tabIndex={interactive ? 0 : -1}>Отправить</button>
-          </form>
+
+          <AssistantMessages
+            messages={chat.messages}
+            busy={chat.busy}
+            scrollRef={scrollRef}
+            onExecute={chat.executeAction}
+            actionBusy={chat.actionBusy}
+            actionsDisabled={!chat.status?.canExecuteActions || statusView.blocksSend}
+            interactive={interactive}
+          />
+
+          {chat.error ? <div className="lifemapV2AssistantErrorLine" role="alert">{chat.error}</div> : null}
+
+          <AssistantComposer
+            busy={chat.busy}
+            interactive={interactive}
+            disabled={statusView.blocksSend}
+            disabledReason={statusView.blocksSend ? statusView.description : ''}
+            placeholder={target ? 'Что нужно решить по этому объекту?' : 'Опиши решение, которое нужно принять, или проблему в работе…'}
+            onSend={chat.send}
+          />
         </div>
       </div>
     </div>
