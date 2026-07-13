@@ -1,0 +1,116 @@
+.lifemapV2InboxTabBtnActive{background:rgba(87,224,168,.12);border-color:rgba(87,224,168,.28);color:#d7f6ea}
+.lifemapV2InboxTabBtn span,.lifemapV2InboxTabBtnActive span{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8ff0c8}
+.lifemapV2InboxJobProgress{flex:none;height:4px;border-radius:2px;background:rgba(255,255,255,.08);overflow:hidden;margin:0 0 8px}
+.lifemapV2InboxJobProgress span{display:block;height:100%;border-radius:2px;background:#57e0a8;transition:width .4s ease}
+.lifemapV2InboxNotice{flex:none;padding:8px 12px;border-radius:10px;background:rgba(87,224,168,.08);border:1px solid rgba(87,224,168,.2);font:400 12px 'IBM Plex Sans',sans-serif;color:#bfe9d7;margin:0 0 8px}
+.lifemapV2InboxErrorLine{flex:none;padding:8px 12px;border-radius:10px;background:rgba(224,120,120,.08);border:1px solid rgba(224,120,120,.24);font:400 12px 'IBM Plex Sans',sans-serif;color:#e8a0a0;margin:0 0 8px}
+.lifemapV2InboxEmpty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:rgba(160,172,190,.75);text-align:center;padding:28px 16px}
+.lifemapV2InboxEmpty b{color:#e0e6ee;font:600 15px 'IBM Plex Sans',sans-serif}
+.lifemapV2InboxEmpty p{margin:0;font:400 13px 'IBM Plex Sans',sans-serif;max-width:300px}
+.lifemapV2InboxRowLive{display:block;padding:0}
+.lifemapV2InboxRowMainBtn{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:none;border:0;padding:12px 14px;cursor:pointer;border-radius:inherit}
+.lifemapV2InboxRowMainBtn .lifemapV2InboxRowMain{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.lifemapV2InboxRowOpen{background:rgba(255,255,255,.075);border-color:rgba(87,224,168,.22)}
+.lifemapV2InboxRowEntering{animation:lifemapV2InboxEnter .8s ease}
+@keyframes lifemapV2InboxEnter{from{background:rgba(87,224,168,.16)}to{background:rgba(255,255,255,.055)}}
+.lifemapV2InboxRel{flex:none;padding:5px 9px;border-radius:9px;font:600 11px 'IBM Plex Mono',monospace;border:1px solid rgba(255,255,255,.12);color:#9aa6b6}
+.lifemapV2InboxRel--high{background:rgba(87,224,168,.12);border-color:rgba(87,224,168,.3);color:#8ff0c8}
+.lifemapV2InboxRel--medium{background:rgba(232,190,112,.1);border-color:rgba(232,190,112,.28);color:#e8be70}
+.lifemapV2InboxRowDetails{padding:2px 14px 14px;display:flex;flex-direction:column;gap:10px}
+.lifemapV2InboxDetailBlock small{display:block;font:500 10.5px 'IBM Plex Mono',monospace;letter-spacing:1px;color:rgba(150,165,185,.8);margin-bottom:3px;text-transform:uppercase}
+.lifemapV2InboxDetailBlock p{margin:0;font:400 12.5px/1.55 'IBM Plex Sans',sans-serif;color:#c4cdd8;white-space:pre-wrap;overflow-wrap:anywhere}
+.lifemapV2InboxRowSource{font:400 11.5px 'IBM Plex Sans',sans-serif;color:rgba(150,165,185,.75)}
+.lifemapV2InboxRowActions{display:flex;flex-wrap:wrap;gap:8px}
+.lifemapV2InboxRowActions button{border-radius:10px;border:1px solid rgba(255,255,255,.13);background:rgba(255,255,255,.06);color:#aab4c2;font:500 12px 'IBM Plex Sans',sans-serif;padding:8px 12px;cursor:pointer}
+.lifemapV2InboxRowActions button:disabled{opacity:.5;cursor:default}
+.lifemapV2InboxPrimaryBtn,.lifemapV2InboxRowActions .lifemapV2InboxPrimaryBtn{background:rgba(87,224,168,.12);border-color:rgba(87,224,168,.28);color:#8ff0c8}
+.lifemapV2InboxAttach{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:11px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
+.lifemapV2InboxAttachIcon{flex:none;padding:5px 8px;border-radius:8px;background:rgba(63,143,208,.12);border:1px solid rgba(63,143,208,.28);font:600 10px 'IBM Plex Mono',monospace;color:#9cc8f0}
+.lifemapV2InboxAttachMeta{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.lifemapV2InboxAttachMeta b{font:500 12.5px 'IBM Plex Sans',sans-serif;color:#e0e6ee;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lifemapV2InboxAttachMeta small{font:400 11px 'IBM Plex Sans',sans-serif;color:rgba(150,165,185,.75)}
+.lifemapV2InboxAttach button{flex:none;border-radius:9px;border:1px solid rgba(255,255,255,.13);background:rgba(255,255,255,.06);color:#aab4c2;font:500 11.5px 'IBM Plex Sans',sans-serif;padding:7px 11px;cursor:pointer}
+.lifemapV2InboxPromptOverlay{position:absolute;inset:0;z-index:5;background:rgba(3,5,10,.6);display:flex;align-items:center;justify-content:center;border-radius:inherit;pointer-events:auto}
+.lifemapV2InboxPromptDialog{width:86%;max-height:82%;display:flex;flex-direction:column;gap:12px;border-radius:16px;background:rgba(26,34,46,.97);border:1px solid rgba(255,255,255,.14);box-shadow:0 24px 70px rgba(0,0,0,.5);padding:18px 20px}
+.lifemapV2InboxPromptHead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.lifemapV2InboxPromptHead small{display:block;font:500 10.5px 'IBM Plex Mono',monospace;letter-spacing:1.5px;color:rgba(87,224,168,.8);text-transform:uppercase}
+.lifemapV2InboxPromptHead h3{margin:3px 0 0;font:600 17px 'IBM Plex Sans',sans-serif;color:#f0f4f9}
+.lifemapV2InboxPromptHead button{flex:none;width:32px;height:32px;border-radius:9px;background:rgba(224,120,120,.1);border:1px solid rgba(224,120,120,.28);color:#e8a0a0;cursor:pointer;font-size:13px}
+.lifemapV2InboxPromptBody{flex:1;min-height:0;overflow:auto;margin:0;padding:12px 14px;border-radius:11px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.1);font:400 12px/1.6 'IBM Plex Mono',monospace;color:#d5dde7;white-space:pre-wrap;overflow-wrap:anywhere}
+.lifemapV2InboxPromptActions{display:flex;justify-content:flex-end;gap:8px}
+.lifemapV2InboxPromptActions button{border-radius:10px;border:1px solid rgba(255,255,255,.13);background:rgba(255,255,255,.06);color:#aab4c2;font:500 12px 'IBM Plex Sans',sans-serif;padding:9px 14px;cursor:pointer}
+.lifemapV2AssistantHistoryLive{display:flex;flex-direction:column;min-height:0}
+.lifemapV2AssistantNewBtn{border-radius:8px;border:1px solid rgba(87,224,168,.26);background:rgba(87,224,168,.1);color:#8ff0c8;font:500 11px 'IBM Plex Sans',sans-serif;padding:5px 9px;cursor:pointer}
+.lifemapV2AssistantNewBtn:disabled{opacity:.5;cursor:default}
+.lifemapV2AssistantHistRow{position:relative;display:flex;align-items:stretch;gap:4px}
+.lifemapV2AssistantHistRow .lifemapV2AssistantHistItem{flex:1;min-width:0;text-align:left;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.09);border-radius:11px;padding:9px 11px;cursor:pointer;display:flex;flex-direction:column;gap:2px}
+.lifemapV2AssistantHistRow .lifemapV2AssistantHistItem:disabled{opacity:.6;cursor:default}
+.lifemapV2AssistantHistRow .lifemapV2AssistantHistActive{background:rgba(87,224,168,.1);border-color:rgba(87,224,168,.26)}
+.lifemapV2AssistantHistMenuBtn{flex:none;width:26px;border-radius:9px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:#8794a5;cursor:pointer;font-size:13px}
+.lifemapV2AssistantHistMenu{position:absolute;right:0;top:calc(100% + 4px);z-index:6;border-radius:10px;background:rgba(24,32,44,.96);border:1px solid rgba(255,255,255,.14);box-shadow:0 14px 40px rgba(0,0,0,.5);padding:6px}
+.lifemapV2AssistantHistMenu button{display:block;width:100%;text-align:left;padding:8px 10px;border-radius:8px;background:transparent;border:0;color:#cbd4df;font:400 12px 'IBM Plex Sans',sans-serif;cursor:pointer;white-space:nowrap}
+.lifemapV2AssistantHistMenu button:hover{background:rgba(255,255,255,.08)}
+.lifemapV2AssistantHistEmpty{margin:0;font:400 12px 'IBM Plex Sans',sans-serif;color:rgba(150,165,185,.75)}
+.lifemapV2AssistantDecisions .lifemapV2AssistantDecision{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;text-align:left;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.09);border-radius:11px;padding:9px 11px;color:#cbd4df;font:400 12.5px 'IBM Plex Sans',sans-serif;cursor:pointer}
+.lifemapV2AssistantDecisions .lifemapV2AssistantDecision:hover{background:rgba(87,224,168,.08);border-color:rgba(87,224,168,.2)}
+.lifemapV2AssistantDecisions .lifemapV2AssistantDecision:disabled{opacity:.5;cursor:default}
+.lifemapV2AssistantTargetHead{min-width:0}
+.lifemapV2AssistantTargetTitle{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lifemapV2AssistantThread{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:10px;padding:4px 2px}
+.lifemapV2AssistantMsg{max-width:86%;border-radius:14px;padding:10px 13px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.1);align-self:flex-start}
+.lifemapV2AssistantMsg--user{align-self:flex-end;background:rgba(87,224,168,.1);border-color:rgba(87,224,168,.22)}
+.lifemapV2AssistantMsg--system{background:rgba(63,143,208,.08);border-color:rgba(63,143,208,.22)}
+.lifemapV2AssistantMsgError{background:rgba(224,120,120,.08);border-color:rgba(224,120,120,.24)}
+.lifemapV2AssistantMsg small{display:block;font:500 10px 'IBM Plex Mono',monospace;letter-spacing:1.5px;color:rgba(150,165,185,.8);margin-bottom:4px;text-transform:uppercase}
+.lifemapV2AssistantMsg p{margin:0;font:400 13px/1.55 'IBM Plex Sans',sans-serif;color:#e0e6ee;white-space:pre-wrap;overflow-wrap:anywhere}
+.lifemapV2AssistantMsg details{margin-top:8px}
+.lifemapV2AssistantMsg details summary{font:500 11.5px 'IBM Plex Sans',sans-serif;color:#9aa6b6;cursor:pointer}
+.lifemapV2AssistantMsg details pre{margin:6px 0 0;padding:9px 11px;border-radius:10px;background:rgba(0,0,0,.28);font:400 11px/1.5 'IBM Plex Mono',monospace;color:#c4cdd8;white-space:pre-wrap;overflow-wrap:anywhere;max-height:180px;overflow:auto}
+.lifemapV2AssistantMsgTyping p{color:#9aa6b6;font-style:italic}
+.lifemapV2AssistantWarnings{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.lifemapV2AssistantWarnings span{padding:4px 8px;border-radius:8px;background:rgba(232,190,112,.1);border:1px solid rgba(232,190,112,.28);font:400 11px 'IBM Plex Sans',sans-serif;color:#e8be70}
+.lifemapV2AssistantNextStep{margin-top:8px;padding:8px 11px;border-radius:10px;background:rgba(87,224,168,.07);border:1px solid rgba(87,224,168,.18);font:400 12.5px 'IBM Plex Sans',sans-serif;color:#bfe9d7}
+.lifemapV2AssistantActionList{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.lifemapV2AssistantAction{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.1)}
+.lifemapV2AssistantActionExec{border-color:rgba(87,224,168,.24)}
+.lifemapV2AssistantActionBody{min-width:0}
+.lifemapV2AssistantActionBody small{display:block;font:500 10px 'IBM Plex Mono',monospace;letter-spacing:1.5px;color:rgba(150,165,185,.8);text-transform:uppercase;margin-bottom:2px}
+.lifemapV2AssistantActionBody b{display:block;font:500 13px 'IBM Plex Sans',sans-serif;color:#e0e6ee}
+.lifemapV2AssistantActionBody p{margin:3px 0 0;font:400 11.5px 'IBM Plex Sans',sans-serif;color:#e8be70}
+.lifemapV2AssistantAction>button{flex:none;border-radius:10px;border:1px solid rgba(87,224,168,.28);background:rgba(87,224,168,.12);color:#8ff0c8;font:500 12px 'IBM Plex Sans',sans-serif;padding:8px 13px;cursor:pointer}
+.lifemapV2AssistantAction>button:disabled{opacity:.5;cursor:default}
+.lifemapV2AssistantPlanBadge{flex:none;padding:5px 10px;border-radius:9px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);font:500 11px 'IBM Plex Sans',sans-serif;color:#9aa6b6}
+.lifemapV2AssistantErrorLine{flex:none;padding:8px 12px;border-radius:10px;background:rgba(224,120,120,.08);border:1px solid rgba(224,120,120,.24);font:400 12px 'IBM Plex Sans',sans-serif;color:#e8a0a0;margin-bottom:8px}
+.lifemapV2AssistantTextarea{resize:none;min-height:44px;max-height:120px;font-family:'IBM Plex Sans',sans-serif;line-height:1.45}
+.lifemapV2InboxOfflineLine{flex:none;padding:8px 12px;border-radius:10px;background:rgba(232,190,112,.09);border:1px solid rgba(232,190,112,.26);font:400 12px 'IBM Plex Sans',sans-serif;color:#e8be70;margin:0 0 8px}
+.lifemapV2AssistantOfflineLine{flex:none;padding:8px 12px;border-radius:10px;background:rgba(232,190,112,.09);border:1px solid rgba(232,190,112,.26);font:400 12px 'IBM Plex Sans',sans-serif;color:#e8be70;margin-bottom:8px}
+.lifemapV2InboxCategoryRow{flex:none;display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+.lifemapV2InboxCategoryBtn,.lifemapV2InboxCategoryBtnActive{flex:none;display:flex;align-items:center;gap:5px;padding:6px 10px;border-radius:9px;font:500 11.5px 'IBM Plex Sans',sans-serif;cursor:pointer;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.045);color:#9aa6b6}
+.lifemapV2InboxCategoryBtnActive{background:rgba(87,224,168,.1);border-color:rgba(87,224,168,.26);color:#d7f6ea}
+.lifemapV2InboxCategoryBtn span,.lifemapV2InboxCategoryBtnActive span{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:rgba(150,165,185,.85)}
+.lifemapV2InboxPromptCopyError{flex:none;padding:8px 11px;border-radius:10px;background:rgba(224,120,120,.08);border:1px solid rgba(224,120,120,.24);font:400 11.5px 'IBM Plex Sans',sans-serif;color:#e8a0a0}
+.lifemapV2AssistantStatus{flex:none;padding:9px 11px;border-radius:11px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.1);display:flex;flex-direction:column;gap:4px}
+.lifemapV2AssistantStatusRow{display:flex;align-items:center;gap:7px}
+.lifemapV2AssistantStatusDot{flex:none;width:8px;height:8px;border-radius:50%;background:#8794a5}
+.lifemapV2AssistantStatus[data-state="ready"] .lifemapV2AssistantStatusDot{background:#57e0a8}
+.lifemapV2AssistantStatus[data-state="loading"] .lifemapV2AssistantStatusDot{background:#8794a5}
+.lifemapV2AssistantStatus[data-state="provider-unconfigured"] .lifemapV2AssistantStatusDot{background:#8794a5}
+.lifemapV2AssistantStatus[data-state="quota-exhausted"] .lifemapV2AssistantStatusDot,
+.lifemapV2AssistantStatus[data-state="rate-limited"] .lifemapV2AssistantStatusDot{background:#e8be70}
+.lifemapV2AssistantStatus[data-state="api-offline"] .lifemapV2AssistantStatusDot,
+.lifemapV2AssistantStatus[data-state="provider-unavailable"] .lifemapV2AssistantStatusDot{background:#e07878}
+.lifemapV2AssistantStatusLabel{flex:1;min-width:0;font:600 12px 'IBM Plex Sans',sans-serif;color:#e0e6ee}
+.lifemapV2AssistantStatusPct{flex:none;font:600 11px 'IBM Plex Mono',monospace;color:#9aa6b6}
+.lifemapV2AssistantStatusDesc{margin:0;font:400 11.5px/1.45 'IBM Plex Sans',sans-serif;color:rgba(180,190,202,.85)}
+.lifemapV2AssistantComposerBlock{flex:none;display:flex;flex-direction:column;gap:6px}
+.lifemapV2AssistantComposerDisabledLine{padding:7px 11px;border-radius:9px;background:rgba(232,190,112,.09);border:1px solid rgba(232,190,112,.24);font:400 11.5px 'IBM Plex Sans',sans-serif;color:#e8be70}
+.lifemapV2AssistantInput:disabled{opacity:.55;cursor:not-allowed}
+.lifemapV2AssistantMsgMeta{margin-top:5px;font:500 10px 'IBM Plex Mono',monospace;letter-spacing:.5px;color:rgba(150,165,185,.7)}
+.lifemapV2InboxReprocess:focus-visible,.lifemapV2InboxTabBtn:focus-visible,.lifemapV2InboxTabBtnActive:focus-visible,.lifemapV2InboxRowMainBtn:focus-visible,.lifemapV2InboxRowActions button:focus-visible,.lifemapV2InboxAttach button:focus-visible,.lifemapV2InboxPromptHead button:focus-visible,.lifemapV2InboxPromptActions button:focus-visible,.lifemapV2InboxCategoryBtn:focus-visible,.lifemapV2InboxCategoryBtnActive:focus-visible,.lifemapV2AssistantNewBtn:focus-visible,.lifemapV2AssistantHistRow .lifemapV2AssistantHistItem:focus-visible,.lifemapV2AssistantHistMenuBtn:focus-visible,.lifemapV2AssistantHistMenu button:focus-visible,.lifemapV2AssistantDecisions .lifemapV2AssistantDecision:focus-visible,.lifemapV2AssistantAction>button:focus-visible,.lifemapV2AssistantTextarea:focus-visible{outline:2px solid rgba(87,224,168,.72);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){.lifemapV2InboxRowEntering{animation:none}.lifemapV2InboxJobProgress span{transition:none}}
+.lifemapV2WorkTimerSlot{position:absolute;left:32px;bottom:32px;z-index:26;pointer-events:auto;opacity:1;transition:opacity .28s ease,transform .35s cubic-bezier(.22,1,.36,1)}
+.lifemapV2WorkTimerSlot[data-obscured="true"],.lifemapV2HudLayer:has(.lifemapV2McToggle[aria-expanded="true"]) .lifemapV2WorkTimerSlot{opacity:0;pointer-events:none;transform:translateY(8px)}
+.lifemapV2 .workTimerWidget.is-v2{position:relative;left:auto;bottom:auto;transform:none;transform-origin:left bottom}
+.lifemapV2 .workTimerWidget.is-v2:hover,.lifemapV2 .workTimerWidget.is-v2:focus-within{transform:scale(1.18)}
+.lifemapV2 .workTimerWidget.is-v2.is-running:hover,.lifemapV2 .workTimerWidget.is-v2.is-running:focus-within{transform:scale(1.18)}
+@media (prefers-reduced-motion:reduce){.lifemapV2WorkTimerSlot{transition:none}.lifemapV2 .workTimerWidget.is-v2:hover,.lifemapV2 .workTimerWidget.is-v2:focus-within{transform:none}}
