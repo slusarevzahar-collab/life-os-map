@@ -1,4 +1,6 @@
-// LifeMap UI V2 — accessible context menu (Stage 5A).
+// LifeMap UI V2 — accessible context menu (Stage 5B1).
+// Stage 5A behaviour unchanged; adds the "Обсудить с AI" item when the shell
+// provides actions.onDiscussAi and capabilities.canDiscuss.
 import { useEffect, useMemo, useRef } from 'react';
 
 const MENU_W = 220;
@@ -27,6 +29,11 @@ export function ContextMenuV2({ menu, onClose, actions }) {
     return [
       capabilities.canFocus && { key: 'focus-now', label: 'Фокус сейчас', onClick: () => actions.onFocusNow(node) },
       capabilities.canFocus && { key: 'focus-next', label: 'Следующий', onClick: () => actions.onFocusNext(node) },
+      capabilities.canDiscuss && actions.onDiscussAi && {
+        key: 'discuss-ai',
+        label: 'Обсудить с AI',
+        onClick: () => actions.onDiscussAi(node),
+      },
       capabilities.canRename && {
         key: 'rename',
         label: 'Переименовать',
