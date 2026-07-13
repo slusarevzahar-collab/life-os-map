@@ -13,12 +13,6 @@ export function formatWorkDurationShort(totalSeconds = 0) {
     .map((part) => String(part).padStart(2, '0')).join(':');
 }
 
-export function formatWorkDurationCompact(totalSeconds = 0) {
-  const safe = Math.max(0, Math.floor(Number(totalSeconds) || 0));
-  return [Math.floor((safe % 3600) / 60), safe % 60]
-    .map((part) => String(part).padStart(2, '0')).join(':');
-}
-
 function PlayIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.25 5.2v13.6L19 12 8.25 5.2Z" /></svg>;
 }
@@ -39,14 +33,12 @@ export const WorkTimerWidget = memo(function WorkTimerWidget({ onSessionChange }
   const showLast = !active && hasLast;
   const visualState = active ? 'running' : timer.paused ? 'paused' : timer.stopFlash ? 'stopped' : 'idle';
   const currentDuration = formatWorkDuration(timer.currentSessionSeconds);
-  const compactDuration = formatWorkDurationCompact(timer.currentSessionSeconds);
   const underHour = active && timer.currentSessionSeconds < 3600;
   return (
     <section className={`workTimerWidget is-${visualState} ${underHour ? 'is-under-hour' : ''}`} data-timer-state={visualState} aria-label="Учёт рабочего времени" onClick={(event) => event.stopPropagation()}>
       <div className={`workTimerReadout ${hasLast ? 'hasLast' : ''}`}>
         <div className="workTimerClock" aria-live="off" aria-label={currentDuration}>
-          <span className="workTimerDigits workTimerDigitsFull" aria-hidden="true">{currentDuration.split('').map((character, index) => <span key={index}>{character}</span>)}</span>
-          <span className="workTimerDigits workTimerDigitsCompact" aria-hidden="true">{compactDuration.split('').map((character, index) => <span key={index}>{character}</span>)}</span>
+          <span className="workTimerDigits" aria-hidden="true">{currentDuration.split('').map((character, index) => <span key={index}>{character}</span>)}</span>
         </div>
         {hasLast ? <div className={`workTimerLast ${showLast ? 'is-visible' : ''} ${timer.stopFlash ? 'isFlashing' : ''}`}><span className="workTimerSessionDivider" aria-hidden="true" /><b>{formatWorkDurationShort(timer.lastSessionSeconds)}</b></div> : null}
       </div>
