@@ -1,8 +1,8 @@
 .workTimerWidget {
   position: fixed;
   z-index: 42;
-  left: 32px;
-  bottom: 32px;
+  left: 18px;
+  bottom: 18px;
   box-sizing: border-box;
   width: 126px;
   height: 58px;
@@ -59,3 +59,10 @@
   100% { opacity: 1; filter: brightness(1); text-shadow: 0 0 0 rgba(255, 255, 255, 0); }
 }
 @keyframes workControlPulse { to { opacity: .35; } }
+
+@media (max-width: 560px) {
+  .workTimerWidget {
+    left: 10px;
+    bottom: 10px;
+  }
+}
