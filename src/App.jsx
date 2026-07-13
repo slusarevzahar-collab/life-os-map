@@ -213,6 +213,9 @@ function App() {
         throw error;
       });
   }, []);
+  const handleWorkSessionChange = useCallback(() => {
+    loadSnapshot().catch(() => {});
+  }, [loadSnapshot]);
 
   useEffect(() => { loadSnapshot().catch(() => {}); }, [loadSnapshot]);
   useEffect(() => {
@@ -487,7 +490,7 @@ function App() {
   };
 
   return (
-    <main className={`app actionApp ${showSideList ? 'hasSideList branchView' : ''}`} onClick={() => { setPanel(null); setContextMenu(null); }}>
+    <main className={`app actionApp ${showSideList ? 'hasSideList branchView' : ''} ${canBack || selected || panel || contextMenu || objectEditor ? 'timerObscured' : ''}`} onClick={() => { setPanel(null); setContextMenu(null); }}>
       <Stars />
       <TopNav canBack={canBack} onBack={goBack} onCenter={goCenter} apiState={dataState(snapshot, apiState)} errorCount={errors.length} onErrors={() => setPanel('errors')} />
       <MissionPanel focus={activeFocus} focusQueueItems={focusQueueItems} snapshot={snapshot} apiState={apiState} onDone={() => setPanel('done')} onOpenFocus={openFocusItem} />
@@ -502,7 +505,7 @@ function App() {
       <ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} onFocusNow={setFocusNow} onFocusNext={setFocusNext} onRename={beginRenameNode} onCreateObject={beginCreateObject} onDeleteObject={deleteObject} />
       <TextInputDialog editor={objectEditor} busy={editorBusy} onSubmit={submitObjectEditor} onClose={() => setObjectEditor(null)} />
       <AssistantPanel currentMap={currentMap} activeFocus={activeFocus} snapshot={snapshot} />
-      <WorkTimerWidget onSessionChange={() => loadSnapshot().catch(() => {})} />
+      <WorkTimerWidget onSessionChange={handleWorkSessionChange} />
       {toast ? <div className="toast">{toast}</div> : null}
     </main>
   );
