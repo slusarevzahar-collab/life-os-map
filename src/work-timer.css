@@ -26,10 +26,10 @@
 .workTimerWidget.is-running { height: 30px; padding-block: 4px; overflow: hidden; border-radius: 16px; border-color: rgba(74, 222, 128, .74); box-shadow: 0 0 30px rgba(74, 222, 128, .27), inset 0 0 19px rgba(74, 222, 128, .045); }
 .workTimerWidget.is-running:hover,
 .workTimerWidget.is-running:focus-within { height: 58px; padding-block: 6px; }
-.app.timerObscured .workTimerWidget.is-running,
-.app:has(.assistantWorkspaceOverlay) .workTimerWidget.is-running,
-.app:has(.assistantHistoryMobileOverlay) .workTimerWidget.is-running,
-.app:has(.mission.queueExpanded) .workTimerWidget.is-running,
+body:has(.app.timerObscured) .workTimerWidget.is-running,
+body:has(.assistantWorkspaceOverlay) .workTimerWidget.is-running,
+body:has(.assistantHistoryMobileOverlay) .workTimerWidget.is-running,
+body:has(.mission.queueExpanded) .workTimerWidget.is-running,
 body:has(.lifemapAccessOverlay) .workTimerWidget.is-running { opacity: .5; }
 .workTimerWidget.is-paused { border-color: rgba(250, 204, 21, .72); box-shadow: 0 0 30px rgba(250, 204, 21, .23), inset 0 0 19px rgba(250, 204, 21, .04); }
 .workTimerWidget.is-stopped { border-color: rgba(248, 113, 113, .82); box-shadow: 0 0 32px rgba(248, 113, 113, .29), inset 0 0 19px rgba(248, 113, 113, .05); transition: border-color .18s ease, box-shadow .18s ease, transform .45s cubic-bezier(.22, 1, .36, 1), height .42s cubic-bezier(.22, 1, .36, 1), padding .42s cubic-bezier(.22, 1, .36, 1); }
