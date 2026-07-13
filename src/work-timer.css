@@ -20,10 +20,12 @@
   will-change: transform;
 }
 
-.workTimerWidget:hover { z-index: 220; transform: scale(1.5); }
+.workTimerWidget:hover,
+.workTimerWidget:focus-within { z-index: 220; transform: scale(1.5); }
 
 .workTimerWidget.is-running { height: 30px; padding-block: 4px; overflow: hidden; border-color: rgba(74, 222, 128, .74); box-shadow: 0 0 30px rgba(74, 222, 128, .27), inset 0 0 19px rgba(74, 222, 128, .045); }
-.workTimerWidget.is-running:hover { height: 58px; padding-block: 6px; }
+.workTimerWidget.is-running:hover,
+.workTimerWidget.is-running:focus-within { height: 58px; padding-block: 6px; }
 .workTimerWidget.is-paused { border-color: rgba(250, 204, 21, .72); box-shadow: 0 0 30px rgba(250, 204, 21, .23), inset 0 0 19px rgba(250, 204, 21, .04); }
 .workTimerWidget.is-stopped { border-color: rgba(248, 113, 113, .82); box-shadow: 0 0 32px rgba(248, 113, 113, .29), inset 0 0 19px rgba(248, 113, 113, .05); transition: border-color .18s ease, box-shadow .18s ease, transform .45s cubic-bezier(.22, 1, .36, 1), height .42s cubic-bezier(.22, 1, .36, 1), padding .42s cubic-bezier(.22, 1, .36, 1); }
 .workTimerReadout { position: relative; height: 20px; margin: 0 0 2px; }
@@ -40,7 +42,8 @@
 .workTimerLast.isFlashing b { animation: workLastSessionBlink 1s ease-in-out 1; }
 .workTimerActions { display: flex; height: 22px; gap: 0; opacity: 1; transform: translateY(0); transition: opacity .25s ease, transform .35s cubic-bezier(.22, 1, .36, 1); }
 .workTimerWidget.is-running .workTimerActions { opacity: 0; transform: translateY(8px); pointer-events: none; }
-.workTimerWidget.is-running:hover .workTimerActions { opacity: 1; transform: translateY(0); pointer-events: auto; transition-delay: .08s; }
+.workTimerWidget.is-running:hover .workTimerActions,
+.workTimerWidget.is-running:focus-within .workTimerActions { opacity: 1; transform: translateY(0); pointer-events: auto; transition-delay: .08s; }
 .workTimerWidget button { display: grid; width: auto; min-width: 0; height: 22px; flex: 1; place-items: center; border: 0; border-radius: 9px; color: #c4cdd8; background: transparent; cursor: pointer; }
 .workTimerWidget button svg { width: 14px; height: 14px; fill: currentColor; }
 .workTimerWidget button.workTimerPause { color: #fff4c5; background: transparent; }
