@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { workTimerService } from '../services/workTimerService.js';
+import { currentDateKey, workTimerService } from '../services/workTimerService.js';
 
 const SYNC_KEY = 'lifemap.workTimer.sync.v1';
 const CHANNEL_NAME = 'lifemap.workTimer.v1';
@@ -75,6 +75,7 @@ export function useWorkTimer({ onSessionChange } = {}) {
   const channelRef = useRef(null);
   const stopFlashTimerRef = useRef(null);
   const activeSessionRef = useRef(activeSession);
+  const rolloverRef = useRef(false);
 
   const setActiveSession = useCallback((session) => {
     activeSessionRef.current = session;
@@ -205,9 +206,33 @@ export function useWorkTimer({ onSessionChange } = {}) {
   }, [applySharedState, refresh]);
   useEffect(() => {
     if (!activeSession) return undefined;
-    const timer = window.setInterval(() => setTick(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, [activeSession]);
+    let disposed = false;
+    const pulse = async () => {
+      setTick(Date.now());
+      const current = activeSessionRef.current;
+      if (!current?.id || !current.dateKey || current.dateKey === currentDateKey() || rolloverRef.current) return;
+      rolloverRef.current = true;
+      try {
+        const response = await workTimerService.rollover(current.id);
+        if (disposed || !response.session) return;
+        setActiveSession(response.session);
+        setTick(Date.now());
+        setStatus('active');
+        setError(null);
+        broadcast(channelRef.current, 'active', { session: response.session });
+        onSessionChange?.();
+      } catch (nextError) {
+        if (!disposed) setError(friendlySyncError(nextError, 'Не удалось создать запись для новых суток. Таймер продолжает считать и повторит попытку.'));
+      } finally {
+        rolloverRef.current = false;
+      }
+    };
+    const timer = window.setInterval(pulse, 1000);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+    };
+  }, [activeSession?.id, onSessionChange, setActiveSession]);
 
   const start = useCallback(async (input = {}) => {
     if (['starting', 'pausing', 'stopping'].includes(status)) return;

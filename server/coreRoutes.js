@@ -101,6 +101,13 @@ export function registerCoreRoutes(app, runtime) {
     catch (error) { res.status(500).json({ ok: false, error: 'Не удалось завершить рабочую сессию.', details: error.message }); }
   });
 
+  app.post('/api/life-os/work-sessions/rollover', async (req, res) => {
+    if (!requireLifeMapAccess(req, res, assistantSecretOk)) return;
+    noStore(res);
+    try { res.json({ ok: true, ...(await workSessions.rollover({ sessionId: req.body?.sessionId })) }); }
+    catch (error) { res.status(500).json({ ok: false, error: 'Не удалось перенести рабочую сессию на новые сутки.', details: error.message }); }
+  });
+
   app.get('/api/life-os/work-sessions/active', async (req, res) => {
     if (!requireLifeMapAccess(req, res, assistantSecretOk)) return;
     noStore(res);

@@ -12,6 +12,7 @@ if (!notionToken || !sessionsDbId) {
   await notion.databases.update({
     database_id: sessionsDbId,
     properties: {
+      'Session Number': { unique_id: {} },
       'Duration Seconds': { number: { format: 'number' } },
       'Initial Seconds': { number: { format: 'number' } },
       'Timer Seconds': { number: { format: 'number' } },

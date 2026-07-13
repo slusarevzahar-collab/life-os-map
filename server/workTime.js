@@ -58,6 +58,12 @@ function nextLocalMidnightMs(fromMs, timezone) {
   return high;
 }
 
+export function localDayBoundaryAfter(value, timezone = 'UTC') {
+  const date = value instanceof Date ? value : new Date(value);
+  if (!Number.isFinite(date.getTime())) throw new Error('Invalid date.');
+  return new Date(nextLocalMidnightMs(date.getTime(), validTimezone(timezone))).toISOString();
+}
+
 export function splitIntervalByLocalDay(startedAt, endedAt, timezone = 'UTC') {
   const zone = validTimezone(timezone);
   let cursor = new Date(startedAt).getTime();
@@ -88,16 +94,31 @@ export function summarizeWorkSessions(sessions = [], { timezone = 'UTC', from, t
   for (const session of sessions) {
     if (!session?.startedAt) continue;
     const active = String(session.status || '').toLowerCase() === 'active' && !session.endedAt && !session.finishedAt;
-    const endedAt = active ? nowDate.toISOString() : (session.endedAt || session.finishedAt);
-    if (!endedAt) continue;
     if (active) activeSessionCount += 1;
     else completedSessionCount += 1;
+
+    const storedDateKey = DATE_KEY_RE.test(session.dateKey || '') ? session.dateKey : '';
+    const storedSeconds = Number(session.durationSeconds);
+    if (storedDateKey && Number.isFinite(storedSeconds)) {
+      if (storedDateKey >= fromKey && storedDateKey <= toKey) {
+        const current = byDate.get(storedDateKey) || { dateKey: storedDateKey, totalSeconds: 0, completedSeconds: 0, activeSeconds: 0, sessionCount: 0 };
+        const completedSeconds = Math.max(0, Math.floor(storedSeconds));
+        current.totalSeconds += completedSeconds;
+        current.completedSeconds += completedSeconds;
+        current.sessionCount += 1;
+        byDate.set(storedDateKey, current);
+      }
+      if (!active) continue;
+    }
+
+    const endedAt = active ? nowDate.toISOString() : (session.endedAt || session.finishedAt);
+    if (!endedAt) continue;
     for (const part of splitIntervalByLocalDay(session.startedAt, endedAt, zone)) {
       if (part.dateKey < fromKey || part.dateKey > toKey) continue;
       const current = byDate.get(part.dateKey) || { dateKey: part.dateKey, totalSeconds: 0, completedSeconds: 0, activeSeconds: 0, sessionCount: 0 };
       current.totalSeconds += part.seconds;
       current[active ? 'activeSeconds' : 'completedSeconds'] += part.seconds;
-      current.sessionCount += 1;
+      if (!storedDateKey) current.sessionCount += 1;
       byDate.set(part.dateKey, current);
     }
   }
