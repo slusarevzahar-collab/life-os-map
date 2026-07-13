@@ -1,5 +1,7 @@
-// LifeMap UI V2 — branch task workspace (Stage 5A).
-// Owns only list UI state and a one-commit-per-gesture reorder preview.
+// LifeMap UI V2 — branch task workspace (Stage 5B1).
+// Stage 5A logic unchanged: owns only list UI state and a
+// one-commit-per-gesture reorder preview. Stage 5B1 passes onDiscussAi
+// through to TaskRow.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { isDoneNode } from '../../lib/actionMapModel.js';
 import { canPatchTask } from '../../lib/lifeMapSelectors.js';
@@ -37,6 +39,7 @@ export function TaskWorkspace({
   onOpenNodeMenu,
   onOpenDetails,
   onReorder,
+  onDiscussAi,
 }) {
   const [tab, setTab] = useState('active');
   const [dragOrderIds, setDragOrderIds] = useState(null);
@@ -229,6 +232,7 @@ export function TaskWorkspace({
                   onOpenDetails={onOpenDetails}
                   onMoveUp={(row) => moveBy(row, -1)}
                   onMoveDown={(row) => moveBy(row, 1)}
+                  onDiscussAi={onDiscussAi}
                   dragHandleProps={{ onPointerDown: handlePointerDown(item) }}
                 />
               </div>
