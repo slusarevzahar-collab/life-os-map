@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { dateKeyAt, durationSeconds, formatDuration, splitIntervalByLocalDay, summarizeWorkSessions } from '../server/workTime.js';
+import { dateKeyAt, durationSeconds, formatDuration, localDayBoundaryAfter, splitIntervalByLocalDay, summarizeWorkSessions } from '../server/workTime.js';
 import { createTimerSyncMessage, parseTimerSyncMessage } from '../src/hooks/useWorkTimer.js';
 import { sessionContext } from '../src/services/workTimerService.js';
 
@@ -19,6 +19,7 @@ assert.equal(durationSeconds('2026-07-11T11:00:00.000Z', '2026-07-11T10:00:00.00
 assert.equal(formatDuration(3723), '01:02:03');
 assert.equal(formatDuration(-50), '00:00:00');
 assert.equal(dateKeyAt('2026-07-10T21:30:00.000Z', 'Europe/Moscow'), '2026-07-11');
+assert.equal(localDayBoundaryAfter('2026-07-10T20:59:50.000Z', 'Europe/Moscow'), '2026-07-10T21:00:00.000Z');
 
 const midnight = splitIntervalByLocalDay('2026-07-10T20:30:00.000Z', '2026-07-10T21:30:00.000Z', 'Europe/Moscow');
 assert.deepEqual(midnight, [
@@ -38,5 +39,13 @@ assert.equal(summary.days[0].completedSeconds, 3600);
 assert.equal(summary.days[0].activeSeconds, 1800);
 assert.equal(summary.completedSessionCount, 1);
 assert.equal(summary.activeSessionCount, 1);
+
+const dailySummary = summarizeWorkSessions([
+  { id: 'daily', dateKey: '2026-07-11', status: 'Active', durationSeconds: 120, startedAt: '2026-07-11T08:00:00.000Z', finishedAt: null },
+], { timezone: 'Europe/Moscow', from: '2026-07-11', to: '2026-07-11', now: new Date('2026-07-11T08:00:30.000Z') });
+assert.equal(dailySummary.totalSeconds, 150);
+assert.equal(dailySummary.days[0].completedSeconds, 120);
+assert.equal(dailySummary.days[0].activeSeconds, 30);
+assert.equal(dailySummary.days[0].sessionCount, 1);
 
 console.log('LifeMap work time unit tests passed.');

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   archiveDuplicateSignals,
+  archiveWorkSession,
   createSignal,
   createWorkSession,
   getWorkSession,
@@ -113,6 +114,7 @@ export function createLifeMapRuntime({ envLoaded = false } = {}) {
     get: (sessionId) => getWorkSession({ notionToken: config.notionToken, sessionId }),
     create: (payload) => createWorkSession({ notionToken: config.notionToken, sessionsDbId: config.sessionsDbId, payload }),
     update: (sessionId, patch) => updateWorkSession({ notionToken: config.notionToken, sessionsDbId: config.sessionsDbId, sessionId, patch }),
+    archive: (sessionId) => archiveWorkSession({ notionToken: config.notionToken, sessionId }),
   };
   const workSessions = createWorkSessionService({ store: workSessionStore, userId: config.userId });
   let reprocessJob = {

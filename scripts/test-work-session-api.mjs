@@ -9,10 +9,11 @@ const records = [];
 let sequence = 0;
 let clock = new Date('2026-07-11T09:00:00.000Z');
 const store = {
-  async list({ status } = {}) { return records.filter((item) => !status || item.status === status).map((item) => ({ ...item })); },
-  async get(id) { return records.find((item) => item.id === id) || null; },
+  async list({ status } = {}) { return records.filter((item) => !item.archived && (!status || item.status === status)).map((item) => ({ ...item })); },
+  async get(id) { return records.find((item) => item.id === id && !item.archived) || null; },
   async create(payload) { const item = { id: `api-${++sequence}`, ...payload }; records.push(item); return { ...item }; },
-  async update(id, patch) { const index = records.findIndex((item) => item.id === id); records[index] = { ...records[index], ...patch, finishedAt: patch.endedAt ?? records[index].finishedAt }; return { ...records[index] }; },
+  async update(id, patch) { const index = records.findIndex((item) => item.id === id); records[index] = { ...records[index], ...patch, finishedAt: Object.prototype.hasOwnProperty.call(patch, 'endedAt') ? patch.endedAt : records[index].finishedAt }; return { ...records[index] }; },
+  async archive(id) { const item = records.find((record) => record.id === id); if (item) item.archived = true; return { id, archived: true }; },
 };
 const workSessions = createWorkSessionService({ store, now: () => new Date(clock), settle: async () => {}, logger: { info() {}, warn() {} } });
 const app = express();
@@ -84,6 +85,7 @@ try {
     headers: { Cookie: accessCookie },
   });
   assert.equal(resumed.body.session.initialSeconds, 917);
+  assert.equal(resumed.body.session.id, first.body.session.id);
   clock = new Date('2026-07-11T09:20:03.000Z');
   const resumedStop = await request('/api/life-os/work-sessions/pause', {
     method: 'POST',
@@ -91,8 +93,9 @@ try {
     includeSecret: false,
     headers: { Cookie: accessCookie },
   });
-  assert.equal(resumedStop.body.session.durationSeconds, 3);
+  assert.equal(resumedStop.body.session.durationSeconds, 920);
   assert.equal(resumedStop.body.session.timerSeconds, 920);
+  assert.equal(records.filter((record) => !record.archived).length, 1);
   const protectedWrite = await request('/api/life-os/sessions', {
     method: 'POST',
     body: '{}',
@@ -106,6 +109,35 @@ try {
   assert.equal(stats.body.stats.totalSeconds, 920);
   const context = await request('/api/life-os/work-sessions/context?days=7&timezone=Europe%2FMoscow');
   assert.equal(context.body.context.today.totalSeconds, 920);
+
+  clock = new Date('2026-07-11T20:59:50.000Z');
+  const beforeMidnight = await request('/api/life-os/work-sessions/start', {
+    method: 'POST',
+    body: JSON.stringify({ timezone: 'Europe/Moscow', startedAt: clock.toISOString(), initialSeconds: 0 }),
+    includeSecret: false,
+    headers: { Cookie: accessCookie },
+  });
+  assert.equal(beforeMidnight.body.session.id, first.body.session.id);
+  clock = new Date('2026-07-11T21:00:05.000Z');
+  const rolled = await request('/api/life-os/work-sessions/rollover', {
+    method: 'POST',
+    body: JSON.stringify({ sessionId: beforeMidnight.body.session.id }),
+    includeSecret: false,
+    headers: { Cookie: accessCookie },
+  });
+  assert.equal(rolled.body.rolledOver, true);
+  assert.equal(rolled.body.session.dateKey, '2026-07-12');
+  assert.equal(rolled.body.session.initialSeconds, 10);
+  assert.equal(records.filter((record) => !record.archived).length, 2);
+  clock = new Date('2026-07-11T21:00:08.000Z');
+  const afterMidnight = await request('/api/life-os/work-sessions/pause', {
+    method: 'POST',
+    body: JSON.stringify({ sessionId: rolled.body.session.id }),
+    includeSecret: false,
+    headers: { Cookie: accessCookie },
+  });
+  assert.equal(afterMidnight.body.session.durationSeconds, 8);
+  assert.equal(afterMidnight.body.session.timerSeconds, 18);
 } finally {
   await new Promise((resolve) => server.close(resolve));
   if (previousAssistantSecret === undefined) delete process.env.LIFEMAP_ASSISTANT_API_SECRET;

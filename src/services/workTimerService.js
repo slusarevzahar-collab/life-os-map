@@ -4,7 +4,7 @@ function timezone() {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 }
 
-function dateKey() {
+export function currentDateKey() {
   const parts = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
   const read = (type) => parts.find((part) => part.type === type)?.value;
   return `${read('year')}-${read('month')}-${read('day')}`;
@@ -20,7 +20,7 @@ export const workTimerService = {
   start(input = {}) {
     return requestJson('/api/life-os/work-sessions/start', {
       method: 'POST',
-      body: JSON.stringify({ ...sessionContext(input), startedAt: input.startedAt, initialSeconds: input.initialSeconds, timezone: timezone(), dateKey: dateKey() }),
+      body: JSON.stringify({ ...sessionContext(input), startedAt: input.startedAt, initialSeconds: input.initialSeconds, timezone: timezone(), dateKey: currentDateKey() }),
     });
   },
   pause(sessionId) {
@@ -29,11 +29,17 @@ export const workTimerService = {
       body: JSON.stringify({ sessionId }),
     });
   },
+  rollover(sessionId) {
+    return requestJson('/api/life-os/work-sessions/rollover', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId }),
+    });
+  },
   active() {
     return requestJson('/api/life-os/work-sessions/active', { requiresSecret: true });
   },
   today() {
-    const today = dateKey();
+    const today = currentDateKey();
     return requestJson(`/api/life-os/work-sessions/stats?from=${today}&to=${today}&timezone=${encodeURIComponent(timezone())}`, { requiresSecret: true });
   },
 };

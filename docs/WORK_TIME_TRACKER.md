@@ -12,6 +12,8 @@ The existing fields remain compatible: `Session`, `Task`, `Scope`, `Project`, `S
 
 The migration adds:
 
+- `Session Number` (unique ID) — stable sequential number for longitudinal statistics;
+
 - `Duration Seconds` (number) — precise server-calculated duration;
 - `Date Key` (text) — local date at start (`YYYY-MM-DD`);
 - `Timezone` (text) — IANA timezone;
@@ -20,9 +22,13 @@ The migration adds:
 
 Notion supplies the record ID and created/last-edited timestamps. `Status=Active` identifies the one open session. Existing Active/Finished views serve the same role as status indexes; Notion does not expose user-managed database indexes.
 
+Each `Date Key` has exactly one visible journal record. Repeated start, pause, stop, and resume actions update that daily record. `Duration Seconds` is the accumulated worked time for the day, while `Started At Exact` identifies the currently running segment and `Initial Seconds` keeps the visible timer continuous across pauses or midnight.
+
 ## API
 
 All routes are protected by the existing LifeMap access/write secret.
+
+`POST /api/life-os/work-sessions/rollover` closes the previous local day at midnight and activates the next daily record without resetting the visible timer.
 
 - `POST /api/life-os/work-sessions/start` — idempotently create or return the active session.
 - `POST /api/life-os/work-sessions/pause` — finish the active session using server time.
@@ -33,6 +39,9 @@ All routes are protected by the existing LifeMap access/write secret.
 The ordinary `/api/life-os/snapshot` also includes `workTime`, and `compactForAssistant()` passes only safe timer totals and active-session identifiers to LM Assistant.
 
 ## Reliability
+
+- Starting again on the same local date reuses the numbered daily record and adds only the new worked segment to its duration.
+- At local midnight the previous record is closed at the exact boundary, the next numbered record is created, and the UI timer continues with the accumulated cross-day total.
 
 - Elapsed time is always `now - startedAt`; `setInterval` only redraws the UI.
 - Refresh, browser restart, device sleep, and suspended JavaScript recover from the saved UTC start time.
@@ -66,4 +75,3 @@ The runtime filters writes against the current Notion schema, so old fields rema
 ## Tests
 
 `npm test` covers duration/formatting, recovery from `startedAt`, completed plus active totals, midnight and timezone/DST splitting, negative-duration protection, idempotent start/pause, restoration, stats, and agent context.
-
