@@ -1,0 +1,91 @@
+/* ===== Stage 5A block — TaskWorkspace / ContextMenuV2 / TextInputDialogV2 / ToastStack / TaskDetailPanel ===== */
+.lifemapV2TaskWorkspace{position:absolute;left:556px;right:32px;top:60px;bottom:32px;z-index:16;border-radius:22px;background:rgba(30,39,53,.56);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(22px);box-shadow:0 20px 60px rgba(0,0,0,.4);padding:26px 28px;display:flex;flex-direction:column;pointer-events:auto}
+.lifemapV2TaskWorkspaceHead{flex:none;display:flex;align-items:flex-start;justify-content:space-between}
+.lifemapV2TaskWorkspaceEyebrow{font:500 11px 'IBM Plex Mono',monospace;letter-spacing:2px;color:rgba(87,224,168,.8)}
+.lifemapV2TaskWorkspaceTitle{margin:6px 0 0;font:600 30px 'IBM Plex Sans',sans-serif;color:#f0f4f9;letter-spacing:-.2px}
+.lifemapV2TaskWorkspaceRing{flex:none;width:54px;height:54px;border-radius:50%;display:flex;align-items:center;justify-content:center;font:600 12px 'IBM Plex Mono',monospace;color:#dfe6ef;background:conic-gradient(#57e0a8 var(--pct),rgba(255,255,255,.08) 0)}
+.lifemapV2TaskWorkspaceRing::before{content:'';position:absolute}
+.lifemapV2TaskTabs{flex:none;display:flex;gap:10px;margin:20px 0 18px}
+.lifemapV2TaskTab,.lifemapV2TaskTabActive{flex:1;text-align:center;padding:12px;border-radius:13px;font:500 14px 'IBM Plex Sans',sans-serif;cursor:pointer;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.055);color:#9aa6b6}
+.lifemapV2TaskTabActive{background:rgba(87,224,168,.12);border-color:rgba(87,224,168,.28);color:#d7f6ea}
+.lifemapV2TaskTab span,.lifemapV2TaskTabActive span{font-family:'IBM Plex Mono',monospace;margin-left:6px;color:#8ff0c8}
+.lifemapV2TaskRows{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:10px;padding-right:4px}
+.lifemapV2TaskRow{border-radius:15px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.1)}
+.lifemapV2TaskRowExpanded{background:rgba(255,255,255,.075);border-color:rgba(87,224,168,.22)}
+.lifemapV2TaskRowDone{opacity:.72}
+.lifemapV2TaskRowMain{display:flex;align-items:center;gap:12px;padding:12px 14px}
+.lifemapV2TaskCode{flex:none;padding:7px 10px;border-radius:10px;background:rgba(87,224,168,.09);border:1px solid rgba(87,224,168,.2);font:500 11px 'IBM Plex Mono',monospace;color:#8ff0c8}
+.lifemapV2TaskTitleBtn{flex:1;min-width:0;text-align:left;background:none;border:0;padding:0;font:400 14px 'IBM Plex Sans',sans-serif;color:#e0e6ee;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lifemapV2TaskRowActions{flex:none;display:flex;align-items:center;gap:6px}
+.lifemapV2TaskReorder{display:flex;flex-direction:column}
+.lifemapV2TaskReorderBtn{width:20px;height:16px;line-height:16px;padding:0;font-size:9px;border:0;background:transparent;color:#8794a5;cursor:pointer}
+.lifemapV2TaskReorderBtn:disabled{opacity:.3;cursor:default}
+.lifemapV2TaskDragHandle{cursor:grab;color:#5b6577;padding:0 4px;font-size:12px;touch-action:none}
+.lifemapV2TaskAiBtn,.lifemapV2TaskMenuBtn,.lifemapV2TaskDoneBtn,.lifemapV2TaskRestoreBtn{border-radius:9px;border:1px solid rgba(255,255,255,.13);background:rgba(255,255,255,.07);color:#b9c3d0;font:500 12px 'IBM Plex Sans',sans-serif;padding:8px 10px;cursor:pointer}
+.lifemapV2TaskAiBtn:disabled{opacity:.4;cursor:not-allowed}
+.lifemapV2TaskDoneBtn{background:rgba(87,224,168,.12);border-color:rgba(87,224,168,.28);color:#8ff0c8}
+.lifemapV2TaskRestoreBtn{background:rgba(63,143,208,.12);border-color:rgba(63,143,208,.28);color:#9cc8f0}
+.lifemapV2TaskDoneBtn:disabled,.lifemapV2TaskRestoreBtn:disabled{opacity:.55;cursor:default}
+.lifemapV2TaskRowDetails{padding:2px 14px 16px}
+.lifemapV2TaskSummary{margin:0 0 10px;font:400 13px/1.55 'IBM Plex Sans',sans-serif;color:rgba(190,202,216,.85)}
+.lifemapV2TaskDetailList{margin:0 0 10px;padding-left:18px;font:400 12.5px 'IBM Plex Sans',sans-serif;color:#c4cdd8}
+.lifemapV2TaskNoteLabel{display:block;margin-bottom:6px;font:500 11px 'IBM Plex Mono',monospace;letter-spacing:1px;color:rgba(150,165,185,.8)}
+.lifemapV2TaskNoteInput{width:100%;min-height:64px;border-radius:11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#e0e6ee;font:400 13px 'IBM Plex Sans',sans-serif;padding:10px 12px;resize:vertical}
+.lifemapV2TaskNoteError{margin-top:6px;font:400 12px 'IBM Plex Sans',sans-serif;color:#e8a0a0}
+.lifemapV2TaskNoteActions{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
+.lifemapV2TaskNoteOpenDetails{border-radius:10px;border:1px solid rgba(255,255,255,.13);background:rgba(255,255,255,.06);color:#aab4c2;font:500 12px 'IBM Plex Sans',sans-serif;padding:9px 14px;cursor:pointer}
+.lifemapV2TaskNoteSave{border-radius:10px;border:1px solid rgba(87,224,168,.28);background:rgba(87,224,168,.12);color:#8ff0c8;font:500 12px 'IBM Plex Sans',sans-serif;padding:9px 14px;cursor:pointer}
+.lifemapV2TaskNoteSave:disabled{opacity:.5;cursor:default}
+.lifemapV2TaskEmpty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:rgba(160,172,190,.75);text-align:center}
+.lifemapV2TaskEmpty b{color:#e0e6ee;font:600 15px 'IBM Plex Sans',sans-serif}
+.lifemapV2TaskEmpty p{margin:0;font:400 13px 'IBM Plex Sans',sans-serif;max-width:280px}
+.lifemapV2TaskDetail{position:absolute;left:32px;top:112px;width:496px;max-height:656px;z-index:18;border-radius:22px;background:rgba(30,39,53,.68);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(22px);box-shadow:0 24px 70px rgba(0,0,0,.45);padding:26px 26px 22px;overflow:auto;pointer-events:auto}
+.lifemapV2TaskDetailClose{position:absolute;right:18px;top:18px;width:34px;height:34px;border-radius:10px;background:rgba(224,120,120,.1);border:1px solid rgba(224,120,120,.28);color:#e8a0a0;cursor:pointer;font-size:14px}
+.lifemapV2TaskDetailHead{display:flex;align-items:flex-start;gap:14px;padding-right:40px}
+.lifemapV2TaskDetailIcon{flex:none;width:40px;height:40px;border-radius:12px;background:rgba(87,224,168,.1);border:1px solid rgba(87,224,168,.24);display:flex;align-items:center;justify-content:center;font:600 12px 'IBM Plex Mono',monospace;color:#8ff0c8}
+.lifemapV2TaskDetailSubtitle{display:block;font:500 11px 'IBM Plex Mono',monospace;letter-spacing:1.5px;color:rgba(150,165,185,.8);text-transform:uppercase}
+.lifemapV2TaskDetailTitle{margin:4px 0 0;font:600 24px 'IBM Plex Sans',sans-serif;color:#f0f4f9}
+.lifemapV2TaskDetailRing{flex:none;margin-left:auto;width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font:600 11px 'IBM Plex Mono',monospace;color:#dfe6ef;background:conic-gradient(#57e0a8 var(--pct),rgba(255,255,255,.08) 0)}
+.lifemapV2TaskDetailSummary{margin:16px 0;font:400 14px/1.6 'IBM Plex Sans',sans-serif;color:#d5dde7}
+.lifemapV2TaskDetailMeta{display:flex;flex-direction:column;gap:8px;margin:0 0 14px}
+.lifemapV2TaskDetailMeta div{display:flex;justify-content:space-between;gap:12px;padding:9px 12px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07)}
+.lifemapV2TaskDetailMeta dt{margin:0;font:500 11px 'IBM Plex Mono',monospace;color:rgba(150,165,185,.8)}
+.lifemapV2TaskDetailMeta dd{margin:0;font:400 13px 'IBM Plex Sans',sans-serif;color:#e0e6ee;text-align:right}
+.lifemapV2TaskDetailActions{display:flex;justify-content:flex-end;gap:10px}
+.lifemapV2TaskDetailAi{border-radius:11px;border:1px solid rgba(255,255,255,.13);background:rgba(255,255,255,.06);color:#8794a5;font:500 12px 'IBM Plex Sans',sans-serif;padding:10px 16px;cursor:not-allowed}
+.lifemapV2ContextMenu{position:absolute;z-index:70;width:220px;max-height:300px;overflow:auto;border-radius:14px;background:rgba(24,32,44,.92);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(18px);box-shadow:0 20px 50px rgba(0,0,0,.5);padding:8px;pointer-events:auto}
+.lifemapV2ContextMenuTitle{padding:8px 10px 6px;font:600 12px 'IBM Plex Sans',sans-serif;color:#e0e6ee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lifemapV2ContextMenuItem{display:block;width:100%;text-align:left;padding:9px 10px;border-radius:9px;background:transparent;border:0;color:#cbd4df;font:400 13px 'IBM Plex Sans',sans-serif;cursor:pointer}
+.lifemapV2ContextMenuItem:hover,.lifemapV2ContextMenuItem:focus-visible{background:rgba(255,255,255,.08)}
+.lifemapV2ContextMenuItem:disabled{opacity:.42;cursor:not-allowed;background:transparent}
+.lifemapV2ContextMenuItemDanger{color:#e8a0a0}
+.lifemapV2ContextMenuItemDanger:hover{background:rgba(224,120,120,.12)}
+.lifemapV2DialogOverlay{position:absolute;inset:0;z-index:75;background:rgba(3,5,10,.55);display:flex;align-items:center;justify-content:center;pointer-events:auto}
+.lifemapV2Dialog{width:380px;border-radius:18px;background:rgba(26,34,46,.95);border:1px solid rgba(255,255,255,.14);box-shadow:0 24px 70px rgba(0,0,0,.5);padding:22px 24px;display:flex;flex-direction:column;gap:10px}
+.lifemapV2DialogEyebrow{font:600 10px 'IBM Plex Mono',monospace;letter-spacing:2px;color:rgba(87,224,168,.8)}
+.lifemapV2DialogTitle{margin:0;font:600 19px 'IBM Plex Sans',sans-serif;color:#f0f4f9}
+.lifemapV2DialogBody{margin:0;font:400 13px/1.5 'IBM Plex Sans',sans-serif;color:#c4cdd8}
+.lifemapV2DialogField{display:flex;flex-direction:column;gap:6px;font:500 12px 'IBM Plex Sans',sans-serif;color:#9aa6b6}
+.lifemapV2DialogField input{border-radius:10px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.05);color:#eef2f8;font:400 14px 'IBM Plex Sans',sans-serif;padding:10px 12px}
+.lifemapV2DialogError{font:400 12px 'IBM Plex Sans',sans-serif;color:#e8a0a0}
+.lifemapV2DialogActions{display:flex;justify-content:flex-end;gap:10px;margin-top:6px}
+.lifemapV2DialogCancel{border-radius:10px;border:1px solid rgba(255,255,255,.13);background:rgba(255,255,255,.06);color:#aab4c2;font:500 13px 'IBM Plex Sans',sans-serif;padding:9px 16px;cursor:pointer}
+.lifemapV2DialogConfirm{border-radius:10px;border:1px solid rgba(87,224,168,.3);background:rgba(87,224,168,.16);color:#8ff0c8;font:500 13px 'IBM Plex Sans',sans-serif;padding:9px 16px;cursor:pointer}
+.lifemapV2DialogDanger{border-radius:10px;border:1px solid rgba(224,120,120,.32);background:rgba(224,120,120,.16);color:#e8a0a0;font:500 13px 'IBM Plex Sans',sans-serif;padding:9px 16px;cursor:pointer}
+.lifemapV2DialogConfirm:disabled,.lifemapV2DialogDanger:disabled{opacity:.5;cursor:default}
+.lifemapV2ToastStack{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);z-index:80;display:flex;flex-direction:column-reverse;gap:8px;pointer-events:none}
+.lifemapV2Toast{pointer-events:auto;display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:12px;background:rgba(26,34,46,.92);border:1px solid rgba(255,255,255,.14);box-shadow:0 12px 32px rgba(0,0,0,.4);font:400 13px 'IBM Plex Sans',sans-serif;color:#e0e6ee;max-width:360px}
+.lifemapV2Toast--success{border-color:rgba(87,224,168,.32)}
+.lifemapV2Toast--error{border-color:rgba(224,120,120,.32)}
+.lifemapV2Toast--warning{border-color:rgba(232,190,112,.38)}
+.lifemapV2ToastClose{flex:none;background:none;border:0;color:#8794a5;cursor:pointer;font-size:11px;padding:2px}
+.lifemapV2TaskWorkspaceHeadActions{display:flex;align-items:center;gap:10px}
+.lifemapV2TaskWorkspaceMenuBtn{width:38px;height:38px;border-radius:11px;border:1px solid rgba(255,255,255,.13);background:rgba(255,255,255,.06);color:#b9c3d0;font:600 17px 'IBM Plex Sans',sans-serif;cursor:pointer}
+.lifemapV2TaskWorkspaceRing,.lifemapV2TaskDetailRing{position:relative;isolation:isolate}
+.lifemapV2TaskWorkspaceRing::before,.lifemapV2TaskDetailRing::before{content:'';position:absolute;inset:5px;border-radius:50%;z-index:0;background:rgba(26,34,46,.98);box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
+.lifemapV2TaskWorkspaceRing span,.lifemapV2TaskDetailRing span{position:relative;z-index:1}
+.lifemapV2TaskDragHandle[data-disabled="true"]{cursor:not-allowed;opacity:.28}
+.lifemapV2TaskRows[aria-busy="true"]{cursor:progress}
+.lifemapV2TaskRow[data-network-disabled="true"] .lifemapV2TaskDoneBtn,.lifemapV2TaskRow[data-network-disabled="true"] .lifemapV2TaskRestoreBtn,.lifemapV2TaskRow[data-network-disabled="true"] .lifemapV2TaskNoteSave{opacity:.42;cursor:not-allowed}
+.lifemapV2TaskWorkspaceMenuBtn:focus-visible,.lifemapV2TaskTitleBtn:focus-visible,.lifemapV2TaskReorderBtn:focus-visible,.lifemapV2TaskMenuBtn:focus-visible,.lifemapV2TaskDoneBtn:focus-visible,.lifemapV2TaskRestoreBtn:focus-visible,.lifemapV2TaskNoteOpenDetails:focus-visible,.lifemapV2TaskNoteSave:focus-visible,.lifemapV2TaskDetailClose:focus-visible,.lifemapV2TaskDetailAi:focus-visible,.lifemapV2ContextMenuItem:focus-visible,.lifemapV2DialogCancel:focus-visible,.lifemapV2DialogConfirm:focus-visible,.lifemapV2DialogDanger:focus-visible,.lifemapV2ToastClose:focus-visible{outline:2px solid rgba(87,224,168,.72);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){.lifemapV2TaskRow,.lifemapV2Dialog,.lifemapV2Toast{transition:none}}

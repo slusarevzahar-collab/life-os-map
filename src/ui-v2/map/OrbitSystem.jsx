@@ -1,20 +1,16 @@
-// LifeMap UI V2 — OrbitSystem (Stage 4)
-// Renders the supplied level description and reports activations upward.
-// It owns no route, camera, API, or viewport state.
-//
-// Stage 4 addition: supports an optional `level.rings` array (multiple ring
-// diameters, drawn as concentric guide circles) so a level with more branch
-// children than one ring comfortably fits can promote overflow onto further
-// rings (see lifeMapUiAdapter.js's layout algorithm). Fully backward
-// compatible with the Stage 2/3 shape — a level that only has `level.orbit`
-// (mapTreeMock.js, still the documented fallback) renders exactly one ring,
-// unchanged.
+// LifeMap UI V2 — renders one visual level and reports activation/menu events.
 import { Planet } from './Planet.jsx';
 
 const CENTER_X = 640;
 const CENTER_Y = 400;
 
-export function OrbitSystem({ level, disabled = false, onPlanetActivate, onCoreActivate }) {
+export function OrbitSystem({
+  level,
+  disabled = false,
+  onPlanetActivate,
+  onCoreActivate,
+  onOpenNodeMenu,
+}) {
   if (!level) return null;
   const { core, orbit, rings, planets = [] } = level;
   const ringSizes = Array.isArray(rings) && rings.length ? rings : [orbit?.size ?? 500];
@@ -23,7 +19,7 @@ export function OrbitSystem({ level, disabled = false, onPlanetActivate, onCoreA
     <div className="lifemapV2OrbitSystem">
       {ringSizes.map((size, index) => (
         <div
-          key={index}
+          key={`${level.id || 'level'}-ring-${index}`}
           className="lifemapV2OrbitRing"
           style={{
             '--orbit-x': `${CENTER_X}px`,
@@ -42,7 +38,8 @@ export function OrbitSystem({ level, disabled = false, onPlanetActivate, onCoreA
         interactive={Boolean(onCoreActivate)}
         disabled={disabled}
         onActivate={onCoreActivate}
-        ariaLabel={onCoreActivate ? `${core?.title} — назад, на предыдущий уровень` : core?.title}
+        onOpenMenu={onOpenNodeMenu ? (point) => onOpenNodeMenu(level.id, point) : undefined}
+        ariaLabel={onCoreActivate ? `${core?.title} — назад, на предыдущий уровень` : `${core?.title} — меню действий`}
       />
       {planets.map((planet) => {
         const navigable = planet.navigable !== false;
@@ -59,7 +56,8 @@ export function OrbitSystem({ level, disabled = false, onPlanetActivate, onCoreA
             interactive={navigable}
             disabled={disabled}
             onActivate={navigable ? () => onPlanetActivate?.(planet) : undefined}
-            ariaLabel={`${planet.title} — открыть`}
+            onOpenMenu={onOpenNodeMenu ? (point) => onOpenNodeMenu(planet.id, point) : undefined}
+            ariaLabel={`${planet.title} — открыть; Shift+F10 — действия`}
           />
         );
       })}

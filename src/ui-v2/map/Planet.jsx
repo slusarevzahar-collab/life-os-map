@@ -1,7 +1,4 @@
-// LifeMap UI V2 — Planet (Stage 2)
-// Purely visual plus one interaction contract: onActivate. Routing and camera
-// decisions remain in the shell. Interactive planets support pointer, Enter,
-// Space, focus-visible, and aria-disabled.
+// LifeMap UI V2 — visual planet plus activation/context-menu contracts.
 import { ProgressArc } from './ProgressArc.jsx';
 
 export function Planet({
@@ -17,6 +14,7 @@ export function Planet({
   interactive = false,
   disabled = false,
   onActivate,
+  onOpenMenu,
   ariaLabel,
 }) {
   const style = {
@@ -24,23 +22,37 @@ export function Planet({
     '--planet-y': `${y}px`,
     '--planet-size': `${size}px`,
   };
-  const active = interactive && !disabled;
+  const activatable = interactive && !disabled && typeof onActivate === 'function';
+  const menuEnabled = !disabled && typeof onOpenMenu === 'function';
+  const focusable = activatable || menuEnabled;
   const className = [
     'lifemapV2Planet',
     central ? 'lifemapV2PlanetCentral' : 'lifemapV2PlanetOrbit',
     !central && variant === 'muted' ? 'lifemapV2PlanetMuted' : '',
-    active ? 'lifemapV2PlanetInteractive' : '',
+    focusable ? 'lifemapV2PlanetInteractive' : '',
   ].filter(Boolean).join(' ');
 
-  const activate = () => {
-    if (active) onActivate?.();
+  const openMenu = (event) => {
+    if (!menuEnabled) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const rect = event.currentTarget.getBoundingClientRect();
+    onOpenMenu({
+      clientX: Number.isFinite(event.clientX) && event.clientX > 0 ? event.clientX : rect.left + rect.width / 2,
+      clientY: Number.isFinite(event.clientY) && event.clientY > 0 ? event.clientY : rect.top + rect.height / 2,
+      returnFocus: event.currentTarget,
+    });
   };
 
   const handleKeyDown = (event) => {
-    if (!active) return;
+    if (menuEnabled && event.shiftKey && event.key === 'F10') {
+      openMenu(event);
+      return;
+    }
     if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
       event.preventDefault();
-      activate();
+      if (activatable) onActivate();
+      else if (menuEnabled) openMenu(event);
     }
   };
 
@@ -48,12 +60,14 @@ export function Planet({
     <div
       className={className}
       style={style}
-      role={interactive ? 'button' : undefined}
-      tabIndex={active ? 0 : undefined}
-      aria-disabled={interactive ? disabled : undefined}
+      role={focusable ? 'button' : undefined}
+      tabIndex={focusable ? 0 : undefined}
+      aria-disabled={focusable ? disabled : undefined}
+      aria-haspopup={menuEnabled ? 'menu' : undefined}
       aria-label={ariaLabel || title}
-      onClick={interactive ? activate : undefined}
-      onKeyDown={interactive ? handleKeyDown : undefined}
+      onClick={activatable ? onActivate : undefined}
+      onContextMenu={menuEnabled ? openMenu : undefined}
+      onKeyDown={focusable ? handleKeyDown : undefined}
     >
       {central ? <div className="lifemapV2PlanetGlow" aria-hidden="true" /> : null}
       <div className="lifemapV2PlanetBody" aria-hidden="true" />

@@ -1,12 +1,17 @@
-// LifeMap UI V2 — root shell (Stage 4).
-// Keeps the reviewed Stage-2/3 camera route/origin behavior and HUD layer
-// EXACTLY as committed (pointThroughViewport, lateral parent-relative origin,
-// morph, pill drag/snap, focus-return) and adds: real snapshot loading, the
-// real LifeMap tree via the existing lib contracts, local alias/custom-object
-// application (read-only), real Mission Control focus/queue, real Top HUD
-// status, and V2 route persistence/validation. mapTreeMock remains the
-// documented fallback for the cases in useLifeMapSnapshot/HANDOFF.
-import { useEffect, useMemo, useRef, useState } from 'react';
+// LifeMap UI V2 — root shell (Stage 5A).
+// Keeps Stage 2/3 camera/morph/pill/HUD logic and the reviewer's Stage-4
+// fixes to route/visual-bundle swapping EXACTLY as committed (single request
+// in flight lives in useLifeMapSnapshot, last-good snapshot lives there too,
+// the visual bundle only swaps when camera+morph are idle, route validation
+// checks both the real tree AND the visual planet list via
+// validateRouteIds(ids, rootMap, getVisualLevel), origins are recomputed
+// through the parent level's saved viewport). Adds: a real task workspace
+// (Active/Done, expand, notes, Done/Restore, reorder) for the current level's
+// real leaf objects, a context menu, a rename/create/delete dialog, local
+// object create/rename/delete, and a compact toast stack — all OUTSIDE
+// CameraFlightLayer/MapViewport, in the same HUD layer as TopHud/Mission
+// Control/LauncherPill.
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StageScaler } from './stage/StageScaler.jsx';
 import { SpaceBackground } from './stage/SpaceBackground.jsx';
 import { MapViewport, defaultViewport } from './stage/MapViewport.jsx';
@@ -22,12 +27,34 @@ import { InboxWindow } from './windows/InboxWindow.jsx';
 import { AssistantWindow } from './windows/AssistantWindow.jsx';
 import { missionControlMock, inboxMock, assistantMock } from './mock/hudMock.js';
 
-import { buildActionMap } from '../lib/actionMapModel.js';
-import { applyTitleAliases, resolveFocus, buildFocusSequence } from '../lib/lifeMapSelectors.js';
+import { buildActionMap, findNode, isLeafNode, isDoneNode } from '../lib/actionMapModel.js';
+import {
+  applyTitleAliases,
+  resolveFocus,
+  buildFocusSequence,
+  listItems,
+  canPatchTask,
+  canRenameNode,
+  focusCandidateFromNode,
+  toFocusItem,
+} from '../lib/lifeMapSelectors.js';
 import { useLifeMapSnapshot } from './data/useLifeMapSnapshot.js';
-import { useLocalMapExtensions, useFocusQueueReadOnly, attachCustomObjects } from './adapters/localMapExtensions.js';
+import { useLocalMapExtensions, useFocusQueue, attachCustomObjects } from './adapters/localMapExtensions.js';
 import { buildVisualTree } from './adapters/lifeMapUiAdapter.js';
-import { readInitialRouteIds, validateRouteIds, deriveRouteFrames, persistRouteIds, sameRouteFrames } from './data/lifeMapV2Route.js';
+import {
+  readInitialRouteIds,
+  validateRouteIds,
+  deriveRouteFrames,
+  persistRouteIds,
+  sameRouteFrames,
+} from './data/lifeMapV2Route.js';
+import { useLifeMapActions } from './data/useLifeMapActions.js';
+import { useLocalMapActions } from './data/useLocalMapActions.js';
+import { TaskWorkspace } from './tasks/TaskWorkspace.jsx';
+import { TaskDetailPanel } from './tasks/TaskDetailPanel.jsx';
+import { ContextMenuV2, clientPointToDesignBox } from './context/ContextMenuV2.jsx';
+import { TextInputDialogV2 } from './dialogs/TextInputDialogV2.jsx';
+import { ToastStack } from './feedback/ToastStack.jsx';
 
 const ROOT_ID = 'root';
 const ROOT_ORIGIN = { x: 640, y: 400 };
@@ -44,6 +71,12 @@ const STATUS_INFO = {
 function isDebugMode() {
   if (typeof window === 'undefined') return false;
   return new URLSearchParams(window.location.search).get('uiv2debug') === '1';
+}
+
+let toastSeq = 0;
+function nextToastId() {
+  toastSeq += 1;
+  return `toast-${Date.now().toString(36)}-${toastSeq}`;
 }
 
 export function LifeMapShell() {
@@ -63,19 +96,21 @@ export function LifeMapShell() {
   const inboxSegRef = useRef(null);
   const aiSegRef = useRef(null);
   const pendingFocusRef = useRef(null);
+  const menuReturnFocusRef = useRef(null);
+  const dialogReturnFocusRef = useRef(null);
+  const detailReturnFocusRef = useRef(null);
   const restoredRouteRef = useRef(false);
   const debugMode = useRef(isDebugMode()).current;
 
-  // ---------- Stage 4: real data ----------
   const snapshotState = useLifeMapSnapshot();
-  const { titleAliases, customObjects } = useLocalMapExtensions();
-  const focusQueue = useFocusQueueReadOnly();
+  const { titleAliases, setTitleAliases, customObjects, setCustomObjects } = useLocalMapExtensions();
+  const [focusQueue, setFocusQueue] = useFocusQueue();
 
   const baseRootMap = useMemo(() => {
     try {
       return buildActionMap(snapshotState.snapshot);
     } catch {
-      return null; // buildActionMap could not produce a safe root
+      return null;
     }
   }, [snapshotState.snapshot]);
 
@@ -93,9 +128,6 @@ export function LifeMapShell() {
     return !(rootMap.children || []).some((child) => (child.children || []).length || (child.taskList || []).length);
   }, [rootMap]);
 
-  // Fallback rules (documented in HANDOFF): before the first successful load
-  // while offline; when buildActionMap/adapter could not produce a safe root;
-  // or when a snapshot explicitly reports a mock source AND is vacuously empty.
   const useFallbackMock =
     !rootMap ||
     (snapshotState.status === 'api offline' && !snapshotState.hasLoadedOnce) ||
@@ -139,7 +171,7 @@ export function LifeMapShell() {
   }, [latestMapIsFallback, rootMap, activeFocus, focusQueue]);
 
   const missionControlData = useMemo(() => {
-    if (latestMapIsFallback) return missionControlMock; // Stage-3 mock, fallback-only
+    if (latestMapIsFallback) return missionControlMock;
     const now =
       activeFocus?.nextAction && activeFocus.title !== 'Фокус не выбран'
         ? `${activeFocus.title} — ${activeFocus.nextAction}`
@@ -152,8 +184,8 @@ export function LifeMapShell() {
 
   const effectiveStatus = latestMapIsFallback && snapshotState.status !== 'api offline' ? 'mock data' : snapshotState.status;
   const statusInfo = STATUS_INFO[effectiveStatus] || STATUS_INFO.connected;
+  const networkWritable = snapshotState.status === 'connected' && !visualMapIsFallback;
 
-  // ---------- camera / morph (Stage 2/3, unmodified logic) ----------
   const cameraFlight = useCameraFlight({
     onSwap: (targetId, mode, flightOrigin) => {
       pendingEntryRef.current = { mode, origin: flightOrigin };
@@ -190,14 +222,101 @@ export function LifeMapShell() {
   const flying = cameraFlight.phase !== 'idle';
   const windowActive = morph.isActive;
   const busy = flying || morph.isBusy;
-  const interactionLocked = busy || windowActive || pillDragging;
+  const baseInteractionLocked = busy || windowActive || pillDragging;
+
+  const [expandedTaskId, setExpandedTaskId] = useState(null);
+  const [detailNodeId, setDetailNodeId] = useState(null);
+  const [menu, setMenu] = useState(null);
+  const [dialog, setDialog] = useState(null);
+  const [dialogBusy, setDialogBusy] = useState(false);
+  const [dialogError, setDialogError] = useState('');
+  const [toasts, setToasts] = useState([]);
+  const interactionLocked = baseInteractionLocked || Boolean(dialog) || Boolean(menu);
+
+  const addToast = useCallback((kind, message) => {
+    if (!message) return;
+    setToasts((previous) => [...previous, { id: nextToastId(), kind, message }]);
+  }, []);
+  const dismissToast = useCallback((id) => {
+    setToasts((previous) => previous.filter((toast) => toast.id !== id));
+  }, []);
+
+  const actions = useLifeMapActions({ refresh: snapshotState.refresh, networkAvailable: networkWritable });
+  const localActions = useLocalMapActions({ rootMap: visualBundle.rootMap || rootMap, setCustomObjects, setTitleAliases });
+
+  const currentTaskNode = useMemo(() => {
+    if (visualMapIsFallback || !visualBundle.rootMap) return null;
+    return findNode(visualBundle.rootMap, currentFrame.id);
+  }, [visualMapIsFallback, visualBundle.rootMap, currentFrame.id]);
+
+  const taskItems = useMemo(() => {
+    if (!currentTaskNode) return [];
+    try {
+      return listItems(currentTaskNode).filter((item) => isLeafNode(item));
+    } catch {
+      return [];
+    }
+  }, [currentTaskNode]);
+
+  const detailNode = useMemo(() => {
+    if (!detailNodeId || !visualBundle.rootMap) return null;
+    return findNode(visualBundle.rootMap, detailNodeId) || null;
+  }, [detailNodeId, visualBundle.rootMap]);
+
+  const restoreFocus = useCallback((ref) => {
+    const element = ref.current;
+    ref.current = null;
+    if (!element) return;
+    window.requestAnimationFrame(() => {
+      if (element.isConnected && typeof element.focus === 'function') element.focus();
+    });
+  }, []);
+
+  const closeMenu = useCallback((restore = true) => {
+    setMenu(null);
+    if (restore) restoreFocus(menuReturnFocusRef);
+    else menuReturnFocusRef.current = null;
+  }, [restoreFocus]);
+
+  const closeDialog = useCallback((restore = true) => {
+    setDialog(null);
+    setDialogError('');
+    if (restore) restoreFocus(dialogReturnFocusRef);
+    else dialogReturnFocusRef.current = null;
+  }, [restoreFocus]);
+
+  const closeDetails = useCallback((restore = true) => {
+    setDetailNodeId(null);
+    if (restore) restoreFocus(detailReturnFocusRef);
+    else detailReturnFocusRef.current = null;
+  }, [restoreFocus]);
+
+  useEffect(() => {
+    if (detailNodeId && visualBundle.rootMap && !findNode(visualBundle.rootMap, detailNodeId)) closeDetails(false);
+  }, [closeDetails, detailNodeId, visualBundle.rootMap]);
+
+  useEffect(() => {
+    if (flying) {
+      closeMenu(false);
+      closeDialog(false);
+    }
+  }, [closeDialog, closeMenu, flying]);
+  useEffect(() => {
+    if (windowActive) {
+      closeMenu(false);
+      closeDialog(false);
+    }
+  }, [closeDialog, closeMenu, windowActive]);
+  useEffect(() => {
+    closeMenu(false);
+    closeDialog(false);
+  }, [closeDialog, closeMenu, currentFrame.id]);
 
   useEffect(() => {
     const measure = () => {
       const rect = frameRef.current?.getBoundingClientRect();
       if (rect && rect.width > 0) stageScaleRef.current = rect.width / DESIGN_WIDTH;
     };
-
     measure();
     window.addEventListener('resize', measure, { passive: true });
     window.addEventListener('orientationchange', measure, { passive: true });
@@ -212,8 +331,6 @@ export function LifeMapShell() {
     if (!pending) return;
     pendingEntryRef.current = null;
     cameraFlight.playEntry(pending.mode, pending.origin);
-    // Entry begins only after React rendered the next level.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentFrame.id]);
 
   useEffect(() => {
@@ -223,7 +340,6 @@ export function LifeMapShell() {
       return;
     }
     ascendOnce();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cameraFlight.phase, route.length]);
 
   useEffect(() => {
@@ -238,9 +354,7 @@ export function LifeMapShell() {
   }, [morph.state]);
 
   const getViewport = (levelId) => viewportByLevel[levelId] || defaultViewport();
-  const setViewport = (levelId, next) => {
-    setViewportByLevel((prev) => ({ ...prev, [levelId]: next }));
-  };
+  const setViewport = (levelId, next) => setViewportByLevel((prev) => ({ ...prev, [levelId]: next }));
 
   const deriveFramesForMap = (ids, data) => {
     const frames = deriveRouteFrames(ids, (id) => data[id]);
@@ -249,41 +363,25 @@ export function LifeMapShell() {
       const parentId = ids[index - 1];
       const planet = data[parentId]?.planets?.find((item) => item.id === frame.id);
       if (!planet) return frame;
-      return {
-        ...frame,
-        origin: pointThroughViewport(planet, getViewport(parentId)),
-      };
+      return { ...frame, origin: pointThroughViewport(planet, getViewport(parentId)) };
     });
   };
 
-  // Apply a newly loaded visual tree only when camera exit/entry and window
-  // morph phases are idle. Snapshot state may update in the background, but
-  // the rendered level cannot be replaced in the middle of a transition.
   useEffect(() => {
     if (flying || morph.isBusy) return;
-
     const nextBundle = latestVisualBundle;
     setVisualBundle((current) => (current === nextBundle ? current : nextBundle));
-
     setRoute((currentRoute) => {
       if (nextBundle.mapIsFallback || !nextBundle.rootMap || !snapshotState.hasLoadedOnce) {
-        if (!nextBundle.mapData[currentRoute[currentRoute.length - 1]?.id]) {
-          return [{ id: ROOT_ID, origin: ROOT_ORIGIN }];
-        }
+        if (!nextBundle.mapData[currentRoute[currentRoute.length - 1]?.id]) return [{ id: ROOT_ID, origin: ROOT_ORIGIN }];
         return currentRoute;
       }
-
-      const sourceIds = restoredRouteRef.current
-        ? currentRoute.map((frame) => frame.id)
-        : readInitialRouteIds();
+      const sourceIds = restoredRouteRef.current ? currentRoute.map((frame) => frame.id) : readInitialRouteIds();
       const validIds = validateRouteIds(sourceIds, nextBundle.rootMap, (id) => nextBundle.mapData[id]);
       const nextFrames = deriveFramesForMap(validIds, nextBundle.mapData);
       restoredRouteRef.current = true;
       return sameRouteFrames(currentRoute, nextFrames) ? currentRoute : nextFrames;
     });
-    // deriveFramesForMap intentionally reads the current per-level viewports so
-    // refreshed layouts preserve the correct visual ascend origin.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestVisualBundle, flying, morph.isBusy, snapshotState.hasLoadedOnce, viewportByLevel]);
 
   useEffect(() => {
@@ -312,13 +410,11 @@ export function LifeMapShell() {
     if (interactionLocked || !parentFrame) return;
     ascendOnce();
   };
-
   const handleHome = () => {
     if (interactionLocked || route.length <= 1) return;
     homeChainRef.current = true;
     ascendOnce();
   };
-
   const handlePillDragEnd = (wasDragging) => {
     setPillDragging(false);
     if (wasDragging) setPill((current) => snapPillPosition(current.x, current.y));
@@ -328,7 +424,6 @@ export function LifeMapShell() {
     const segment = target === 'assistant' ? aiSegRef.current : inboxSegRef.current;
     const frame = frameRef.current;
     if (!segment || !frame) return null;
-
     const scale = stageScaleRef.current || 1;
     const segmentRect = segment.getBoundingClientRect();
     const frameRect = frame.getBoundingClientRect();
@@ -349,29 +444,249 @@ export function LifeMapShell() {
     setPillLabelGhost(true);
     morph.open(target, startRect);
   };
-
   const closeWindow = () => {
     if (morph.state !== 'open') return;
     const endRect = segmentDesignRect(morph.target) || segmentDesignRect('inbox');
-    if (!endRect) return;
-    morph.close(endRect);
+    if (endRect) morph.close(endRect);
   };
-
   const windowRectStyle = (target) => {
     const rect = WINDOW_RECTS[target];
-    return rect
-      ? { left: `${rect.x}px`, top: `${rect.y}px`, width: `${rect.w}px`, height: `${rect.h}px` }
-      : undefined;
+    return rect ? { left: `${rect.x}px`, top: `${rect.y}px`, width: `${rect.w}px`, height: `${rect.h}px` } : undefined;
   };
 
   const showBackNav = Boolean(parentFrame) && !windowActive;
+  const showWorkspace = !flying && !windowActive && Boolean(currentTaskNode) && taskItems.length > 0;
+  const handleToggleExpand = (id) => setExpandedTaskId((current) => (current === id ? null : id));
+
+  const handleOpenDetails = (node) => {
+    detailReturnFocusRef.current = menuReturnFocusRef.current || document.activeElement;
+    closeMenu(false);
+    setDetailNodeId(node.id);
+  };
+  const handleCloseDetails = useCallback(() => closeDetails(true), [closeDetails]);
+
+  const handleDone = async (node) => {
+    if (menu) closeMenu(true);
+    const result = await actions.completeTask(node);
+    if (result?.skipped) return result;
+    addToast(result?.ok ? 'success' : 'error', result?.ok ? 'Готово: задача отмечена выполненной.' : result?.error);
+    return result;
+  };
+  const handleRestore = async (node) => {
+    if (menu) closeMenu(true);
+    const result = await actions.restoreTask(node);
+    if (result?.skipped) return result;
+    addToast(result?.ok ? 'success' : 'error', result?.ok ? 'Задача возвращена в работу.' : result?.error);
+    return result;
+  };
+  const handleSaveNote = async (node, note) => {
+    const result = await actions.saveNote(node, note);
+    if (result?.ok) addToast('success', 'Заметка сохранена.');
+    else if (result?.error) addToast('error', result.error);
+    return result;
+  };
+  const handleReorder = async (orderedItems) => {
+    const result = await actions.reorderTasks(orderedItems);
+    if (result?.skipped) return result;
+    if (result?.ok && !result?.unchanged) addToast('success', 'Порядок задач сохранён.');
+    if (!result?.ok) addToast('error', result?.error || 'Не удалось сохранить порядок.');
+    return result;
+  };
+
+  const focusToast = (result, successMessage) => {
+    if (result?.warning) addToast('warning', result.warning);
+    else if (result?.ok) addToast('success', successMessage);
+    else addToast('error', result?.error || 'Не удалось обновить фокус.');
+  };
+  const handleFocusNow = async (node) => {
+    const candidate = focusCandidateFromNode(node);
+    const focusItem = toFocusItem(candidate);
+    closeMenu(true);
+    if (!focusItem) return;
+    const result = await actions.setFocusNow(candidate, focusItem, setFocusQueue);
+    focusToast(result, 'Фокус обновлён.');
+  };
+  const handleFocusNext = async (node) => {
+    const candidate = focusCandidateFromNode(node);
+    const focusItem = toFocusItem(candidate);
+    closeMenu(true);
+    if (!focusItem) return;
+    const result = await actions.setFocusNext(candidate, focusItem, setFocusQueue);
+    focusToast(result, 'Добавлено в очередь.');
+  };
+
+  const handleOpenMenu = (node, point = {}) => {
+    if (interactionLocked || !node) return;
+    menuReturnFocusRef.current = point.returnFocus || document.activeElement;
+    const { x, y } = clientPointToDesignBox(point.clientX, point.clientY, frameRef.current);
+    const patchable = canPatchTask(node);
+    setMenu({
+      node,
+      x,
+      y,
+      capabilities: {
+        canPatch: patchable,
+        done: isDoneNode(node),
+        canRename: canRenameNode(node),
+        renameDisabled: Boolean(node.sourceId) && !networkWritable,
+        networkDisabled: !networkWritable,
+        canFocus: node.id !== 'root',
+        canCreateInside: !isLeafNode(node),
+        canDelete: Boolean(node.raw?.local),
+      },
+    });
+  };
+  const handleCloseMenu = useCallback(() => closeMenu(true), [closeMenu]);
+
+  const prepareDialog = (nextDialog) => {
+    dialogReturnFocusRef.current = menuReturnFocusRef.current || document.activeElement;
+    closeMenu(false);
+    setDialogError('');
+    setDialog(nextDialog);
+  };
+  const handleRenameRequest = (node) => prepareDialog({
+    id: `rename-${node.id}`,
+    mode: 'rename',
+    node,
+    title: `Переименовать «${node.title}»`,
+    label: 'Название',
+    placeholder: node.title,
+    initialValue: node.title,
+    confirmText: 'Сохранить',
+  });
+  const handleCreateInside = (node) => {
+    const suggestion = localActions.getUniqueLocalTitle(node.id);
+    if (!suggestion.ok) {
+      closeMenu(true);
+      addToast('error', suggestion.error);
+      return;
+    }
+    prepareDialog({
+      id: `create-${node.id}-${Date.now()}`,
+      mode: 'create',
+      node,
+      title: `Новый объект внутри «${node.title}»`,
+      label: 'Название',
+      placeholder: suggestion.title,
+      initialValue: suggestion.title,
+      confirmText: 'Создать',
+    });
+  };
+  const handleDeleteRequest = (node) => prepareDialog({
+    id: `delete-${node.id}`,
+    mode: 'confirm',
+    node,
+    title: 'Удалить объект?',
+    message: `«${node.title}» и все его локальные вложенные объекты будут удалены. Это действие нельзя отменить.`,
+    confirmText: 'Удалить',
+  });
+  const handleDialogCancel = () => {
+    if (!dialogBusy) closeDialog(true);
+  };
+
+  const handleDialogSubmit = async (value) => {
+    if (!dialog) return;
+    setDialogError('');
+    if (dialog.mode === 'confirm') {
+      setDialogBusy(true);
+      try {
+        const deletedId = dialog.node.id;
+        const result = localActions.deleteLocalObject(dialog.node);
+        if (!result.ok) {
+          setDialogError(result.error);
+          addToast('error', result.error);
+          return;
+        }
+        if (detailNodeId && result.deletedIds?.includes(detailNodeId)) closeDetails(false);
+        setRoute((current) => {
+          const deletedIndex = current.findIndex((frame) => result.deletedIds?.includes(frame.id));
+          return deletedIndex > 0 ? current.slice(0, deletedIndex) : current;
+        });
+        addToast('success', `Объект «${dialog.node.title}» удалён.`);
+        closeDialog(true);
+        if (deletedId === currentFrame.id) setExpandedTaskId(null);
+      } finally {
+        setDialogBusy(false);
+      }
+      return;
+    }
+
+    const title = String(value || '').trim();
+    const validation = localActions.validateSiblingTitle(dialog.node, title, dialog.mode === 'rename' ? dialog.node.id : null);
+    if (!validation.ok) {
+      setDialogError(validation.error);
+      return;
+    }
+
+    setDialogBusy(true);
+    try {
+      if (dialog.mode === 'create') {
+        const result = localActions.createLocalObject(dialog.node.id, validation.title);
+        if (result.ok) {
+          addToast('success', `Создано: «${result.title}».`);
+          closeDialog(true);
+        } else setDialogError(result.error);
+        return;
+      }
+      if (dialog.node.sourceId) {
+        const result = await actions.renameItem(dialog.node, validation.title);
+        if (result?.ok) {
+          addToast('success', 'Название обновлено в Notion.');
+          closeDialog(true);
+        } else setDialogError(result?.error || 'Не удалось переименовать.');
+      } else {
+        const result = localActions.renameLocal(dialog.node, validation.title);
+        if (result.ok) {
+          addToast('success', 'Название обновлено.');
+          closeDialog(true);
+        } else setDialogError(result.error);
+      }
+    } finally {
+      setDialogBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (!(event.shiftKey && event.key === 'F10')) return;
+      const activeRow = document.activeElement?.closest?.('[data-task-row-id]');
+      if (!activeRow) return;
+      const rowId = activeRow.getAttribute('data-task-row-id');
+      const item = taskItems.find((entry) => entry.id === rowId);
+      if (!item) return;
+      event.preventDefault();
+      const rect = activeRow.getBoundingClientRect();
+      handleOpenMenu(item, {
+        clientX: rect.left + 24,
+        clientY: rect.top + rect.height / 2,
+        returnFocus: document.activeElement,
+      });
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [taskItems, interactionLocked, networkWritable]);
+
+  const handleOpenMapNodeMenu = (nodeId, point) => {
+    const node = visualBundle.rootMap ? findNode(visualBundle.rootMap, nodeId) : null;
+    if (node) handleOpenMenu(node, point);
+  };
+
+  const menuActions = {
+    onFocusNow: handleFocusNow,
+    onFocusNext: handleFocusNext,
+    onRename: handleRenameRequest,
+    onOpenDetails: handleOpenDetails,
+    onDone: handleDone,
+    onRestore: handleRestore,
+    onCreateInside: handleCreateInside,
+    onDelete: handleDeleteRequest,
+  };
 
   return (
     <div className="lifemapV2">
       <StageScaler>
         <div ref={frameRef} className={`lifemapV2Frame${dragging ? ' lifemapV2Dragging' : ''}`}>
           <SpaceBackground pose={cameraFlight.pose} />
-
           <div ref={cameraFlight.layerRef} className="lifemapV2CameraLayer">
             <MapViewport
               disabled={interactionLocked}
@@ -384,6 +699,7 @@ export function LifeMapShell() {
                 disabled={interactionLocked}
                 onPlanetActivate={handlePlanetActivate}
                 onCoreActivate={parentFrame ? handleBack : undefined}
+                onOpenNodeMenu={handleOpenMapNodeMenu}
               />
             </MapViewport>
           </div>
@@ -399,6 +715,23 @@ export function LifeMapShell() {
               statusTitle={snapshotState.error || undefined}
             />
             <MissionControl data={missionControlData} hidden={windowActive} />
+            <TaskWorkspace
+              node={currentTaskNode}
+              items={taskItems}
+              hidden={!showWorkspace}
+              expandedId={expandedTaskId}
+              onToggleExpand={handleToggleExpand}
+              busyById={actions.busyById}
+              networkDisabled={!networkWritable}
+              reorderBusy={actions.isBusy('__reorder__')}
+              onSaveNote={handleSaveNote}
+              onDone={handleDone}
+              onRestore={handleRestore}
+              onOpenMenu={handleOpenMenu}
+              onOpenNodeMenu={handleOpenMenu}
+              onOpenDetails={handleOpenDetails}
+              onReorder={handleReorder}
+            />
 
             <LauncherPill
               x={pill.x}
@@ -421,29 +754,39 @@ export function LifeMapShell() {
             />
 
             <div ref={morph.morphRef} className="lifemapV2MorphFrame" aria-hidden="true" />
-
             {morph.target === 'inbox' && morph.isActive ? (
               <div className="lifemapV2WindowMount" style={windowRectStyle('inbox')}>
-                <InboxWindow
-                  data={inboxMock}
-                  state={morph.state}
-                  contentVisible={morph.contentVisible}
-                  onClose={closeWindow}
-                />
+                <InboxWindow data={inboxMock} state={morph.state} contentVisible={morph.contentVisible} onClose={closeWindow} />
+              </div>
+            ) : null}
+            {morph.target === 'assistant' && morph.isActive ? (
+              <div className="lifemapV2WindowMount" style={windowRectStyle('assistant')}>
+                <AssistantWindow data={assistantMock} state={morph.state} contentVisible={morph.contentVisible} onClose={closeWindow} />
               </div>
             ) : null}
 
-            {morph.target === 'assistant' && morph.isActive ? (
-              <div className="lifemapV2WindowMount" style={windowRectStyle('assistant')}>
-                <AssistantWindow
-                  data={assistantMock}
-                  state={morph.state}
-                  contentVisible={morph.contentVisible}
-                  onClose={closeWindow}
-                />
-              </div>
+            {!windowActive ? (
+              <TaskDetailPanel
+                node={detailNode}
+                patchable={detailNode ? canPatchTask(detailNode) : false}
+                busy={detailNode ? actions.isBusy(detailNode.sourceId) : false}
+                networkDisabled={!networkWritable}
+                onClose={handleCloseDetails}
+                onDone={handleDone}
+                onRestore={handleRestore}
+              />
             ) : null}
+            <ContextMenuV2 menu={menu} onClose={handleCloseMenu} actions={menuActions} />
+            <ToastStack toasts={toasts} onDismiss={dismissToast} />
           </div>
+
+          <TextInputDialogV2
+            dialog={dialog}
+            busy={dialogBusy}
+            error={dialogError}
+            onSubmit={handleDialogSubmit}
+            onCancel={handleDialogCancel}
+          />
 
           {debugMode ? (
             <button
