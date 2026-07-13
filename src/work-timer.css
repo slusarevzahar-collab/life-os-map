@@ -24,7 +24,7 @@
 .workTimerWidget:focus-within { z-index: 220; transform: scale(calc(var(--claude-stage-scale, 1) * 1.5)); }
 
 .workTimerWidget.is-running { height: 30px; padding-block: 4px; overflow: hidden; border-radius: 14px; border-color: rgba(74, 222, 128, .74); box-shadow: 0 0 30px rgba(74, 222, 128, .27), inset 0 0 19px rgba(74, 222, 128, .045); }
-.workTimerWidget.is-running.is-under-hour:not(:hover):not(:focus-within) { width: 86px; }
+.workTimerWidget.is-running.is-under-hour:not(:hover):not(:focus-within) { width: 87px; }
 .workTimerWidget.is-running:hover,
 .workTimerWidget.is-running:focus-within { width: 126px; height: 58px; padding-block: 6px; }
 body:has(.app.timerObscured) .workTimerWidget.is-running,
@@ -38,7 +38,7 @@ body:has(.lifemapAccessOverlay) .workTimerWidget.is-running { opacity: .5; }
 .workTimerClock { position: absolute; top: 0; left: 26px; width: 58px; height: 20px; color: #eef2f8; font: 500 17px/1 "IBM Plex Sans", system-ui, sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; transition: left .68s cubic-bezier(.22, .75, .2, 1), width .68s cubic-bezier(.22, .75, .2, 1); }
 .workTimerReadout.hasLast .workTimerClock { left: 0; width: 69px; }
 .workTimerWidget.is-running .workTimerClock { left: 0; width: 110px; }
-.workTimerWidget.is-running.is-under-hour:not(:hover):not(:focus-within) .workTimerClock { left: -42px; }
+.workTimerWidget.is-running.is-under-hour:not(:hover):not(:focus-within) .workTimerClock { left: -41px; }
 .workTimerDigits { position: absolute; inset: 0; display: flex; align-items: center; justify-content: space-between; }
 .workTimerDigits > span { display: block; flex: 0 0 auto; }
 .workTimerLast { position: absolute; top: 0; left: 75px; height: 20px; display: flex; align-items: center; gap: 6px; opacity: 0; transform: translateX(14px); pointer-events: none; transition: opacity .34s ease, transform .58s cubic-bezier(.22, .75, .2, 1); }
