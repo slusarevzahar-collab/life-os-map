@@ -60,10 +60,16 @@ function isDocumentVisible() {
 // null/{} — opening the window on a target-bound session showed that
 // session's messages under the GENERAL header/quick-prompts until some
 // other action happened to reset target. All four now come from one read.
-function resolveInitialSession() {
+function resolveInitialSession({ generic = false } = {}) {
   const stored = readActiveAssistantSessionId();
   const items = readAssistantSessions();
-  const session = items.find((entry) => entry.id === stored) || items[0] || null;
+  const session = generic
+    // Some older target-bound sessions were persisted with `global` as
+    // their targetKey. The target payload is authoritative here: a plain
+    // Assistant opening must never restore any session that still carries
+    // an object target, regardless of its legacy key.
+    ? items.find((entry) => !entry.target && (!entry.targetKey || entry.targetKey === 'global')) || null
+    : items.find((entry) => entry.id === stored) || items[0] || null;
   return {
     id: session?.id || '',
     messages: session ? readAssistantSessionMessages(session.id) : [],
@@ -74,7 +80,7 @@ function resolveInitialSession() {
 
 export function useAssistantChat({ active = true, bootTarget = null, currentMap, activeFocus, snapshot, networkWritable = true, onRefreshSnapshot, apiOffline = false, onInboxDataStale } = {}) {
   const initialRef = useRef(null);
-  if (!initialRef.current) initialRef.current = resolveInitialSession();
+  if (!initialRef.current) initialRef.current = resolveInitialSession({ generic: !bootTarget });
 
   const [sessions, setSessions] = useState(() => readAssistantSessions());
   const [activeSessionId, setActiveSessionIdState] = useState(() => initialRef.current.id);
@@ -186,14 +192,9 @@ export function useAssistantChat({ active = true, bootTarget = null, currentMap,
   // context menu, TaskDetailPanel, Inbox "Чат с AI"). Same reuse rule as
   // the legacy `lifemap:assistant-target` handler: an existing session for
   // the same targetKey is reactivated, otherwise a new session is created.
-  // When bootTarget is null (the plain AI pill segment — see
-  // LifeMapShell.openWindow, which explicitly clears assistantBoot before
-  // opening generically) this effect does nothing and the session resolved
-  // at mount (resolveInitialSession — last active session, whatever it is)
-  // stays showing. There is no third case: a session is only ever created
-  // eagerly here for a boot target; the plain-open path never creates one
-  // — `send()` lazily creates a general session on first message if none
-  // exists yet.
+  // When bootTarget is null (the plain AI pill segment), initialization picks
+  // the newest GENERAL session, never the last target-bound one. If none
+  // exists, `send()` lazily creates it on the first message.
   useEffect(() => {
     if (!bootTarget || consumedBootRef.current === bootTarget) return;
     consumedBootRef.current = bootTarget;

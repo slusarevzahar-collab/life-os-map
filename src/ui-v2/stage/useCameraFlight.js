@@ -31,9 +31,8 @@ function prefersReducedMotion() {
   return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-function settle(el) {
+function settleStyles(el) {
   if (!el) return;
-  (el.getAnimations?.() || []).forEach((animation) => animation.cancel());
   el.style.opacity = '1';
   el.style.transform = 'none';
   el.style.filter = 'none';
@@ -43,6 +42,7 @@ function settle(el) {
 export function useCameraFlight({ flightMs = DEFAULT_FLIGHT_MS, blurPx = DEFAULT_BLUR_PX, onSwap } = {}) {
   const layerRef = useRef(null);
   const flyingRef = useRef(false);
+  const animationsRef = useRef([]);
   const timeoutsRef = useRef([]);
   const generationRef = useRef(0);
   const pendingSwapRef = useRef(null);
@@ -64,14 +64,38 @@ export function useCameraFlight({ flightMs = DEFAULT_FLIGHT_MS, blurPx = DEFAULT
     return id;
   }, []);
 
+  const cancelLayerAnimations = useCallback(() => {
+    const tracked = animationsRef.current;
+    animationsRef.current = [];
+    tracked.forEach((animation) => {
+      try {
+        animation?.cancel?.();
+      } catch {
+        // A finished or detached animation must not block camera recovery.
+      }
+    });
+    (layerRef.current?.getAnimations?.() || []).forEach((animation) => {
+      try {
+        animation.cancel();
+      } catch {
+        // Best-effort cleanup for animations not created by this hook.
+      }
+    });
+  }, []);
+
+  const settleLayer = useCallback(() => {
+    cancelLayerAnimations();
+    settleStyles(layerRef.current);
+  }, [cancelLayerAnimations]);
+
   useEffect(
     () => () => {
       generationRef.current += 1;
       clearTimers();
       pendingSwapRef.current = null;
-      settle(layerRef.current);
+      settleLayer();
     },
-    [clearTimers]
+    [clearTimers, settleLayer]
   );
 
   const isFlying = useCallback(() => flyingRef.current, []);
@@ -100,14 +124,14 @@ export function useCameraFlight({ flightMs = DEFAULT_FLIGHT_MS, blurPx = DEFAULT
 
       if (!el || reduced || typeof el.animate !== 'function') {
         setPose(backgroundPose({ camIn: mode === 'descend', origin: effectiveOrigin, flightMs: 0 }));
-        settle(el);
+        settleLayer();
         finishSwap();
         flyingRef.current = false;
         setPhase('idle');
         return;
       }
 
-      (el.getAnimations?.() || []).forEach((animation) => animation.cancel());
+      cancelLayerAnimations();
       setPose(backgroundPose({ camIn: mode === 'descend', origin: effectiveOrigin, flightMs }));
 
       let duration;
@@ -130,10 +154,10 @@ export function useCameraFlight({ flightMs = DEFAULT_FLIGHT_MS, blurPx = DEFAULT
         el.style.transformOrigin = '50% 50%';
       }
 
-      el.animate(keyframes, { duration, easing, fill: 'forwards' });
+      animationsRef.current = [el.animate(keyframes, { duration, easing, fill: 'forwards' })];
       schedule(finishSwap, Math.max(0, duration - 10), generation);
     },
-    [flightMs, blurPx, onSwap, schedule, clearTimers]
+    [flightMs, blurPx, onSwap, schedule, clearTimers, cancelLayerAnimations, settleLayer]
   );
 
   // Called by the host AFTER the new level's DOM has actually rendered (i.e. from
@@ -142,6 +166,7 @@ export function useCameraFlight({ flightMs = DEFAULT_FLIGHT_MS, blurPx = DEFAULT
   const playEntry = useCallback(
     (mode, origin) => {
       clearTimers();
+      cancelLayerAnimations();
       const generation = (generationRef.current += 1);
       pendingSwapRef.current = null;
       const el = layerRef.current;
@@ -149,7 +174,7 @@ export function useCameraFlight({ flightMs = DEFAULT_FLIGHT_MS, blurPx = DEFAULT
       const effectiveOrigin = origin || { x: CENTER_X, y: CENTER_Y };
 
       const doSettle = () => {
-        settle(el);
+        settleLayer();
         flyingRef.current = false;
         setPhase('idle');
         setPose(backgroundPose({ camIn: mode === 'descend', origin: effectiveOrigin, flightMs }));
@@ -176,10 +201,10 @@ export function useCameraFlight({ flightMs = DEFAULT_FLIGHT_MS, blurPx = DEFAULT
         el.style.transformOrigin = '50% 50%';
       }
 
-      el.animate(keyframes, { duration, easing: EASE_LANDING, fill: 'both' });
+      animationsRef.current = [el.animate(keyframes, { duration, easing: EASE_LANDING, fill: 'both' })];
       schedule(doSettle, duration + 120, generation);
     },
-    [flightMs, blurPx, schedule, clearTimers]
+    [flightMs, blurPx, schedule, clearTimers, cancelLayerAnimations, settleLayer]
   );
 
   useEffect(() => {
@@ -188,7 +213,7 @@ export function useCameraFlight({ flightMs = DEFAULT_FLIGHT_MS, blurPx = DEFAULT
       const pending = pendingSwapRef.current;
       generationRef.current += 1;
       clearTimers();
-      settle(layerRef.current);
+      settleLayer();
       if (pending) {
         pendingSwapRef.current = null;
         onSwap?.(pending.targetLevelId, pending.mode, pending.origin);
@@ -203,7 +228,7 @@ export function useCameraFlight({ flightMs = DEFAULT_FLIGHT_MS, blurPx = DEFAULT
       window.removeEventListener('resize', settleOnResize);
       window.removeEventListener('orientationchange', settleOnResize);
     };
-  }, [clearTimers, onSwap]);
+  }, [clearTimers, onSwap, settleLayer]);
 
   return { layerRef, phase, pose, flyTo, playEntry, isFlying };
 }

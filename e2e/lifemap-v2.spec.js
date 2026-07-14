@@ -169,6 +169,31 @@ test('resize during camera flight settles on the requested level', async ({ page
   await expect(page.locator('.lifemapV2CameraLayer')).toHaveCSS('opacity', '1');
 });
 
+test('resize settles tracked camera animation when getAnimations is unavailable', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(Element.prototype, 'getAnimations', {
+      configurable: true,
+      value: undefined,
+    });
+  });
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await gotoFixture(page);
+  await page.getByRole('button', { name: /Проекты — открыть/ }).click();
+  await page.waitForTimeout(80);
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await expect(page.getByRole('button', { name: /LifeMap — открыть/ })).toBeVisible({ timeout: 4_000 });
+  await page.waitForTimeout(1_500);
+  const layer = page.locator('.lifemapV2CameraLayer');
+  const pose = await layer.evaluate((element) => ({
+    opacity: getComputedStyle(element).opacity,
+    transform: getComputedStyle(element).transform,
+    filter: getComputedStyle(element).filter,
+  }));
+  expect(pose.opacity).toBe('1');
+  expect(['none', 'matrix(1, 0, 0, 1, 0, 0)']).toContain(pose.transform);
+  expect(['none', 'blur(0px)']).toContain(pose.filter);
+});
+
 test('pan and cursor-anchored zoom remain usable', async ({ page }) => {
   await gotoFixture(page);
   const viewport = page.locator('.lifemapV2Viewport');
@@ -221,6 +246,19 @@ test('Inbox and Assistant morph open, close and restore launcher focus', async (
   await expect(page.getByRole('dialog', { name: /Assistant/i })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog', { name: /Assistant/i })).toHaveCount(0);
+});
+
+test('plain Assistant opening clears a previous targeted boot context', async ({ page }) => {
+  await installApi(page, { snapshotMode: 'real', snapshot: realSnapshot() });
+  await page.goto('/?uiv2=1');
+  await openAlphaProject(page);
+  await page.getByRole('button', { name: 'Обсудить с AI: Стабилизировать навигатор', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Стабилизировать навигатор', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Закрыть Assistant', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: /Assistant/i })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Открыть AI Assistant', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Стабилизировать навигатор', exact: true })).toHaveCount(0);
+  await expect(page.getByPlaceholder('Опиши решение, которое нужно принять, или проблему в работе…')).toBeVisible();
 });
 
 test('timer keeps the same mounted widget through camera navigation and pause', async ({ page }) => {
