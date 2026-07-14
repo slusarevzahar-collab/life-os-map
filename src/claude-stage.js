@@ -2,7 +2,7 @@ const DESIGN_WIDTH = 1280;
 const DESIGN_HEIGHT = 800;
 const MORPH_STORAGE_KEY = 'lifemap.claude.morph.v1';
 const VIEWPORT_STORAGE_KEY = 'lifemap.map.viewport.v2';
-const LAYOUT_MIGRATION_KEY = 'lifemap.claude.layout-migration.v3';
+const LAYOUT_MIGRATION_KEY = 'lifemap.claude.layout-migration.v4';
 
 function resetStaleViewportOnce() {
   try {
