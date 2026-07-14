@@ -256,12 +256,15 @@ export function LifeMapShell() {
   });
 
   const morph = useWindowMorph({
+    cameraLayerRef: cameraFlight.layerRef,
     onClosed: (target) => {
       pendingFocusRef.current = target;
       setPillGhost(false);
       setPillLabelGhost(false);
       if (target === 'assistant') setAssistantBoot(null);
     },
+    onPillLabelReveal: () => setPillLabelGhost(false),
+    onPillSkinReveal: () => setPillGhost(false),
   });
 
   const currentFrame = route[route.length - 1];
@@ -468,26 +471,38 @@ export function LifeMapShell() {
     if (wasDragging) setPill((current) => snapPillPosition(current.x, current.y));
   };
 
-  const segmentDesignRect = (target) => {
-    const segment = target === 'assistant' ? aiSegRef.current : inboxSegRef.current;
+  const elementDesignRect = (element, radius = 18) => {
     const frame = frameRef.current;
-    if (!segment || !frame) return null;
+    if (!element || !frame) return null;
     const scale = stageScaleRef.current || 1;
-    const segmentRect = segment.getBoundingClientRect();
+    const elementRect = element.getBoundingClientRect();
     const frameRect = frame.getBoundingClientRect();
     return {
-      x: (segmentRect.left - frameRect.left) / scale,
-      y: (segmentRect.top - frameRect.top) / scale,
-      w: segmentRect.width / scale,
-      h: segmentRect.height / scale,
-      r: 18,
+      x: (elementRect.left - frameRect.left) / scale,
+      y: (elementRect.top - frameRect.top) / scale,
+      w: elementRect.width / scale,
+      h: elementRect.height / scale,
+      r: radius,
+    };
+  };
+
+  const launcherGeometry = (target) => {
+    const segment = target === 'assistant' ? aiSegRef.current : inboxSegRef.current;
+    const pillRect = elementDesignRect(pillRef.current, 18);
+    const segmentRect = elementDesignRect(segment, 18);
+    if (!pillRect || !segmentRect) return null;
+    return {
+      pillRect,
+      segmentRect,
+      cameraMode: route.length === 1 ? 'descend' : 'lateral',
+      baseBackgroundPose: cameraFlight.pose,
     };
   };
 
   const openWindow = (target) => {
     if (interactionLocked) return;
-    const startRect = segmentDesignRect(target);
-    if (!startRect) return;
+    const geometry = launcherGeometry(target);
+    if (!geometry) return;
     // Exact rule: the plain pill segment always opens GENERALLY — it never
     // carries a boot target, so it must never show a stale one left over
     // from an earlier "Обсудить с AI" call. openAssistantWindow(boot) below
@@ -495,12 +510,12 @@ export function LifeMapShell() {
     if (target === 'assistant') setAssistantBoot(null);
     setPillGhost(true);
     setPillLabelGhost(true);
-    morph.open(target, startRect);
+    morph.open(target, geometry);
   };
   const closeWindow = () => {
     if (!morph.isActive) return;
-    const endRect = segmentDesignRect(morph.target) || segmentDesignRect('inbox');
-    if (endRect) morph.close(endRect);
+    const geometry = launcherGeometry(morph.target) || launcherGeometry('inbox');
+    if (geometry) morph.close(geometry);
   };
   const windowRectStyle = (target) => {
     const rect = WINDOW_RECTS[target];
@@ -509,12 +524,12 @@ export function LifeMapShell() {
 
   const openAssistantWindow = useCallback((boot) => {
     if (flying || morph.isBusy || morph.isActive || pillDragging) return;
-    const startRect = segmentDesignRect('assistant');
-    if (!startRect) return;
+    const geometry = launcherGeometry('assistant');
+    if (!geometry) return;
     setAssistantBoot(boot || null);
     setPillGhost(true);
     setPillLabelGhost(true);
-    morph.open('assistant', startRect);
+    morph.open('assistant', geometry);
   }, [flying, morph, pillDragging]);
 
   const handleDiscussWithAi = useCallback((nodeOrTarget, extraContext = {}) => {
@@ -793,7 +808,7 @@ export function LifeMapShell() {
   return (
     <div className="lifemapV2">
       <div className="lifemapV2Backdrop">
-        <SpaceBackground pose={cameraFlight.pose} fullBleed />
+        <SpaceBackground pose={morph.windowBackgroundPose || cameraFlight.pose} fullBleed />
       </div>
       <StageScaler>
         <div ref={frameRef} className={`lifemapV2Frame${dragging ? ' lifemapV2Dragging' : ''}`}>
@@ -824,7 +839,7 @@ export function LifeMapShell() {
               statusTone={statusInfo.tone}
               statusTitle={snapshotState.error || undefined}
             />
-            <MissionControl data={missionControlData} hidden={windowActive} />
+            <MissionControl data={missionControlData} hidden={morph.hidesHud} />
             {!fixtureMode && (snapshotState.status === 'api offline' || latestMapMode === 'empty') ? (
               <section className="lifemapV2DataState" data-testid="lifemap-data-state" role="status">
                 <b>
@@ -888,9 +903,21 @@ export function LifeMapShell() {
               onOpenAssistant={() => openWindow('assistant')}
             />
 
-            <div ref={morph.morphRef} className="lifemapV2MorphFrame" aria-hidden="true" />
+            <div
+              ref={morph.morphRef}
+              className="lifemapV2MorphFrame"
+              data-morph-state={morph.state}
+              data-morph-target={morph.target || ''}
+              data-morph-profile={fixtureMode && morph.inspectionProfile ? JSON.stringify(morph.inspectionProfile) : undefined}
+              aria-hidden="true"
+            />
             {morph.target === 'inbox' && morph.isActive ? (
-              <div className="lifemapV2WindowMount" style={windowRectStyle('inbox')}>
+              <div
+                ref={morph.windowMountRef}
+                className="lifemapV2WindowMount"
+                data-morph-state={morph.state}
+                style={windowRectStyle('inbox')}
+              >
                 <InboxWindow
                   state={morph.state}
                   contentVisible={morph.contentVisible}
@@ -906,7 +933,12 @@ export function LifeMapShell() {
               </div>
             ) : null}
             {morph.target === 'assistant' && morph.isActive ? (
-              <div className="lifemapV2WindowMount" style={windowRectStyle('assistant')}>
+              <div
+                ref={morph.windowMountRef}
+                className="lifemapV2WindowMount"
+                data-morph-state={morph.state}
+                style={windowRectStyle('assistant')}
+              >
                 <AssistantWindow
                   state={morph.state}
                   contentVisible={morph.contentVisible}

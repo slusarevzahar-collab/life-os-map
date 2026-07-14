@@ -107,3 +107,31 @@
   white-space: nowrap;
   cursor: pointer;
 }
+
+/* Claude Design morph owns the window mount transform and opacity. The
+   preparing/camera-out guard prevents a one-frame full-size flash before the
+   first tracked animation handle is created. */
+.lifemapV2WindowMount {
+  transform-origin: 0 0;
+  will-change: transform, opacity;
+}
+
+.lifemapV2WindowMount[data-morph-state="preparing"],
+.lifemapV2WindowMount[data-morph-state="camera-out"] {
+  opacity: 0;
+}
+
+.lifemapV2Window[data-state="preparing"],
+.lifemapV2Window[data-state="camera-out"],
+.lifemapV2Window[data-state="revealing"],
+.lifemapV2Window[data-state="hiding-content"],
+.lifemapV2Window[data-state="morphing-back"],
+.lifemapV2Window[data-state="camera-return"] {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lifemapV2WindowMount {
+    will-change: auto;
+  }
+}
