@@ -140,6 +140,13 @@ export function MapViewport({ children, disabled = false, viewport, onViewportCh
     return () => el.removeEventListener('wheel', handleWheel);
   }, [handleWheel]);
 
+  useEffect(() => {
+    if (!disabled || !dragRef.current) return;
+    dragRef.current = null;
+    suppressClickRef.current = false;
+    onDragStateChange?.(false);
+  }, [disabled, onDragStateChange]);
+
   useEffect(
     () => () => {
       window.clearTimeout(suppressTimerRef.current);
@@ -159,6 +166,7 @@ export function MapViewport({ children, disabled = false, viewport, onViewportCh
       onPointerMove={handlePointerMove}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
+      onLostPointerCapture={endDrag}
       onClickCapture={handleClickCapture}
       style={{ transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})` }}
     >

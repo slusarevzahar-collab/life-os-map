@@ -155,6 +155,7 @@ export function TaskWorkspace({
       onPointerMove={handlePointerMove}
       onPointerUp={(event) => finishPointerDrag(event, true)}
       onPointerCancel={(event) => finishPointerDrag(event, false)}
+      onLostPointerCapture={(event) => finishPointerDrag(event, false)}
     >
       <header className="lifemapV2TaskWorkspaceHead">
         <div>

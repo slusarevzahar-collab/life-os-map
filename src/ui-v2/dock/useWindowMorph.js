@@ -31,6 +31,9 @@ export function useWindowMorph({ onOpened, onClosed } = {}) {
   const morphRef = useRef(null);
   const timersRef = useRef([]);
   const frameRequestRef = useRef(0);
+  const generationRef = useRef(0);
+  const stateRef = useRef('closed');
+  const targetRef = useRef(null);
   const [state, setState] = useState('closed');
   const [target, setTarget] = useState(null);
   const [contentVisible, setContentVisible] = useState(false);
@@ -44,13 +47,28 @@ export function useWindowMorph({ onOpened, onClosed } = {}) {
     (element?.getAnimations?.() || []).forEach((animation) => animation.cancel());
   }, []);
 
-  const schedule = useCallback((callback, delay) => {
-    const id = window.setTimeout(callback, delay);
+  const moveToState = useCallback((nextState) => {
+    stateRef.current = nextState;
+    setState(nextState);
+  }, []);
+
+  const moveToTarget = useCallback((nextTarget) => {
+    targetRef.current = nextTarget;
+    setTarget(nextTarget);
+  }, []);
+
+  const schedule = useCallback((callback, delay, generation) => {
+    const id = window.setTimeout(() => {
+      if (generation === generationRef.current) callback();
+    }, delay);
     timersRef.current.push(id);
     return id;
   }, []);
 
-  useEffect(() => () => clearScheduledWork(), [clearScheduledWork]);
+  useEffect(() => () => {
+    generationRef.current += 1;
+    clearScheduledWork();
+  }, [clearScheduledWork]);
 
   const runFrame = useCallback((from, to, mode) => {
     const element = morphRef.current;
@@ -94,44 +112,47 @@ export function useWindowMorph({ onOpened, onClosed } = {}) {
 
   const open = useCallback(
     (targetName, segmentRect) => {
-      if (state !== 'closed' || !segmentRect) return;
+      if (!segmentRect) return;
       const windowRect = WINDOW_RECTS[targetName];
       if (!windowRect) return;
+      if ((stateRef.current === 'open' || stateRef.current === 'opening') && targetRef.current === targetName) return;
 
       clearScheduledWork();
-      setTarget(targetName);
+      const generation = (generationRef.current += 1);
+      moveToTarget(targetName);
 
       if (prefersReducedMotion()) {
-        setState('open');
+        moveToState('open');
         setContentVisible(true);
         onOpened?.(targetName);
         return;
       }
 
-      setState('opening');
+      moveToState('opening');
       setContentVisible(false);
       queueFrame(segmentRect, windowRect, 'open');
-      schedule(() => setContentVisible(true), Math.round(MORPH_MS * CONTENT_REVEAL_AT));
+      schedule(() => setContentVisible(true), Math.round(MORPH_MS * CONTENT_REVEAL_AT), generation);
       schedule(() => {
-        setState('open');
+        moveToState('open');
         onOpened?.(targetName);
-      }, MORPH_MS);
+      }, MORPH_MS, generation);
     },
-    [clearScheduledWork, onOpened, queueFrame, schedule, state]
+    [clearScheduledWork, moveToState, moveToTarget, onOpened, queueFrame, schedule]
   );
 
   const close = useCallback(
     (segmentRect) => {
-      if (state !== 'open' || !segmentRect) return;
-      const currentTarget = target;
+      if (stateRef.current === 'closed' || !segmentRect) return;
+      const currentTarget = targetRef.current;
       const windowRect = WINDOW_RECTS[currentTarget];
 
       clearScheduledWork();
+      const generation = (generationRef.current += 1);
       setContentVisible(false);
 
       const finish = () => {
-        setState('closed');
-        setTarget(null);
+        moveToState('closed');
+        moveToTarget(null);
         onClosed?.(currentTarget);
       };
 
@@ -140,11 +161,11 @@ export function useWindowMorph({ onOpened, onClosed } = {}) {
         return;
       }
 
-      setState('closing');
+      moveToState('closing');
       queueFrame(windowRect, segmentRect, 'close');
-      schedule(finish, MORPH_MS);
+      schedule(finish, MORPH_MS, generation);
     },
-    [clearScheduledWork, onClosed, queueFrame, schedule, state, target]
+    [clearScheduledWork, moveToState, moveToTarget, onClosed, queueFrame, schedule]
   );
 
   return {

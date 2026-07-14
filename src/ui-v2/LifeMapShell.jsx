@@ -62,17 +62,34 @@ const ROOT_ID = 'root';
 const ROOT_ORIGIN = { x: 640, y: 400 };
 const DESIGN_WIDTH = 1280;
 const PILL_START = { x: 1122, y: 710 };
+const EMPTY_VISUAL_MAP = {
+  root: {
+    id: ROOT_ID,
+    title: 'LifeMap',
+    sublabel: 'HOME',
+    parentId: null,
+    core: { title: 'LifeMap', sublabel: 'HOME', size: 196 },
+    rings: [500],
+    planets: [],
+  },
+};
 
 const STATUS_INFO = {
   loading: { label: 'LOADING', tone: 'loading' },
   connected: { label: 'CONNECTED', tone: 'connected' },
   'mock data': { label: 'MOCK', tone: 'mock' },
   'api offline': { label: 'OFFLINE', tone: 'offline' },
+  stale: { label: 'STALE', tone: 'offline' },
 };
 
 function isDebugMode() {
   if (typeof window === 'undefined') return false;
   return new URLSearchParams(window.location.search).get('uiv2debug') === '1';
+}
+
+function isFixtureMode() {
+  if (typeof window === 'undefined') return false;
+  return new URLSearchParams(window.location.search).get('fixture') === '1';
 }
 
 let toastSeq = 0;
@@ -104,6 +121,7 @@ export function LifeMapShell() {
   const detailReturnFocusRef = useRef(null);
   const restoredRouteRef = useRef(false);
   const debugMode = useRef(isDebugMode()).current;
+  const fixtureMode = useRef(isFixtureMode()).current;
 
   // Stage 5B1: boot payload for the Assistant window ({ target, context }).
   const [assistantBoot, setAssistantBoot] = useState(null);
@@ -114,7 +132,7 @@ export function LifeMapShell() {
   const [inboxRefreshRevision, setInboxRefreshRevision] = useState(0);
   const bumpInboxRefreshRevision = useCallback(() => setInboxRefreshRevision((value) => value + 1), []);
 
-  const snapshotState = useLifeMapSnapshot();
+  const snapshotState = useLifeMapSnapshot({ enabled: !fixtureMode });
   const handleWorkSessionChange = useCallback(() => { snapshotState.refresh(); }, [snapshotState.refresh]);
   const { titleAliases, setTitleAliases, customObjects, setCustomObjects } = useLocalMapExtensions();
   const [focusQueue, setFocusQueue] = useFocusQueue();
@@ -140,26 +158,24 @@ export function LifeMapShell() {
     if (!rootMap) return true;
     return !(rootMap.children || []).some((child) => (child.children || []).length || (child.taskList || []).length);
   }, [rootMap]);
-
-  const useFallbackMock =
-    !rootMap ||
-    (snapshotState.status === 'api offline' && !snapshotState.hasLoadedOnce) ||
-    (String(snapshotState.snapshot?.meta?.source || '').includes('mock') && rootMapLooksEmpty);
+  const snapshotIsMock = String(snapshotState.snapshot?.meta?.source || '').toLowerCase().includes('mock');
 
   const latestMapData = useMemo(() => {
-    if (useFallbackMock) return mapTreeMock;
+    if (fixtureMode) return mapTreeMock;
+    if (!rootMap || rootMapLooksEmpty || snapshotIsMock) return EMPTY_VISUAL_MAP;
     try {
       const built = buildVisualTree(rootMap);
-      return built && built.root ? built : mapTreeMock;
+      return built && built.root ? built : EMPTY_VISUAL_MAP;
     } catch {
-      return mapTreeMock;
+      return EMPTY_VISUAL_MAP;
     }
-  }, [useFallbackMock, rootMap]);
+  }, [fixtureMode, rootMap, rootMapLooksEmpty, snapshotIsMock]);
 
-  const latestMapIsFallback = latestMapData === mapTreeMock;
+  const latestMapMode = fixtureMode ? 'fixture' : latestMapData === EMPTY_VISUAL_MAP ? 'empty' : 'real';
+  const latestMapIsFallback = latestMapMode !== 'real';
   const latestVisualBundle = useMemo(
-    () => ({ mapData: latestMapData, rootMap, mapIsFallback: latestMapIsFallback }),
-    [latestMapData, rootMap, latestMapIsFallback]
+    () => ({ mapData: latestMapData, rootMap, mapIsFallback: latestMapIsFallback, mode: latestMapMode }),
+    [latestMapData, rootMap, latestMapIsFallback, latestMapMode]
   );
   const [visualBundle, setVisualBundle] = useState(() => latestVisualBundle);
   const visualMapData = visualBundle.mapData;
@@ -184,7 +200,7 @@ export function LifeMapShell() {
   }, [latestMapIsFallback, rootMap, activeFocus, focusQueue]);
 
   const missionControlData = useMemo(() => {
-    if (latestMapIsFallback) return missionControlMock;
+    if (fixtureMode) return missionControlMock;
     const now =
       activeFocus?.nextAction && activeFocus.title !== 'Фокус не выбран'
         ? `${activeFocus.title} — ${activeFocus.nextAction}`
@@ -193,9 +209,13 @@ export function LifeMapShell() {
     const next = rest[0]?.title || 'Очередь пуста';
     const queue = rest.slice(0, 12).map((item, index) => ({ n: String(index + 1).padStart(2, '0'), title: item.title }));
     return { now, next, queue };
-  }, [latestMapIsFallback, activeFocus, focusQueueItems]);
+  }, [fixtureMode, activeFocus, focusQueueItems]);
 
-  const effectiveStatus = latestMapIsFallback && snapshotState.status !== 'api offline' ? 'mock data' : snapshotState.status;
+  const effectiveStatus = fixtureMode
+    ? 'mock data'
+    : snapshotState.isStale && snapshotState.status === 'api offline'
+      ? 'stale'
+      : snapshotState.status;
   const statusInfo = STATUS_INFO[effectiveStatus] || STATUS_INFO.connected;
   const networkWritable = snapshotState.status === 'connected' && !visualMapIsFallback;
 
@@ -245,7 +265,7 @@ export function LifeMapShell() {
   });
 
   const currentFrame = route[route.length - 1];
-  const level = visualMapData[currentFrame.id] || visualMapData.root || mapTreeMock.root;
+  const level = visualMapData[currentFrame.id] || visualMapData.root || EMPTY_VISUAL_MAP.root;
   const parentFrame = route.length > 1 ? route[route.length - 2] : null;
   const flying = cameraFlight.phase !== 'idle';
   const windowActive = morph.isActive;
@@ -478,7 +498,7 @@ export function LifeMapShell() {
     morph.open(target, startRect);
   };
   const closeWindow = () => {
-    if (morph.state !== 'open') return;
+    if (!morph.isActive) return;
     const endRect = segmentDesignRect(morph.target) || segmentDesignRect('inbox');
     if (endRect) morph.close(endRect);
   };
@@ -730,6 +750,11 @@ export function LifeMapShell() {
 
   useEffect(() => {
     const onKeyDown = (event) => {
+      if (event.key === 'Escape' && morph.isActive && !dialog) {
+        event.preventDefault();
+        closeWindow();
+        return;
+      }
       if (!(event.shiftKey && event.key === 'F10')) return;
       const activeRow = document.activeElement?.closest?.('[data-task-row-id]');
       if (!activeRow) return;
@@ -746,7 +771,7 @@ export function LifeMapShell() {
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [taskItems, interactionLocked, networkWritable]);
+  }, [taskItems, interactionLocked, networkWritable, morph.isActive, dialog, closeWindow]);
 
   const handleOpenMapNodeMenu = (nodeId, point) => {
     const node = visualBundle.rootMap ? findNode(visualBundle.rootMap, nodeId) : null;
@@ -767,9 +792,11 @@ export function LifeMapShell() {
 
   return (
     <div className="lifemapV2">
+      <div className="lifemapV2Backdrop">
+        <SpaceBackground pose={cameraFlight.pose} fullBleed />
+      </div>
       <StageScaler>
         <div ref={frameRef} className={`lifemapV2Frame${dragging ? ' lifemapV2Dragging' : ''}`}>
-          <SpaceBackground pose={cameraFlight.pose} />
           <div ref={cameraFlight.layerRef} className="lifemapV2CameraLayer">
             <MapViewport
               disabled={interactionLocked}
@@ -798,6 +825,27 @@ export function LifeMapShell() {
               statusTitle={snapshotState.error || undefined}
             />
             <MissionControl data={missionControlData} hidden={windowActive} />
+            {!fixtureMode && (snapshotState.status === 'api offline' || latestMapMode === 'empty') ? (
+              <section className="lifemapV2DataState" data-testid="lifemap-data-state" role="status">
+                <b>
+                  {snapshotState.isStale
+                    ? 'Сохранённые данные'
+                    : snapshotState.status === 'mock data'
+                      ? 'Демо-данные отключены'
+                      : 'Нет подключения к данным'}
+                </b>
+                <span>
+                  {snapshotState.isStale
+                    ? 'Показан последний валидный snapshot. Изменения временно недоступны.'
+                    : snapshotState.status === 'mock data'
+                      ? 'Backend вернул mock. Обычный режим его не показывает; для тестов используйте fixture=1.'
+                    : snapshotState.status === 'api offline'
+                      ? 'Демонстрационные объекты отключены. Проверьте API и повторите загрузку.'
+                      : 'Источник подключён, но объектов для карты пока нет.'}
+                </span>
+                <button type="button" onClick={() => snapshotState.refresh().catch(() => {})}>Повторить</button>
+              </section>
+            ) : null}
             <div className="lifemapV2WorkTimerSlot" data-obscured={windowActive || Boolean(detailNode) || Boolean(dialog) ? 'true' : 'false'}>
               <WorkTimerWidget placement="v2" onSessionChange={handleWorkSessionChange} />
             </div>

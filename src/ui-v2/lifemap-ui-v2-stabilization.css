@@ -1,0 +1,109 @@
+/* Full-bleed production shell. The approved 1280x800 interaction plane stays
+   uniformly scaled, while the atmosphere owns every viewport pixel. */
+.lifemapV2 {
+  width: 100vw;
+  height: 100dvh;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.lifemapV2Backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.lifemapV2Backdrop .lifemapV2Background {
+  position: absolute;
+  inset: 0;
+}
+
+.lifemapV2Stage {
+  background: transparent;
+}
+
+.lifemapV2Frame {
+  border-radius: 0;
+  overflow: visible;
+  background: transparent;
+  box-shadow: none;
+}
+
+.lifemapV2DataState {
+  position: absolute;
+  left: 50%;
+  top: 620px;
+  z-index: 24;
+  width: 420px;
+  min-height: 72px;
+  transform: translateX(-50%);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 5px 14px;
+  align-items: center;
+  padding: 13px 14px 13px 18px;
+  border: 1px solid rgba(224, 120, 120, 0.28);
+  border-radius: 15px;
+  background: rgba(20, 27, 38, 0.78);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(18px);
+  color: #dbe3ed;
+}
+
+.lifemapV2DataState b {
+  font: 600 13px 'IBM Plex Sans', system-ui, sans-serif;
+}
+
+.lifemapV2DataState span {
+  grid-column: 1;
+  font: 400 11px/1.45 'IBM Plex Sans', system-ui, sans-serif;
+  color: #9facbc;
+}
+
+.lifemapV2DataState button {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  padding: 9px 13px;
+  border: 1px solid rgba(87, 224, 168, 0.28);
+  border-radius: 10px;
+  background: rgba(87, 224, 168, 0.1);
+  color: #9ceac9;
+  font: 600 11px 'IBM Plex Sans', system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.lifemapV2DataState button:focus-visible {
+  outline: 2px solid rgba(87, 224, 168, 0.72);
+  outline-offset: 2px;
+}
+
+.lifemapV2InboxTabStrip {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 15px 0 14px;
+  padding: 1px 0 5px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(87, 224, 168, 0.25) transparent;
+}
+
+.lifemapV2InboxTabBtn,
+.lifemapV2InboxTabBtnActive {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 8px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.045);
+  color: #9aa6b6;
+  font: 500 11.5px 'IBM Plex Sans', system-ui, sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+}

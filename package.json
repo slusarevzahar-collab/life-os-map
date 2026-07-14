@@ -8,6 +8,7 @@
     "api": "node server.js",
     "app": "bash scripts/start-lifemap.sh",
     "build": "vite build",
+    "preview": "vite preview",
     "check": "npm test && vite build",
     "public-ports": "bash .devcontainer/set-public-ports.sh",
     "test:ai": "node scripts/test-ai-policy.mjs",
@@ -15,18 +16,22 @@
     "test:work-time": "node scripts/test-work-time.mjs",
     "test:work-session": "node scripts/test-work-session.mjs",
     "test:work-session-api": "node scripts/test-work-session-api.mjs",
-    "test": "npm run test:ai && npm run test:data && npm run test:work-time && npm run test:work-session && npm run test:work-session-api",
+    "test:ui-v2": "node scripts/test-ui-v2.mjs",
+    "test:browser": "playwright test",
+    "test": "npm run test:ai && npm run test:data && npm run test:work-time && npm run test:work-session && npm run test:work-session-api && npm run test:ui-v2",
     "migrate:work-sessions": "node scripts/migrate-work-sessions.mjs"
   },
   "dependencies": {
     "@notionhq/client": "2.2.15",
     "@vercel/functions": "3.7.5",
     "@vitejs/plugin-react": "4.2.1",
-    "vite": "4.5.3",
+    "express": "4.18.3",
+    "framer-motion": "10.18.0",
     "react": "18.2.0",
     "react-dom": "18.2.0",
-    "framer-motion": "10.18.0",
-    "express": "4.18.3"
+    "vite": "4.5.3"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@playwright/test": "^1.61.1"
+  }
 }

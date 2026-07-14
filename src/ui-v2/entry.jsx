@@ -7,6 +7,7 @@ import { LifeMapShell } from './LifeMapShell.jsx';
 import './lifemap-ui-v2.css';
 import './lifemap-ui-v2-stage5a.css';
 import './lifemap-ui-v2-stage5b1.css';
+import './lifemap-ui-v2-stabilization.css';
 
 const container = document.getElementById('root');
 if (container) {

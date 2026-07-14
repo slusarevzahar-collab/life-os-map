@@ -9,7 +9,7 @@
 //   collapsed 228 / expanded 656, height transition .55s cubic-bezier(.22,1,.36,1),
 //   queue: opacity .38s ease + translateY(30->0) .55s cubic-bezier(.22,1,.36,1).
 // Does NOT connect the legacy MissionPanel, Notion, or a real focusQueue.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 const COLLAPSED_H = 228;
 const EXPANDED_H = 656;
@@ -31,18 +31,10 @@ function usePrefersReducedMotion() {
 
 export function MissionControl({ data, hidden = false }) {
   const [open, setOpen] = useState(false);
-  const busyRef = useRef(false); // blocks re-toggle while the height transition runs
-  const timerRef = useRef(null);
   const reducedMotion = usePrefersReducedMotion();
 
-  useEffect(() => () => window.clearTimeout(timerRef.current), []);
-
   const toggle = () => {
-    if (busyRef.current) return; // animation-required re-toggle lock
-    busyRef.current = true;
     setOpen((v) => !v);
-    window.clearTimeout(timerRef.current);
-    timerRef.current = window.setTimeout(() => { busyRef.current = false; }, reducedMotion ? 0 : HEIGHT_MS + 40);
   };
 
   const height = open ? EXPANDED_H : COLLAPSED_H;

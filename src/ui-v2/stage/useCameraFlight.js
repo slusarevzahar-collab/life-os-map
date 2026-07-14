@@ -44,6 +44,8 @@ export function useCameraFlight({ flightMs = DEFAULT_FLIGHT_MS, blurPx = DEFAULT
   const layerRef = useRef(null);
   const flyingRef = useRef(false);
   const timeoutsRef = useRef([]);
+  const generationRef = useRef(0);
+  const pendingSwapRef = useRef(null);
   const [phase, setPhase] = useState('idle');
   const [pose, setPose] = useState(() =>
     backgroundPose({ camIn: false, origin: { x: CENTER_X, y: CENTER_Y }, flightMs })
@@ -54,15 +56,19 @@ export function useCameraFlight({ flightMs = DEFAULT_FLIGHT_MS, blurPx = DEFAULT
     timeoutsRef.current = [];
   }, []);
 
-  const schedule = useCallback((fn, ms) => {
-    const id = window.setTimeout(fn, ms);
+  const schedule = useCallback((fn, ms, generation) => {
+    const id = window.setTimeout(() => {
+      if (generation === generationRef.current) fn();
+    }, ms);
     timeoutsRef.current.push(id);
     return id;
   }, []);
 
   useEffect(
     () => () => {
+      generationRef.current += 1;
       clearTimers();
+      pendingSwapRef.current = null;
       settle(layerRef.current);
     },
     [clearTimers]
@@ -77,13 +83,20 @@ export function useCameraFlight({ flightMs = DEFAULT_FLIGHT_MS, blurPx = DEFAULT
     (mode, origin, targetLevelId) => {
       if (flyingRef.current) return;
       clearTimers();
+      const generation = (generationRef.current += 1);
       const el = layerRef.current;
       const reduced = prefersReducedMotion();
       flyingRef.current = true;
       setPhase(mode);
 
       const effectiveOrigin = origin || { x: CENTER_X, y: CENTER_Y };
-      const finishSwap = () => onSwap?.(targetLevelId, mode, effectiveOrigin);
+      pendingSwapRef.current = { targetLevelId, mode, origin: effectiveOrigin, generation };
+      const finishSwap = () => {
+        const pending = pendingSwapRef.current;
+        if (!pending || pending.generation !== generation) return;
+        pendingSwapRef.current = null;
+        onSwap?.(targetLevelId, mode, effectiveOrigin);
+      };
 
       if (!el || reduced || typeof el.animate !== 'function') {
         setPose(backgroundPose({ camIn: mode === 'descend', origin: effectiveOrigin, flightMs: 0 }));
@@ -118,7 +131,7 @@ export function useCameraFlight({ flightMs = DEFAULT_FLIGHT_MS, blurPx = DEFAULT
       }
 
       el.animate(keyframes, { duration, easing, fill: 'forwards' });
-      schedule(finishSwap, Math.max(0, duration - 10));
+      schedule(finishSwap, Math.max(0, duration - 10), generation);
     },
     [flightMs, blurPx, onSwap, schedule, clearTimers]
   );
@@ -128,6 +141,9 @@ export function useCameraFlight({ flightMs = DEFAULT_FLIGHT_MS, blurPx = DEFAULT
   // componentDidUpdate pattern.
   const playEntry = useCallback(
     (mode, origin) => {
+      clearTimers();
+      const generation = (generationRef.current += 1);
+      pendingSwapRef.current = null;
       const el = layerRef.current;
       const reduced = prefersReducedMotion();
       const effectiveOrigin = origin || { x: CENTER_X, y: CENTER_Y };
@@ -161,10 +177,33 @@ export function useCameraFlight({ flightMs = DEFAULT_FLIGHT_MS, blurPx = DEFAULT
       }
 
       el.animate(keyframes, { duration, easing: EASE_LANDING, fill: 'both' });
-      schedule(doSettle, duration + 120);
+      schedule(doSettle, duration + 120, generation);
     },
-    [flightMs, blurPx, schedule]
+    [flightMs, blurPx, schedule, clearTimers]
   );
+
+  useEffect(() => {
+    const settleOnResize = () => {
+      if (!flyingRef.current) return;
+      const pending = pendingSwapRef.current;
+      generationRef.current += 1;
+      clearTimers();
+      settle(layerRef.current);
+      if (pending) {
+        pendingSwapRef.current = null;
+        onSwap?.(pending.targetLevelId, pending.mode, pending.origin);
+        return;
+      }
+      flyingRef.current = false;
+      setPhase('idle');
+    };
+    window.addEventListener('resize', settleOnResize, { passive: true });
+    window.addEventListener('orientationchange', settleOnResize, { passive: true });
+    return () => {
+      window.removeEventListener('resize', settleOnResize);
+      window.removeEventListener('orientationchange', settleOnResize);
+    };
+  }, [clearTimers, onSwap]);
 
   return { layerRef, phase, pose, flyTo, playEntry, isFlying };
 }

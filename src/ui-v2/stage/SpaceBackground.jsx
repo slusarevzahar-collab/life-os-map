@@ -35,7 +35,7 @@ function usePrefersReducedMotion() {
   return reduced;
 }
 
-export function SpaceBackground({ pose }) {
+export function SpaceBackground({ pose, fullBleed = false }) {
   const twinkles = useMemo(() => seededTwinkles(), []);
   const reducedMotion = usePrefersReducedMotion();
   const {
@@ -50,7 +50,11 @@ export function SpaceBackground({ pose }) {
     <div className="lifemapV2Background" aria-hidden="true">
       <div
         className="lifemapV2BgPhoto"
-        style={{ transformOrigin, transform, transitionDuration: `${effectiveTransitionMs}ms` }}
+        style={{
+          transformOrigin: fullBleed ? '50% 50%' : transformOrigin,
+          transform,
+          transitionDuration: `${effectiveTransitionMs}ms`,
+        }}
       >
         {twinkles.map((star, index) => (
           <i
