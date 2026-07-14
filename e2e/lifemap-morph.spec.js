@@ -82,6 +82,21 @@ async function morphProfile(page) {
   return page.locator(MORPH).evaluate((element) => JSON.parse(element.dataset.morphProfile));
 }
 
+async function movingRectDelta(page) {
+  return page.evaluate(({ morphSelector, mountSelector }) => {
+    const morph = document.querySelector(morphSelector)?.getBoundingClientRect();
+    const mount = document.querySelector(mountSelector)?.getBoundingClientRect();
+    if (!morph || !mount) return null;
+    const differences = {
+      left: Math.abs(morph.left - mount.left),
+      top: Math.abs(morph.top - mount.top),
+      width: Math.abs(morph.width - mount.width),
+      height: Math.abs(morph.height - mount.height),
+    };
+    return { ...differences, maximum: Math.max(...Object.values(differences)) };
+  }, { morphSelector: MORPH, mountSelector: MOUNT });
+}
+
 async function dragPillToLeft(page) {
   const divider = page.locator('.lifemapV2PillDivider');
   const box = await divider.boundingBox();
@@ -142,10 +157,9 @@ test('4. opening starts at a different live snapped launcher position', async ({
   await gotoFixture(page);
   await dragPillToLeft(page);
   await page.locator(INBOX).click();
-  await expect(page.locator(MORPH)).toHaveAttribute('data-morph-state', 'camera-out');
-  const phaseA = await animationDescriptor(page.locator(MORPH));
-  expect(phaseA.keyframes[0].left).toBe('20px');
-  expect(phaseA.keyframes[0].width).toBe('126px');
+  await expect(page.locator(MORPH)).not.toHaveAttribute('data-morph-state', 'closed');
+  const profile = await morphProfile(page);
+  expect(profile.phaseA.from).toMatchObject({ x: 20, w: 126, h: 58 });
 });
 
 test('5. dragging the launcher does not activate a morph', async ({ page }) => {
@@ -327,4 +341,22 @@ test('20. at most one dialog exists throughout handoff and rapid input', async (
   }
   expect(maximum).toBe(1);
   await waitOpen(page, 'assistant');
+});
+
+test('21. the morph frame and real window remain one rectangle while moving', async ({ page }) => {
+  await gotoFixture(page);
+  await page.locator(INBOX).click();
+  await expect(page.locator(MORPH)).toHaveAttribute('data-morph-state', 'revealing');
+  await page.waitForTimeout(50);
+  const opening = await movingRectDelta(page);
+  expect(opening, 'opening morph and window must share one moving rectangle').not.toBeNull();
+  expect(opening.maximum, JSON.stringify(opening)).toBeLessThan(2);
+
+  await waitOpen(page, 'inbox');
+  await page.locator(CLOSE).click();
+  await expect(page.locator(MORPH)).toHaveAttribute('data-morph-state', 'morphing-back');
+  await page.waitForTimeout(50);
+  const closing = await movingRectDelta(page);
+  expect(closing, 'closing morph and window must share one moving rectangle').not.toBeNull();
+  expect(closing.maximum, JSON.stringify(closing)).toBeLessThan(2);
 });

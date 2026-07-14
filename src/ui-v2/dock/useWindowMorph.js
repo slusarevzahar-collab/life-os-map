@@ -77,8 +77,11 @@ export function lerpRect(a, b, t) {
 export function affineRectTransform(from, to) {
   const sx = from.w / to.w;
   const sy = from.h / to.h;
-  const tx = from.x - to.x * sx;
-  const ty = from.y - to.y * sy;
+  // The mount is already positioned at the destination rectangle. Its
+  // transform therefore only needs the positional delta; scaling the
+  // destination coordinates again would create a second, displaced window.
+  const tx = from.x - to.x;
+  const ty = from.y - to.y;
   return `translate(${tx.toFixed(1)}px,${ty.toFixed(1)}px) scale(${sx.toFixed(4)},${sy.toFixed(4)})`;
 }
 
