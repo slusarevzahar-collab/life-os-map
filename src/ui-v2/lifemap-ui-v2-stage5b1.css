@@ -114,3 +114,7 @@
 .lifemapV2 .workTimerWidget.is-v2:hover,.lifemapV2 .workTimerWidget.is-v2:focus-within{transform:scale(1.18)}
 .lifemapV2 .workTimerWidget.is-v2.is-running:hover,.lifemapV2 .workTimerWidget.is-v2.is-running:focus-within{transform:scale(1.18)}
 @media (prefers-reduced-motion:reduce){.lifemapV2WorkTimerSlot{transition:none}.lifemapV2 .workTimerWidget.is-v2:hover,.lifemapV2 .workTimerWidget.is-v2:focus-within{transform:none}}
+
+.lifemapV2WindowMount{transform-origin:0 0;will-change:transform,opacity}
+
+@media (prefers-reduced-motion:reduce){.lifemapV2WindowMount{will-change:auto}}

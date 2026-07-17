@@ -27,10 +27,20 @@ function frameStyle(rect) {
   };
 }
 
+export function affineRectTransform(from, to) {
+  const sx = from.w / to.w;
+  const sy = from.h / to.h;
+  const tx = from.x - to.x;
+  const ty = from.y - to.y;
+  return `translate(${tx.toFixed(1)}px,${ty.toFixed(1)}px) scale(${sx.toFixed(4)},${sy.toFixed(4)})`;
+}
+
 export function useWindowMorph({ onOpened, onClosed } = {}) {
   const morphRef = useRef(null);
+  const windowMountRef = useRef(null);
   const timersRef = useRef([]);
   const frameRequestRef = useRef(0);
+  const animationsRef = useRef([]);
   const [state, setState] = useState('closed');
   const [target, setTarget] = useState(null);
   const [contentVisible, setContentVisible] = useState(false);
@@ -40,8 +50,16 @@ export function useWindowMorph({ onOpened, onClosed } = {}) {
     timersRef.current = [];
     window.cancelAnimationFrame(frameRequestRef.current);
     frameRequestRef.current = 0;
-    const element = morphRef.current;
-    (element?.getAnimations?.() || []).forEach((animation) => animation.cancel());
+    const tracked = animationsRef.current;
+    animationsRef.current = [];
+    tracked.forEach((animation) => {
+      try { animation?.cancel?.(); } catch { /* Detached animation handles are harmless. */ }
+    });
+    [morphRef.current, windowMountRef.current].forEach((element) => {
+      (element?.getAnimations?.() || []).forEach((animation) => {
+        try { animation.cancel(); } catch { /* Best-effort cleanup. */ }
+      });
+    });
   }, []);
 
   const schedule = useCallback((callback, delay) => {
@@ -54,9 +72,13 @@ export function useWindowMorph({ onOpened, onClosed } = {}) {
 
   const runFrame = useCallback((from, to, mode) => {
     const element = morphRef.current;
-    if (!element) return;
+    const mount = windowMountRef.current;
+    if (!element || !mount) return;
 
-    (element.getAnimations?.() || []).forEach((animation) => animation.cancel());
+    [element, mount].forEach((target) => {
+      (target.getAnimations?.() || []).forEach((animation) => animation.cancel());
+    });
+    animationsRef.current = [];
     const keyframes =
       mode === 'open'
         ? [
@@ -69,17 +91,37 @@ export function useWindowMorph({ onOpened, onClosed } = {}) {
             { opacity: 0.85, offset: 0.6 },
             { ...frameStyle(to), opacity: 0 },
           ];
+    const mountTransform = affineRectTransform(mode === 'open' ? from : to, mode === 'open' ? to : from);
+    const mountKeyframes = mode === 'open'
+      ? [
+          { opacity: 0, transform: mountTransform },
+          { opacity: 0, offset: CONTENT_REVEAL_AT },
+          { opacity: 1, transform: 'translate(0px,0px) scale(1,1)' },
+        ]
+      : [
+          { opacity: 1, transform: 'translate(0px,0px) scale(1,1)' },
+          { opacity: 0, offset: 0.6 },
+          { opacity: 0, transform: mountTransform },
+        ];
 
     if (typeof element.animate === 'function') {
-      element.animate(keyframes, {
+      animationsRef.current = [element.animate(keyframes, {
         duration: MORPH_MS,
         easing: MORPH_EASE,
         fill: 'forwards',
-      });
+      })];
+      if (typeof mount.animate === 'function') {
+        animationsRef.current.push(mount.animate(mountKeyframes, {
+          duration: MORPH_MS,
+          easing: MORPH_EASE,
+          fill: 'forwards',
+        }));
+      }
       return;
     }
 
     Object.assign(element.style, frameStyle(to), { opacity: '0' });
+    Object.assign(mount.style, { opacity: mode === 'open' ? '1' : '0', transform: mode === 'open' ? 'none' : mountTransform });
   }, []);
 
   const queueFrame = useCallback(
@@ -113,6 +155,9 @@ export function useWindowMorph({ onOpened, onClosed } = {}) {
       queueFrame(segmentRect, windowRect, 'open');
       schedule(() => setContentVisible(true), Math.round(MORPH_MS * CONTENT_REVEAL_AT));
       schedule(() => {
+        clearScheduledWork();
+        Object.assign(morphRef.current?.style || {}, { opacity: '0' });
+        Object.assign(windowMountRef.current?.style || {}, { opacity: '1', transform: 'none' });
         setState('open');
         onOpened?.(targetName);
       }, MORPH_MS);
@@ -127,9 +172,11 @@ export function useWindowMorph({ onOpened, onClosed } = {}) {
       const windowRect = WINDOW_RECTS[currentTarget];
 
       clearScheduledWork();
-      setContentVisible(false);
+      setContentVisible(true);
 
       const finish = () => {
+        clearScheduledWork();
+        setContentVisible(false);
         setState('closed');
         setTarget(null);
         onClosed?.(currentTarget);
@@ -142,6 +189,7 @@ export function useWindowMorph({ onOpened, onClosed } = {}) {
 
       setState('closing');
       queueFrame(windowRect, segmentRect, 'close');
+      schedule(() => setContentVisible(false), Math.round(MORPH_MS * 0.6));
       schedule(finish, MORPH_MS);
     },
     [clearScheduledWork, onClosed, queueFrame, schedule, state, target]
@@ -149,6 +197,7 @@ export function useWindowMorph({ onOpened, onClosed } = {}) {
 
   return {
     morphRef,
+    windowMountRef,
     state,
     target,
     contentVisible,
