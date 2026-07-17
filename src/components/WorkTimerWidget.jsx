@@ -25,7 +25,7 @@ function StopIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.25" y="6.25" width="11.5" height="11.5" rx="1.5" /></svg>;
 }
 
-export const WorkTimerWidget = memo(function WorkTimerWidget({ onSessionChange }) {
+export const WorkTimerWidget = memo(function WorkTimerWidget({ onSessionChange, placement = 'legacy' }) {
   const widgetRef = useRef(null);
   const timer = useWorkTimer({ onSessionChange });
   const active = Boolean(timer.activeSession);
@@ -38,6 +38,7 @@ export const WorkTimerWidget = memo(function WorkTimerWidget({ onSessionChange }
   const underHour = active && timer.currentSessionSeconds < 3600;
 
   useEffect(() => {
+    if (placement === 'v2') return undefined;
     const widget = widgetRef.current;
     if (!widget) return undefined;
 
@@ -80,10 +81,16 @@ export const WorkTimerWidget = memo(function WorkTimerWidget({ onSessionChange }
       resizeObserver?.disconnect();
       window.removeEventListener('resize', syncDockPosition);
     };
-  }, []);
+  }, [placement]);
 
   return (
-    <section ref={widgetRef} className={`workTimerWidget is-${visualState} ${underHour ? 'is-under-hour' : ''}`} data-timer-state={visualState} aria-label="Учёт рабочего времени" onClick={(event) => event.stopPropagation()}>
+    <section
+      ref={widgetRef}
+      className={`workTimerWidget${placement === 'v2' ? ' is-v2' : ''} is-${visualState} ${underHour ? 'is-under-hour' : ''}`}
+      data-timer-state={visualState}
+      aria-label="Учёт рабочего времени"
+      onClick={(event) => event.stopPropagation()}
+    >
       <div className={`workTimerReadout ${hasLast ? 'hasLast' : ''}`}>
         <div className="workTimerClock" aria-live="off" aria-label={currentDuration}>
           <span className="workTimerFullDigits" aria-hidden="true">{durationCharacters.map((character, index) => <span key={index}>{character}</span>)}</span>
